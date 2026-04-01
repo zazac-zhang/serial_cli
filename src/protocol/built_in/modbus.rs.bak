@@ -1,0 +1,143 @@
+//! Modbus protocol implementation
+
+use crate::protocol::{Protocol, ProtocolStats};
+use crate::error::{Result, SerialError, ProtocolError};
+use std::assert;
+
+/// Modbus protocol handler
+#[derive(Clone)]
+pub struct ModbusProtocol {
+    mode: ModbusMode,
+}
+
+/// Modbus mode
+#[derive(Debug, Clone, Copy)]
+pub enum ModbusMode {
+    /// RTU mode (binary)
+    Rtu,
+    /// ASCII mode (text)
+    Ascii,
+}
+
+impl ModbusProtocol {
+    /// Create a new Modbus protocol
+    pub fn new(mode: ModbusMode) -> Self {
+        Self { mode }
+    }
+
+    /// Calculate CRC16 for Modbus RTU
+    fn calculate_crc(data: &[u8]) -> u16 {
+        let mut crc: u16 = 0xFFFF;
+        for &byte in data {
+            crc ^= byte as u16;
+            for _ in 0..8 {
+                if crc & 0x0001 != 0 {
+                    crc = (crc >> 1) ^ 0xA001;
+                } else {
+                    crc >>= 1;
+                }
+            }
+        }
+        crc
+    }
+
+    #[cfg(test)]
+    fn calculate_crc_public(data: &[u8]) -> u16 {
+        Self::calculate_crc(data)
+    }
+}
+
+impl Protocol for ModbusProtocol {
+    fn name(&self) -> &str {
+        match self.mode {
+            ModbusMode::Rtu => "modbus_rtu",
+            ModbusMode::Ascii => "modbus_ascii",
+        }
+    }
+
+    fn parse(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        match self.mode {
+            ModbusMode::Rtu => {
+                if data.len() < 4 {
+                    return Err(SerialError::Protocol(ProtocolError::InvalidFrame(
+                        "Frame too short".to_string(),
+                    )));
+                }
+
+                // Verify CRC
+                let received_crc = u16::from_le_bytes([data[data.len() - 2], data[data.len() - 1]]);
+                let calculated_crc = Self::calculate_crc(&data[..data.len() - 2]);
+
+                if received_crc != calculated_crc {
+                    return Err(SerialError::Protocol(ProtocolError::ChecksumFailed {
+                        expected: format!("{:04X}", received_crc),
+                        got: format!("{:04X}", calculated_crc),
+                    }));
+                }
+
+                Ok(data[..data.len() - 2].to_vec())
+            }
+            ModbusMode::Ascii => {
+                // TODO: Implement ASCII mode parsing
+                Ok(data.to_vec())
+            }
+        }
+    }
+
+    fn encode(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        match self.mode {
+            ModbusMode::Rtu => {
+                let mut frame = data.to_vec();
+                let crc = Self::calculate_crc(&frame);
+                frame.extend_from_slice(&crc.to_le_bytes());
+                Ok(frame)
+            }
+            ModbusMode::Ascii => {
+                // TODO: Implement ASCII mode encoding
+                Ok(data.to_vec())
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_crc_calculation() {
+        // Test consistency - encode and decode should work together
+        let mut protocol = ModbusProtocol::new(ModbusMode::Rtu);
+        let test_data = vec![0x01, 0x03, 0x00, 0x00, 0x00, 0x0A];
+
+        // Encode adds CRC
+        let encoded = protocol.encode(&test_data).unwrap();
+        assert!(encoded.len() > test_data.len());
+
+        // Parse removes and verifies CRC
+        let decoded = protocol.parse(&encoded).unwrap();
+        assert_eq!(decoded, test_data);
+
+        // Verify that different data produces different CRCs
+        let different_data = vec![0x01, 0x03, 0x00, 0x00, 0x00, 0x0B];
+        let different_encoded = protocol.encode(&different_data).unwrap();
+        assert_ne!(encoded, different_encoded);
+    }
+
+    #[test]
+    fn test_modbus_rtu_parse() {
+        let mut protocol = ModbusProtocol::new(ModbusMode::Rtu);
+
+        // Test with data that's too short
+        let short_data = [0x01, 0x03];
+        assert!(protocol.parse(&short_data).is_err());
+
+        // Test with valid frame - create frame and verify it can be parsed
+        let original_data = vec![0x01, 0x03, 0x02, 0x00, 0x0A];
+        let mut encoded = protocol.encode(&original_data).unwrap();
+        let decoded = protocol.parse(&encoded).unwrap();
+
+        // After parsing, CRC should be removed
+        assert_eq!(decoded, original_data);
+    }
+}

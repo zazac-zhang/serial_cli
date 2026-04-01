@@ -1,0 +1,64 @@
+[package]
+name = "serial-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Serial CLI Contributors"]
+description = "A universal serial port CLI tool optimized for AI interaction"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/serial-cli"
+readme = "README.md"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-serial = "5.4"
+
+# UUID generation
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Lua integration
+mlua = { version = "0.9", features = ["luajit", "async"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+rustyline = "18.0"
+
+# Utilities
+bytes = "1.5"
+
+# Configuration
+directories = "5.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+# Testing
+proptest = "1.4"
+criterion = "0.5"
+rustyline = "18.0.0"
+
+[[bin]]
+name = "serial-cli"
+path = "src/main.rs"
+
+[lib]
+name = "serial_cli"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
