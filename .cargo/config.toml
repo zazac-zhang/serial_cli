@@ -1,0 +1,17 @@
+# Cargo 配置文件
+# 优化编译性能和交叉编译设置
+
+[build]
+# 并行编译任务数
+# 设置为 CPU 核心数或 4（取较小值）
+jobs = 4
+
+# 使用更快的链接器（可选）
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+#[target.x86_64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+#[target.aarch64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=ld64"]
