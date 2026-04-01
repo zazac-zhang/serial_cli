@@ -10,6 +10,7 @@ use tokio::sync::Mutex;
 use std::collections::HashMap;
 
 /// Serial port manager
+#[derive(Clone)]
 pub struct PortManager {
     ports: Arc<Mutex<HashMap<String, Arc<Mutex<SerialPortHandle>>>>>,
 }

@@ -4,6 +4,8 @@
 
 pub mod port;
 pub mod io_loop;
+pub mod sniffer;
 
 pub use port::{PortManager, SerialConfig, SerialPortHandle, Parity};
 pub use io_loop::IoLoop;
+pub use sniffer::{SerialSniffer, SnifferConfig, SnifferSession, CapturedPacket, PacketDirection};

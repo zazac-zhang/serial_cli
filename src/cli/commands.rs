@@ -1,5 +1,152 @@
 //! CLI commands
+//!
+//! This module provides single-command execution mode.
 
 use crate::error::Result;
+use crate::serial_core::{PortManager, SerialConfig};
+use clap::Parser;
+use serde_json::json;
 
-// TODO: Implement CLI commands
+/// Single command executor
+#[derive(Parser, Debug)]
+pub struct CommandExecutor {
+    /// Port name
+    #[arg(short, long)]
+    pub port: String,
+
+    /// Timeout in milliseconds
+    #[arg(short, long, default_value = "1000")]
+    pub timeout: u64,
+
+    /// Output as JSON
+    #[arg(long, default_value = "false")]
+    pub json: bool,
+}
+
+impl CommandExecutor {
+    /// Create a new command executor
+    pub fn new(port: String, timeout: u64, json: bool) -> Self {
+        Self {
+            port,
+            timeout,
+            json,
+        }
+    }
+
+    /// Execute a send command
+    pub async fn send(&self, data: &str) -> Result<()> {
+        let manager = PortManager::new();
+        let config = SerialConfig::default();
+
+        // Open port
+        let port_id = manager.open_port(&self.port, config).await?;
+
+        println!("Sending to {}: {}", self.port, data);
+
+        // Get port handle and send
+        let port_handle = manager.get_port(&port_id).await?;
+        let mut handle = port_handle.lock().await;
+
+        let bytes_written = handle.write(data.as_bytes())?;
+        println!("Sent {} bytes", bytes_written);
+
+        // Wait for response
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Try to read response
+        let mut buffer = vec![0u8; 1024];
+        match handle.read(&mut buffer) {
+            Ok(n) if n > 0 => {
+                buffer.truncate(n);
+                if let Ok(text) = String::from_utf8(buffer.clone()) {
+                    println!("Response: {}", text);
+                } else {
+                    let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
+                    println!("Response (hex): {}", hex);
+                }
+            }
+            Ok(_) => println!("No response"),
+            Err(e) => println!("Read error: {}", e),
+        }
+
+        // Close port
+        manager.close_port(&port_id).await?;
+
+        Ok(())
+    }
+
+    /// Execute a receive command
+    pub async fn recv(&self, bytes: usize) -> Result<()> {
+        let manager = PortManager::new();
+        let config = SerialConfig::default();
+
+        // Open port
+        let port_id = manager.open_port(&self.port, config).await?;
+
+        println!("Reading up to {} bytes from {}", bytes, self.port);
+
+        // Get port handle and read
+        let port_handle = manager.get_port(&port_id).await?;
+        let mut handle = port_handle.lock().await;
+
+        let mut buffer = vec![0u8; bytes];
+        match handle.read(&mut buffer) {
+            Ok(n) if n > 0 => {
+                buffer.truncate(n);
+
+                if self.json {
+                    let hex_data: String = buffer.iter().map(|b| format!("{:02x}", b)).collect();
+                    let output = json!({
+                        "port": self.port,
+                        "bytes_read": n,
+                        "data": hex_data,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                } else {
+                    if let Ok(text) = String::from_utf8(buffer.clone()) {
+                        println!("Received ({} bytes): {}", n, text);
+                    } else {
+                        let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
+                        println!("Received ({} bytes): {}", n, hex);
+                    }
+                }
+            }
+            Ok(_) => println!("No data available"),
+            Err(e) => println!("Read error: {}", e),
+        }
+
+        // Close port
+        manager.close_port(&port_id).await?;
+
+        Ok(())
+    }
+
+    /// Execute a status command
+    pub async fn status(&self) -> Result<()> {
+        if self.json {
+            let output = json!({
+                "port": self.port,
+                "status": "closed",
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        } else {
+            println!("Port: {}", self.port);
+            println!("Status: closed");
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_executor_creation() {
+        let executor = CommandExecutor::new("COM1".to_string(), 1000, false);
+        assert_eq!(executor.port, "COM1");
+        assert_eq!(executor.timeout, 1000);
+        assert_eq!(executor.json, false);
+    }
+}
