@@ -2,7 +2,7 @@
 //!
 //! This module allows users to define custom protocols in Lua.
 
-use crate::error::{Result, SerialError, ProtocolError};
+use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::{Protocol, ProtocolStats};
 use mlua::{Lua, Value};
 
@@ -20,9 +20,10 @@ impl LuaProtocol {
         // Validate the script syntax by trying to load it
         let lua = Lua::new();
         if let Err(e) = lua.load(script).exec() {
-            return Err(SerialError::Protocol(ProtocolError::InvalidFrame(
-                format!("Invalid Lua script: {}", e)
-            )));
+            return Err(SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                "Invalid Lua script: {}",
+                e
+            ))));
         }
 
         Ok(Self {
@@ -52,10 +53,12 @@ impl LuaProtocol {
             let lua = Lua::new();
 
             // Load the script
-            lua.load(script).exec()
-                .map_err(|e| SerialError::Protocol(ProtocolError::InvalidFrame(
-                    format!("Failed to load Lua script: {}", e)
-                )))?;
+            lua.load(script).exec().map_err(|e| {
+                SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                    "Failed to load Lua script: {}",
+                    e
+                )))
+            })?;
 
             // Set global data variable
             let globals = lua.globals();
@@ -79,9 +82,7 @@ impl LuaProtocol {
                     }
                     Ok(bytes)
                 }
-                Ok(Value::String(s)) => {
-                    Ok(s.to_str().unwrap_or("").as_bytes().to_vec())
-                }
+                Ok(Value::String(s)) => Ok(s.to_str().unwrap_or("").as_bytes().to_vec()),
                 Ok(Value::Integer(n)) => Ok(vec![n as u8]),
                 Ok(Value::Number(n)) => Ok(vec![n as u8]),
                 Ok(_) | Err(_) => Ok(data.to_vec()),

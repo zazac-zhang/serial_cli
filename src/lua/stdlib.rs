@@ -31,26 +31,31 @@ impl LuaStdLib {
 
         // string.to_hex
         let to_hex = self.lua.create_function(|_, data: String| {
-            Ok(data.bytes().map(|b| format!("{:02x}", b)).collect::<String>())
+            Ok(data
+                .bytes()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>())
         })?;
         globals.set("string_to_hex", to_hex)?;
 
         // string.from_hex
         let from_hex = self.lua.create_function(|_, hex: String| {
-            if hex.len() % 2 != 0 {
-                return Err(mlua::Error::RuntimeError("Hex string must have even length".to_string()));
+            if !hex.len().is_multiple_of(2) {
+                return Err(mlua::Error::RuntimeError(
+                    "Hex string must have even length".to_string(),
+                ));
             }
 
             let mut bytes = Vec::new();
             for i in (0..hex.len()).step_by(2) {
-                let byte_str = &hex[i..i+2];
+                let byte_str = &hex[i..i + 2];
                 let byte = u8::from_str_radix(byte_str, 16)
                     .map_err(|_| mlua::Error::RuntimeError("Invalid hex string".to_string()))?;
                 bytes.push(byte);
             }
 
-            Ok(String::from_utf8(bytes)
-                .map_err(|_| mlua::Error::RuntimeError("Invalid UTF-8".to_string()))?)
+            String::from_utf8(bytes)
+                .map_err(|_| mlua::Error::RuntimeError("Invalid UTF-8".to_string()))
         })?;
         globals.set("string_from_hex", from_hex)?;
 
@@ -63,19 +68,24 @@ impl LuaStdLib {
 
         // hex.encode
         let encode = self.lua.create_function(|_, data: Vec<u8>| {
-            Ok(data.iter().map(|b| format!("{:02x}", b)).collect::<String>())
+            Ok(data
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>())
         })?;
         globals.set("hex_encode", encode)?;
 
         // hex.decode
         let decode = self.lua.create_function(|_, hex: String| {
-            if hex.len() % 2 != 0 {
-                return Err(mlua::Error::RuntimeError("Hex string must have even length".to_string()));
+            if !hex.len().is_multiple_of(2) {
+                return Err(mlua::Error::RuntimeError(
+                    "Hex string must have even length".to_string(),
+                ));
             }
 
             let mut bytes = Vec::new();
             for i in (0..hex.len()).step_by(2) {
-                let byte_str = &hex[i..i+2];
+                let byte_str = &hex[i..i + 2];
                 let byte = u8::from_str_radix(byte_str, 16)
                     .map_err(|_| mlua::Error::RuntimeError("Invalid hex string".to_string()))?;
                 bytes.push(byte);

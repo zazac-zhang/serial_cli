@@ -6,11 +6,11 @@
 pub mod config;
 pub mod error;
 
-pub mod serial_core;
-pub mod protocol;
-pub mod lua;
-pub mod task;
 pub mod cli;
+pub mod lua;
+pub mod protocol;
+pub mod serial_core;
+pub mod task;
 
 // Re-exports for convenience
 pub use error::{Result, SerialError};

@@ -1,9 +1,9 @@
 //! Script execution engine
 
-use crate::error::{Result, SerialError, ScriptError};
+use crate::error::{Result, SerialError};
 use crate::lua::bindings::LuaBindings;
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 /// Script execution engine
 pub struct ScriptEngine {
@@ -25,8 +25,7 @@ impl ScriptEngine {
 
     /// Execute a script from a file
     pub fn execute_file(&self, path: &Path) -> Result<()> {
-        let script = fs::read_to_string(path)
-            .map_err(|e| SerialError::Io(e))?;
+        let script = fs::read_to_string(path).map_err(SerialError::Io)?;
 
         self.bindings.execute_script(&script)
     }

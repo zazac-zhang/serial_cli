@@ -109,9 +109,10 @@ impl TaskQueue {
 
     /// Acquire a permit for concurrent execution
     pub async fn acquire_permit(&self) -> Result<tokio::sync::SemaphorePermit<'_>> {
-        self.semaphore.acquire()
+        self.semaphore
+            .acquire()
             .await
-            .map_err(|e| SerialError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))
+            .map_err(|e| SerialError::Io(std::io::Error::other(e)))
     }
 
     /// Get the maximum concurrent tasks
@@ -149,7 +150,10 @@ mod tests {
             content: "print('test')".to_string(),
         });
 
-        queue.push(task.clone(), TaskPriority::Normal).await.unwrap();
+        queue
+            .push(task.clone(), TaskPriority::Normal)
+            .await
+            .unwrap();
         assert_eq!(queue.len().await, 1);
 
         let retrieved = queue.pop().await.unwrap();

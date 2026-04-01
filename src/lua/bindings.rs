@@ -3,7 +3,7 @@
 //! This module provides the Rust API bindings for Lua scripts.
 
 use crate::error::{Result, SerialError};
-use mlua::{Lua, Value, Function};
+use mlua::{Function, Lua, Value};
 
 /// Lua API bindings
 pub struct LuaBindings {
@@ -64,9 +64,7 @@ impl LuaBindings {
         globals.set("json_encode", encode)?;
 
         // json.decode (not implemented - returns nil)
-        let decode = self.lua.create_function(|_, _: String| {
-            Ok(Value::Nil)
-        })?;
+        let decode = self.lua.create_function(|_, _: String| Ok(Value::Nil))?;
         globals.set("json_decode", decode)?;
 
         // sleep
@@ -88,34 +86,27 @@ impl LuaBindings {
 
     /// Execute a Lua script
     pub fn execute_script(&self, script: &str) -> Result<()> {
-        self.lua.load(script)
-            .exec()
-            .map_err(|e| SerialError::Lua(e))
+        self.lua.load(script).exec().map_err(SerialError::Lua)
     }
 
     /// Execute a Lua function (simplified - returns success/failure)
     pub fn execute_function(&self, func_name: &str, args: Vec<Value>) -> Result<()> {
         let globals = self.lua.globals();
-        let func: Function = globals.get(func_name)
-            .map_err(|e| SerialError::Lua(e))?;
+        let func: Function = globals.get(func_name).map_err(SerialError::Lua)?;
 
-        func.call(args)
-            .map(|_: Value| ())
-            .map_err(|e| SerialError::Lua(e))
+        func.call(args).map(|_: Value| ()).map_err(SerialError::Lua)
     }
 
     /// Get a global value (simplified)
     pub fn get_global(&self, name: &str) -> Result<Value<'_>> {
         let globals = self.lua.globals();
-        globals.get(name)
-            .map_err(|e| SerialError::Lua(e))
+        globals.get(name).map_err(SerialError::Lua)
     }
 
     /// Set a global value (simplified)
     pub fn set_global(&self, name: &str, value: Value) -> Result<()> {
         let globals = self.lua.globals();
-        globals.set(name, value)
-            .map_err(|e| SerialError::Lua(e))
+        globals.set(name, value).map_err(SerialError::Lua)
     }
 }
 

@@ -3,8 +3,8 @@
 //! This module provides asynchronous task execution.
 
 use crate::error::Result;
-use crate::task::{Task, TaskResult, TaskType};
 use crate::task::queue::TaskQueue;
+use crate::task::{Task, TaskResult, TaskType};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, RwLock};
@@ -25,6 +25,7 @@ pub struct TaskExecutor {
 #[derive(Debug, Clone)]
 struct TaskInfo {
     id: String,
+    #[allow(dead_code)]
     started_at: std::time::Instant,
 }
 
@@ -171,7 +172,10 @@ impl TaskExecutor {
                     Err(e) => TaskResult::Error(format!("Failed to create engine: {:?}", e)),
                 }
             }
-            TaskType::SerialOp { port_name, operation: _ } => {
+            TaskType::SerialOp {
+                port_name,
+                operation: _,
+            } => {
                 tracing::info!("Executing serial operation on {}", port_name);
 
                 // For now, just return success

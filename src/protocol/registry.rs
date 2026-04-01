@@ -2,11 +2,10 @@
 //!
 //! This module provides protocol registration, discovery, and lifecycle management.
 
-use crate::error::{Result, SerialError, ProtocolError};
+use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::Protocol;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Protocol factory trait for creating protocol instances
 pub trait ProtocolFactory: Send + Sync {
@@ -44,7 +43,9 @@ impl ProtocolRegistry {
     /// Get or create a protocol instance
     pub async fn get_protocol(&self, name: &str) -> Result<Box<dyn Protocol>> {
         // Create new instance from factory
-        let factory = self.factories.get(name)
+        let factory = self
+            .factories
+            .get(name)
             .ok_or_else(|| SerialError::Protocol(ProtocolError::NotFound(name.to_string())))?;
 
         let protocol = factory.create()?;
@@ -53,12 +54,13 @@ impl ProtocolRegistry {
 
     /// List all registered protocols
     pub async fn list_protocols(&self) -> Vec<ProtocolInfo> {
-        self.factories.iter().map(|(name, factory)| {
-            ProtocolInfo {
+        self.factories
+            .iter()
+            .map(|(name, factory)| ProtocolInfo {
                 name: name.clone(),
                 description: factory.description().to_string(),
-            }
-        }).collect()
+            })
+            .collect()
     }
 
     /// Clear all protocol instances (no-op in new implementation)
@@ -128,7 +130,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::built_in::{LineProtocol, ModbusProtocol, modbus::ModbusMode};
+    use crate::protocol::built_in::{modbus::ModbusMode, LineProtocol, ModbusProtocol};
 
     #[tokio::test]
     async fn test_registry_registration() {

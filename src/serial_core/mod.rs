@@ -2,10 +2,10 @@
 //!
 //! This module provides serial port management and I/O operations.
 
-pub mod port;
 pub mod io_loop;
+pub mod port;
 pub mod sniffer;
 
-pub use port::{PortManager, SerialConfig, SerialPortHandle, Parity};
 pub use io_loop::IoLoop;
-pub use sniffer::{SerialSniffer, SnifferConfig, SnifferSession, CapturedPacket, PacketDirection};
+pub use port::{Parity, PortManager, SerialConfig, SerialPortHandle};
+pub use sniffer::{CapturedPacket, PacketDirection, SerialSniffer, SnifferConfig, SnifferSession};

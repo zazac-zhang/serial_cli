@@ -3,11 +3,11 @@
 //! This module provides serial port discovery, configuration, and management.
 
 use crate::error::{Result, SerialError, SerialPortError};
-use tokio_serial::{SerialPort};
-use std::time::Duration;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio_serial::SerialPort;
 
 /// Serial port manager
 #[derive(Clone)]
@@ -65,10 +65,13 @@ impl PortManager {
         tokio_serial::available_ports()
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
             .map(|ports| {
-                ports.into_iter().map(|p| SerialPortInfo {
-                    port_name: p.port_name,
-                    port_type: format!("{:?}", p.port_type),
-                }).collect()
+                ports
+                    .into_iter()
+                    .map(|p| SerialPortInfo {
+                        port_name: p.port_name,
+                        port_type: format!("{:?}", p.port_type),
+                    })
+                    .collect()
             })
     }
 
@@ -77,7 +80,9 @@ impl PortManager {
         // Check if port is already open
         let ports_guard = self.ports.lock().await;
         if ports_guard.contains_key(name) {
-            return Err(SerialError::Serial(SerialPortError::PortBusy(name.to_string())));
+            return Err(SerialError::Serial(SerialPortError::PortBusy(
+                name.to_string(),
+            )));
         }
         drop(ports_guard);
 
@@ -117,15 +122,17 @@ impl PortManager {
     /// Close a serial port
     pub async fn close_port(&self, port_id: &str) -> Result<()> {
         let mut ports_guard = self.ports.lock().await;
-        ports_guard.remove(port_id)
-            .ok_or_else(|| SerialError::Serial(SerialPortError::PortNotFound(port_id.to_string())))?;
+        ports_guard.remove(port_id).ok_or_else(|| {
+            SerialError::Serial(SerialPortError::PortNotFound(port_id.to_string()))
+        })?;
         Ok(())
     }
 
     /// Get a port handle by ID
     pub async fn get_port(&self, port_id: &str) -> Result<Arc<Mutex<SerialPortHandle>>> {
         let ports_guard = self.ports.lock().await;
-        ports_guard.get(port_id)
+        ports_guard
+            .get(port_id)
             .cloned()
             .ok_or_else(|| SerialError::Serial(SerialPortError::PortNotFound(port_id.to_string())))
     }
@@ -150,13 +157,15 @@ impl SerialPortHandle {
 
     /// Write data to the port
     pub fn write(&mut self, data: &[u8]) -> Result<usize> {
-        self.port.write(data)
+        self.port
+            .write(data)
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
     }
 
     /// Read data from the port
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.port.read(buf)
+        self.port
+            .read(buf)
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
     }
 
@@ -198,7 +207,9 @@ mod tests {
     async fn test_port_manager_creation() {
         let manager = PortManager::new();
         // Try to open a non-existent port
-        let result = manager.open_port("NONEXISTENT", SerialConfig::default()).await;
+        let result = manager
+            .open_port("NONEXISTENT", SerialConfig::default())
+            .await;
         assert!(result.is_err());
     }
 }

@@ -1,7 +1,7 @@
 //! AT Command protocol implementation
 
-use crate::protocol::{Protocol, ProtocolStats};
-use crate::error::{Result, SerialError, ProtocolError};
+use crate::error::{ProtocolError, Result, SerialError};
+use crate::protocol::Protocol;
 
 /// AT Command protocol handler
 #[derive(Clone)]

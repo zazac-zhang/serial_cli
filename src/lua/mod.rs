@@ -2,11 +2,11 @@
 //!
 //! This module provides Lua scripting integration.
 
-pub mod engine;
 pub mod bindings;
-pub mod stdlib;
+pub mod engine;
 pub mod executor;
+pub mod stdlib;
 
-pub use engine::LuaEngine;
 pub use bindings::LuaBindings;
+pub use engine::LuaEngine;
 pub use executor::ScriptEngine;

@@ -4,8 +4,8 @@
 
 use crate::error::{Result, SerialError};
 use crate::lua::executor::ScriptEngine;
-use crate::task::{Task, TaskPriority, TaskType};
 use crate::task::executor::TaskExecutor;
+use crate::task::{Task, TaskPriority, TaskType};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -42,10 +42,7 @@ impl BatchRunner {
     pub fn new(config: BatchConfig) -> Result<Self> {
         let executor = Arc::new(TaskExecutor::new(config.max_concurrent));
 
-        Ok(Self {
-            config,
-            executor,
-        })
+        Ok(Self { config, executor })
     }
 
     /// Run a single script
@@ -63,8 +60,7 @@ impl BatchRunner {
         let mut results = Vec::new();
 
         for script_path in script_paths {
-            let script_content = std::fs::read_to_string(script_path)
-                .map_err(|e| SerialError::Io(e))?;
+            let script_content = std::fs::read_to_string(script_path).map_err(SerialError::Io)?;
 
             let task = Task::new(TaskType::Script {
                 name: script_path.display().to_string(),
@@ -86,14 +82,12 @@ impl BatchRunner {
                         duration: last.duration,
                     });
 
-                    if !self.config.continue_on_error {
-                        if matches!(last.result, crate::task::TaskResult::Error(_)) {
-                            return Err(SerialError::Script(
-                                crate::error::ScriptError::ApiError(
-                                    "Script execution failed".to_string()
-                                )
-                            ));
-                        }
+                    if !self.config.continue_on_error
+                        && matches!(last.result, crate::task::TaskResult::Error(_))
+                    {
+                        return Err(SerialError::Script(crate::error::ScriptError::ApiError(
+                            "Script execution failed".to_string(),
+                        )));
                     }
                     break;
                 }
@@ -119,8 +113,7 @@ impl BatchRunner {
 
         // Submit all tasks
         for script_path in script_paths {
-            let script_content = std::fs::read_to_string(script_path)
-                .map_err(|e| SerialError::Io(e))?;
+            let script_content = std::fs::read_to_string(script_path).map_err(SerialError::Io)?;
 
             let task = Task::new(TaskType::Script {
                 name: script_path.display().to_string(),
@@ -152,14 +145,17 @@ impl BatchRunner {
         }
 
         let completed = self.executor.get_completed().await;
-        let results: Vec<ScriptResult> = completed.into_iter().map(|c| {
-            let script_name = c.task_id.clone(); // In real implementation, store script name
-            ScriptResult {
-                script: script_name,
-                success: matches!(c.result, crate::task::TaskResult::Success),
-                duration: c.duration,
-            }
-        }).collect();
+        let results: Vec<ScriptResult> = completed
+            .into_iter()
+            .map(|c| {
+                let script_name = c.task_id.clone(); // In real implementation, store script name
+                ScriptResult {
+                    script: script_name,
+                    success: matches!(c.result, crate::task::TaskResult::Success),
+                    duration: c.duration,
+                }
+            })
+            .collect();
 
         executor.stop().await?;
 

@@ -1,7 +1,7 @@
 //! Modbus protocol implementation
 
+use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::{Protocol, ProtocolStats};
-use crate::error::{Result, SerialError, ProtocolError};
 
 /// Modbus protocol handler
 #[derive(Clone)]
@@ -130,10 +130,11 @@ impl ModbusProtocol {
                 }
 
                 // Find end delimiter
-                let end_pos = data.iter().position(|&b| b == b'\r')
-                    .ok_or_else(|| SerialError::Protocol(ProtocolError::InvalidFrame(
+                let end_pos = data.iter().position(|&b| b == b'\r').ok_or_else(|| {
+                    SerialError::Protocol(ProtocolError::InvalidFrame(
                         "ASCII frame missing CR delimiter".to_string(),
-                    )))?;
+                    ))
+                })?;
 
                 if end_pos < 3 {
                     return Err(SerialError::Protocol(ProtocolError::InvalidFrame(
@@ -145,7 +146,7 @@ impl ModbusProtocol {
                 let hex_data = &data[1..end_pos];
 
                 // Must have even number of hex digits
-                if hex_data.len() % 2 != 0 {
+                if !hex_data.len().is_multiple_of(2) {
                     return Err(SerialError::Protocol(ProtocolError::InvalidFrame(
                         "ASCII frame must have even number of hex digits".to_string(),
                     )));
@@ -154,7 +155,7 @@ impl ModbusProtocol {
                 // Convert hex to bytes
                 let mut bytes = Vec::new();
                 for i in (0..hex_data.len()).step_by(2) {
-                    let byte_str = &hex_data[i..i+2];
+                    let byte_str = &hex_data[i..i + 2];
                     let byte = Self::hex_to_byte(byte_str)?;
                     bytes.push(byte);
                 }
@@ -214,9 +215,10 @@ impl ModbusProtocol {
             b'0'..=b'9' => Ok(c - b'0'),
             b'A'..=b'F' => Ok(c - b'A' + 10),
             b'a'..=b'f' => Ok(c - b'a' + 10),
-            _ => Err(SerialError::Protocol(ProtocolError::InvalidFrame(
-                format!("Invalid hex character: {}", c as char),
-            ))),
+            _ => Err(SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                "Invalid hex character: {}",
+                c as char
+            )))),
         }
     }
 }
@@ -273,10 +275,11 @@ impl Protocol for ModbusProtocol {
                 }
 
                 // Find end delimiter
-                let end_pos = data.iter().position(|&b| b == b'\r')
-                    .ok_or_else(|| SerialError::Protocol(ProtocolError::InvalidFrame(
+                let end_pos = data.iter().position(|&b| b == b'\r').ok_or_else(|| {
+                    SerialError::Protocol(ProtocolError::InvalidFrame(
                         "ASCII frame missing CR delimiter".to_string(),
-                    )))?;
+                    ))
+                })?;
 
                 if end_pos < 3 {
                     return Err(SerialError::Protocol(ProtocolError::InvalidFrame(
@@ -288,7 +291,7 @@ impl Protocol for ModbusProtocol {
                 let hex_data = &data[1..end_pos];
 
                 // Must have even number of hex digits
-                if hex_data.len() % 2 != 0 {
+                if !hex_data.len().is_multiple_of(2) {
                     return Err(SerialError::Protocol(ProtocolError::InvalidFrame(
                         "ASCII frame must have even number of hex digits".to_string(),
                     )));
@@ -297,7 +300,7 @@ impl Protocol for ModbusProtocol {
                 // Convert hex to bytes
                 let mut bytes = Vec::new();
                 for i in (0..hex_data.len()).step_by(2) {
-                    let byte_str = &hex_data[i..i+2];
+                    let byte_str = &hex_data[i..i + 2];
                     let byte = Self::hex_to_byte(byte_str)?;
                     bytes.push(byte);
                 }

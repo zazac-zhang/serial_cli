@@ -4,7 +4,7 @@
 
 use crate::error::{Result, SerialError};
 use crate::serial_core::{PortManager, SerialConfig};
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -66,6 +66,7 @@ pub enum PacketDirection {
 pub struct SerialSniffer {
     config: SnifferConfig,
     packets: Arc<Mutex<Vec<CapturedPacket>>>,
+    #[allow(dead_code)]
     output_file: Option<PathBuf>,
 }
 
@@ -92,7 +93,9 @@ impl SerialSniffer {
     /// Start sniffing on a port
     pub async fn start_sniffing(&self, port_name: &str) -> Result<SnifferSession> {
         let manager = PortManager::new();
-        let port_id = manager.open_port(port_name, SerialConfig::default()).await?;
+        let port_id = manager
+            .open_port(port_name, SerialConfig::default())
+            .await?;
 
         Ok(SnifferSession {
             port_id,
@@ -125,11 +128,14 @@ impl SerialSniffer {
     pub async fn save_to_file(&self, path: &PathBuf) -> Result<()> {
         let packets = self.packets.lock().await;
 
-        let mut file = std::fs::File::create(path)
-            .map_err(|e| SerialError::Io(e))?;
+        let mut file = std::fs::File::create(path).map_err(SerialError::Io)?;
 
-        writeln!(file, "Serial Port Capture - {}", chrono::Utc::now().to_rfc3339())
-            .map_err(|e| SerialError::Io(e))?;
+        writeln!(
+            file,
+            "Serial Port Capture - {}",
+            chrono::Utc::now().to_rfc3339()
+        )
+        .map_err(SerialError::Io)?;
 
         for packet in packets.iter() {
             self.write_packet(&mut file, packet)?;
@@ -141,8 +147,7 @@ impl SerialSniffer {
     /// Write a packet to the output
     fn write_packet(&self, file: &mut std::fs::File, packet: &CapturedPacket) -> Result<()> {
         if self.config.include_timestamps {
-            write!(file, "[{}] ", packet.timestamp)
-                .map_err(|e| SerialError::Io(e))?;
+            write!(file, "[{}] ", packet.timestamp).map_err(SerialError::Io)?;
         }
 
         let direction = match packet.direction {
@@ -150,60 +155,47 @@ impl SerialSniffer {
             PacketDirection::Rx => "RX",
         };
 
-        writeln!(file, "{} ({} bytes)", direction, packet.length)
-            .map_err(|e| SerialError::Io(e))?;
+        writeln!(file, "{} ({} bytes)", direction, packet.length).map_err(SerialError::Io)?;
 
         if self.config.hex_display {
             // Display as hex
             for (i, chunk) in packet.data.chunks(16).enumerate() {
                 let offset = i * 16;
-                write!(file, "  {:04X}: ", offset)
-                    .map_err(|e| SerialError::Io(e))?;
+                write!(file, "  {:04X}: ", offset).map_err(SerialError::Io)?;
 
                 for (j, &byte) in chunk.iter().enumerate() {
-                    write!(file, "{:02X} ", byte)
-                        .map_err(|e| SerialError::Io(e))?;
+                    write!(file, "{:02X} ", byte).map_err(SerialError::Io)?;
 
                     if j == 7 {
-                        write!(file, " ")
-                            .map_err(|e| SerialError::Io(e))?;
+                        write!(file, " ").map_err(SerialError::Io)?;
                     }
                 }
 
                 // Pad with spaces if needed
                 for _ in chunk.len()..16 {
-                    write!(file, "   ")
-                        .map_err(|e| SerialError::Io(e))?;
+                    write!(file, "   ").map_err(SerialError::Io)?;
                 }
 
                 // ASCII representation
-                write!(file, "  |")
-                    .map_err(|e| SerialError::Io(e))?;
+                write!(file, "  |").map_err(SerialError::Io)?;
 
                 for &byte in chunk.iter() {
                     if byte.is_ascii_graphic() || byte == b' ' {
-                        write!(file, "{}", byte as char)
-                            .map_err(|e| SerialError::Io(e))?;
+                        write!(file, "{}", byte as char).map_err(SerialError::Io)?;
                     } else {
-                        write!(file, ".")
-                            .map_err(|e| SerialError::Io(e))?;
+                        write!(file, ".").map_err(SerialError::Io)?;
                     }
                 }
 
-                writeln!(file, "|")
-                    .map_err(|e| SerialError::Io(e))?;
+                writeln!(file, "|").map_err(SerialError::Io)?;
             }
         } else {
             // Display as raw bytes
-            let hex: String = packet.data.iter()
-                .map(|b| format!("{:02X} ", b))
-                .collect();
-            writeln!(file, "  {}", hex)
-                .map_err(|e| SerialError::Io(e))?;
+            let hex: String = packet.data.iter().map(|b| format!("{:02X} ", b)).collect();
+            writeln!(file, "  {}", hex).map_err(SerialError::Io)?;
         }
 
-        writeln!(file)
-            .map_err(|e| SerialError::Io(e))?;
+        writeln!(file).map_err(SerialError::Io)?;
 
         Ok(())
     }
@@ -211,6 +203,7 @@ impl SerialSniffer {
 
 /// Active sniffing session
 pub struct SnifferSession {
+    #[allow(dead_code)]
     port_id: String,
     port_name: String,
     packets: Arc<Mutex<Vec<CapturedPacket>>>,
@@ -277,15 +270,15 @@ impl SnifferSession {
     /// Get session statistics
     pub async fn stats(&self) -> SnifferStats {
         let packets = self.packets.lock().await;
-        let tx_count = packets.iter()
+        let tx_count = packets
+            .iter()
             .filter(|p| p.direction == PacketDirection::Tx)
             .count();
-        let rx_count = packets.iter()
+        let rx_count = packets
+            .iter()
             .filter(|p| p.direction == PacketDirection::Rx)
             .count();
-        let total_bytes: usize = packets.iter()
-            .map(|p| p.length)
-            .sum();
+        let total_bytes: usize = packets.iter().map(|p| p.length).sum();
 
         SnifferStats {
             port_name: self.port_name.clone(),

@@ -32,12 +32,10 @@ impl InteractiveShell {
 
         while self.running {
             print!("serial> ");
-            io::stdout().flush()
-                .map_err(|e| SerialError::Io(e))?;
+            io::stdout().flush().map_err(SerialError::Io)?;
 
             let mut line = String::new();
-            io::stdin().read_line(&mut line)
-                .map_err(|e| SerialError::Io(e))?;
+            io::stdin().read_line(&mut line).map_err(SerialError::Io)?;
 
             let line = line.trim();
             if line.is_empty() {
@@ -72,7 +70,10 @@ impl InteractiveShell {
                 println!("Goodbye!");
                 self.running = false;
             }
-            _ => println!("Unknown command: {}. Type 'help' for available commands.", parts[0]),
+            _ => println!(
+                "Unknown command: {}. Type 'help' for available commands.",
+                parts[0]
+            ),
         }
 
         Ok(())
@@ -244,9 +245,7 @@ impl InteractiveShell {
                         println!("Received ({} bytes as text): {}", bytes_read, text);
                     } else {
                         // Display as hex
-                        let hex: String = buffer.iter()
-                            .map(|b| format!("{:02x} ", b))
-                            .collect();
+                        let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
                         println!("Received ({} bytes as hex): {}", bytes_read, hex);
                     }
                 } else {

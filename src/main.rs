@@ -1,9 +1,8 @@
 //! Serial CLI - Main entry point
 
 use clap::{Parser, Subcommand};
-use serial_cli::error::Result;
 use serial_cli::cli::interactive::InteractiveShell;
-use tracing_subscriber;
+use serial_cli::error::Result;
 
 #[derive(Parser)]
 #[command(name = "serial-cli")]
@@ -52,9 +51,7 @@ async fn main() -> Result<()> {
 
     // Initialize logging
     let log_level = if cli.verbose { "debug" } else { "info" };
-    tracing_subscriber::fmt()
-        .with_env_filter(log_level)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(log_level).init();
 
     // Load configuration
     let _config = serial_cli::config::load_config_with_fallback();
@@ -80,8 +77,8 @@ async fn main() -> Result<()> {
 }
 
 fn list_ports() -> Result<()> {
-    use serial_cli::serial_core::PortManager;
     use serde_json::json;
+    use serial_cli::serial_core::PortManager;
 
     let manager = PortManager::new();
     let ports = manager.list_ports()?;
@@ -103,8 +100,8 @@ fn list_ports() -> Result<()> {
 
 async fn send_data(port: &str, data: &str) -> Result<()> {
     use serial_cli::serial_core::{PortManager, SerialConfig};
-    use std::time::Duration;
     use std::thread;
+    use std::time::Duration;
 
     println!("Opening port: {}", port);
 

@@ -2,12 +2,12 @@
 //!
 //! This module provides protocol handling and parsing.
 
-pub mod registry;
 pub mod built_in;
 pub mod lua_ext;
+pub mod registry;
 
-pub use registry::{ProtocolRegistry, ProtocolFactory, ProtocolInfo};
-pub use built_in::{ModbusProtocol, AtCommandProtocol, LineProtocol};
+pub use built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
+pub use registry::{ProtocolFactory, ProtocolInfo, ProtocolRegistry};
 
 /// Protocol trait for serial communication protocols
 pub trait Protocol: Send + Sync {

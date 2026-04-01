@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// Configuration structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// Serial port configuration
     pub serial: SerialConfig,
@@ -126,18 +126,6 @@ impl Default for OutputConfig {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            serial: SerialConfig::default(),
-            logging: LoggingConfig::default(),
-            lua: LuaConfig::default(),
-            task: TaskConfig::default(),
-            output: OutputConfig::default(),
-        }
-    }
-}
-
 /// Load configuration from a file
 pub fn load_config(path: &Path) -> Result<Config> {
     let content = std::fs::read_to_string(path)
@@ -156,8 +144,7 @@ pub fn get_global_config_dir() -> Option<PathBuf> {
             .ok()
             .map(|p| PathBuf::from(p).join("serial-cli"))
     } else {
-        directories::BaseDirs::new()
-            .map(|dirs| PathBuf::from(dirs.config_dir()).join("serial-cli"))
+        directories::BaseDirs::new().map(|dirs| PathBuf::from(dirs.config_dir()).join("serial-cli"))
     };
 
     config_dir

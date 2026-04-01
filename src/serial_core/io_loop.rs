@@ -91,9 +91,12 @@ impl IoLoop {
         ports.insert(port_id.clone(), true);
 
         // Send event
-        let _ = self.event_tx.send(IoEvent::PortOpened {
-            port_id: port_id.clone(),
-        }).await;
+        let _ = self
+            .event_tx
+            .send(IoEvent::PortOpened {
+                port_id: port_id.clone(),
+            })
+            .await;
 
         Ok(port_id)
     }
@@ -107,20 +110,21 @@ impl IoLoop {
         ports.remove(port_id);
 
         // Send event
-        let _ = self.event_tx.send(IoEvent::PortClosed {
-            port_id: port_id.to_string(),
-        }).await;
+        let _ = self
+            .event_tx
+            .send(IoEvent::PortClosed {
+                port_id: port_id.to_string(),
+            })
+            .await;
 
         Ok(())
     }
 
     /// Run the I/O loop
     pub async fn run(&mut self) -> Result<()> {
-        let mut event_rx = self.event_rx.take()
-            .ok_or_else(|| SerialError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Event receiver already taken"
-            )))?;
+        let mut event_rx = self.event_rx.take().ok_or_else(|| {
+            SerialError::Io(std::io::Error::other("Event receiver already taken"))
+        })?;
 
         // Spawn I/O tasks for each active port
         let active_ports = self.active_ports.clone();
@@ -154,23 +158,29 @@ impl IoLoop {
                     // Non-blocking read with timeout
                     match timeout(Duration::from_millis(10), async {
                         handle.read(&mut buffer)
-                    }).await {
+                    })
+                    .await
+                    {
                         Ok(Ok(n)) if n > 0 => {
                             buffer.truncate(n);
 
-                            let _ = event_tx.send(IoEvent::DataReceived {
-                                port_id: port_id.clone(),
-                                data: buffer,
-                            }).await;
+                            let _ = event_tx
+                                .send(IoEvent::DataReceived {
+                                    port_id: port_id.clone(),
+                                    data: buffer,
+                                })
+                                .await;
                         }
                         Ok(Ok(_)) => {
                             // No data available
                         }
                         Ok(Err(e)) => {
-                            let _ = event_tx.send(IoEvent::Error {
-                                port_id: port_id.clone(),
-                                error: format!("{:?}", e),
-                            }).await;
+                            let _ = event_tx
+                                .send(IoEvent::Error {
+                                    port_id: port_id.clone(),
+                                    error: format!("{:?}", e),
+                                })
+                                .await;
                         }
                         Err(_) => {
                             // Timeout - no data available
@@ -215,10 +225,13 @@ impl IoLoop {
         let bytes_written = handle.write(data)?;
 
         // Send event
-        let _ = self.event_tx.send(IoEvent::DataSent {
-            port_id: port_id.to_string(),
-            length: bytes_written,
-        }).await;
+        let _ = self
+            .event_tx
+            .send(IoEvent::DataSent {
+                port_id: port_id.to_string(),
+                length: bytes_written,
+            })
+            .await;
 
         Ok(())
     }
@@ -264,9 +277,12 @@ mod tests {
         let mut rx = io_loop.event_rx.take().unwrap();
 
         // Send test event
-        let _ = io_loop.event_tx.send(IoEvent::PortOpened {
-            port_id: "test".to_string(),
-        }).await;
+        let _ = io_loop
+            .event_tx
+            .send(IoEvent::PortOpened {
+                port_id: "test".to_string(),
+            })
+            .await;
 
         // Receive event
         let event = rx.recv().await.unwrap();

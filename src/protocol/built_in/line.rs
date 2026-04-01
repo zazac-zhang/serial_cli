@@ -1,7 +1,7 @@
 //! Line-based protocol implementation
 
-use crate::protocol::{Protocol, ProtocolStats};
 use crate::error::Result;
+use crate::protocol::Protocol;
 
 /// Line-based protocol handler
 #[derive(Clone)]

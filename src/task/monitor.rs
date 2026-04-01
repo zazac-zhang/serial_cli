@@ -47,11 +47,13 @@ impl TaskMonitor {
         let mut stats = self.stats.write().await;
 
         let total_completed = completions.len() as u64;
-        let total_failed = completions.iter()
+        let total_failed = completions
+            .iter()
             .filter(|c| matches!(c.result, crate::task::TaskResult::Error(_)))
             .count() as u64;
 
-        let total_duration_ms: u64 = completions.iter()
+        let total_duration_ms: u64 = completions
+            .iter()
             .map(|c| c.duration.as_millis() as u64)
             .sum();
 
@@ -120,11 +122,13 @@ impl TaskMonitor {
                     let mut stats_guard = stats.write().await;
 
                     let total_completed = completions.len() as u64;
-                    let total_failed = completions.iter()
+                    let total_failed = completions
+                        .iter()
                         .filter(|c| matches!(c.result, crate::task::TaskResult::Error(_)))
                         .count() as u64;
 
-                    let total_duration_ms: u64 = completions.iter()
+                    let total_duration_ms: u64 = completions
+                        .iter()
                         .map(|c| c.duration.as_millis() as u64)
                         .sum();
 

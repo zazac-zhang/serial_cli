@@ -10,6 +10,7 @@ use std::time::Instant;
 /// JSON output formatter with full metadata
 pub struct JsonFormatter {
     pretty: bool,
+    #[allow(dead_code)]
     include_metadata: bool,
 }
 

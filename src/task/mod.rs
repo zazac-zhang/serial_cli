@@ -2,9 +2,9 @@
 //!
 //! This module provides task scheduling and execution.
 
-pub mod queue;
 pub mod executor;
 pub mod monitor;
+pub mod queue;
 
 use uuid::Uuid;
 
@@ -15,20 +15,14 @@ pub type TaskId = String;
 #[derive(Debug, Clone)]
 pub enum TaskType {
     /// Script execution task
-    Script {
-        name: String,
-        content: String,
-    },
+    Script { name: String, content: String },
     /// Serial port operation
     SerialOp {
         port_name: String,
         operation: SerialOperation,
     },
     /// Custom task
-    Custom {
-        name: String,
-        data: String,
-    },
+    Custom { name: String, data: String },
 }
 
 /// Serial operation type
@@ -101,4 +95,4 @@ pub enum TaskResult {
     Error(String),
 }
 
-pub use queue::{TaskQueue, TaskPriority};
+pub use queue::{TaskPriority, TaskQueue};
