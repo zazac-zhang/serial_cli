@@ -87,3 +87,67 @@ docs-build:
 # 检查文档链接
 docs-check:
     cargo doc --document-private-items
+
+# =============================================================================
+# 交叉编译
+# =============================================================================
+
+# 构建所有平台
+build-all: build-linux build-macos build-windows
+    @echo "✓ All platforms built successfully"
+
+# 构建 Linux 平台（x86_64 + aarch64）
+build-linux:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building Linux x86_64..."
+    cargo build --release --target x86_64-unknown-linux-gnu
+    echo "Building Linux aarch64..."
+    if command -v cross &> /dev/null; then
+        cross build --release --target aarch64-unknown-linux-gnu
+    else
+        echo "⚠ Warning: 'cross' not installed. Install with: cargo install cross"
+        echo "Skipping aarch64 build"
+    fi
+
+# 构建 macOS 平台（仅限 macOS）
+build-macos:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "Building macOS x86_64..."
+        cargo build --release --target x86_64-apple-darwin
+        echo "Building macOS arm64..."
+        cargo build --release --target aarch64-apple-darwin
+    else
+        echo "⚠ macOS builds can only be performed on macOS"
+        echo "Skipping macOS build"
+    fi
+
+# 构建 Windows 平台（使用 cross）
+build-windows:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building Windows x86_64..."
+    if command -v cross &> /dev/null; then
+        cross build --release --target x86_64-pc-windows-msvc
+    else
+        echo "⚠ Warning: 'cross' not installed. Install with: cargo install cross"
+        echo "Skipping Windows build"
+    fi
+
+# 构建所有平台的 Release 版本
+release: clean-all build-all
+    @echo "✓ Release builds complete"
+
+# =============================================================================
+# 安装命令
+# =============================================================================
+
+# 本地安装（开发版本）
+install:
+    cargo install --path .
+
+# 本地安装（Release 版本）
+install-release: build
+    cargo install --path .
