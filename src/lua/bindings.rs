@@ -312,6 +312,60 @@ impl LuaBindings {
     pub fn lua(&self) -> &Lua {
         &self.lua
     }
+
+    /// Helper function to register built-in protocols
+    async fn register_builtins(registry: &mut crate::protocol::ProtocolRegistry) {
+        use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
+        use crate::protocol::registry::SimpleProtocolFactory;
+
+        registry.register(SimpleProtocolFactory::new(
+            "line".to_string(),
+            "Line-based protocol".to_string(),
+            LineProtocol::new,
+        )).await;
+
+        registry.register(SimpleProtocolFactory::new(
+            "at_command".to_string(),
+            "AT Command protocol".to_string(),
+            AtCommandProtocol::new,
+        )).await;
+
+        registry.register(SimpleProtocolFactory::new(
+            "modbus_rtu".to_string(),
+            "Modbus RTU protocol".to_string(),
+            || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Rtu),
+        )).await;
+
+        registry.register(SimpleProtocolFactory::new(
+            "modbus_ascii".to_string(),
+            "Modbus ASCII protocol".to_string(),
+            || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Ascii),
+        )).await;
+    }
+
+    /// Register protocol_encode API
+    pub fn register_protocol_encode(&self) -> Result<()> {
+        let encode = self.lua.create_function(move |_, (protocol_name, data): (String, String)| {
+            use crate::protocol::ProtocolRegistry;
+
+            let rt = tokio::runtime::Runtime::new()
+                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
+            let mut registry = ProtocolRegistry::new();
+
+            rt.block_on(Self::register_builtins(&mut registry));
+
+            let mut protocol = rt.block_on(registry.get_protocol(&protocol_name))
+                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+
+            let encoded = protocol.encode(data.as_bytes())
+                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+
+            Ok(String::from_utf8_lossy(&encoded).to_string())
+        })?;
+
+        self.lua.globals().set("protocol_encode", encode)?;
+        Ok(())
+    }
 }
 
 impl Default for LuaBindings {
@@ -472,6 +526,43 @@ mod tests {
         let script = r#"
             local ports = serial_list()
             assert(type(ports) == "table", "Expected ports to be a table")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_protocol_encode_lua() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_protocol_encode().unwrap();
+
+        let script = r#"
+            -- Test line protocol
+            local encoded = protocol_encode("line", "Hello")
+            assert(type(encoded) == "string", "Expected string output")
+            assert(string.sub(encoded, -1) == "\n", "Expected newline at end")
+
+            -- Test at_command protocol
+            local encoded_at = protocol_encode("at_command", "ATZ")
+            assert(type(encoded_at) == "string", "Expected string output for AT command")
+
+            -- Test modbus_rtu protocol
+            local encoded_modbus = protocol_encode("modbus_rtu", "\x01\x03\x00\x00\x00\x01")
+            assert(type(encoded_modbus) == "string", "Expected string output for Modbus")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_protocol_encode_invalid_protocol() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_protocol_encode().unwrap();
+
+        let script = r#"
+            local ok, err = pcall(protocol_encode, "invalid_protocol", "test")
+            assert(ok == false, "Expected error for invalid protocol")
+            assert(err ~= nil, "Expected error message")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
