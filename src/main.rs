@@ -3,6 +3,8 @@
 use clap::{Parser, Subcommand};
 use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::error::Result;
+use serial_cli::lua::bindings::LuaBindings;
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "serial-cli")]
@@ -45,6 +47,191 @@ enum Commands {
     },
 }
 
+async fn run_lua_script(path: PathBuf) -> Result<()> {
+    use serial_cli::lua::bindings::LuaBindings;
+
+    // 1. Create Lua bindings
+    let bindings = LuaBindings::new()?;
+
+    // 2. Register basic APIs (log and utility)
+    bindings.register_log_api()?;
+    bindings.register_utility_apis()?;
+
+    // 3. Register stdlib utilities manually to the same Lua instance
+    register_stdlib_utils(&bindings)?;
+
+    // 4. Read and execute script file
+    let script_content = std::fs::read_to_string(&path)
+        .map_err(|e| serial_cli::error::SerialError::Io(e))?;
+
+    bindings.execute_script(&script_content)?;
+
+    Ok(())
+}
+
+/// Register stdlib utility functions to the bindings' Lua instance
+fn register_stdlib_utils(bindings: &LuaBindings) -> Result<()> {
+    use mlua::Value;
+    let lua = bindings.lua();
+    let globals = lua.globals();
+
+    // string_to_hex
+    let to_hex = lua.create_function(|_, data: String| {
+        Ok(data
+            .bytes()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>())
+    })?;
+    globals.set("string_to_hex", to_hex)?;
+
+    // string_from_hex
+    let from_hex = lua.create_function(|_, hex: String| {
+        if !hex.len().is_multiple_of(2) {
+            return Err(mlua::Error::RuntimeError(
+                "Hex string must have even length".to_string(),
+            ));
+        }
+
+        let mut bytes = Vec::new();
+        for i in (0..hex.len()).step_by(2) {
+            let byte_str = &hex[i..i + 2];
+            let byte = u8::from_str_radix(byte_str, 16)
+                .map_err(|_| mlua::Error::RuntimeError("Invalid hex string".to_string()))?;
+            bytes.push(byte);
+        }
+
+        String::from_utf8(bytes)
+            .map_err(|_| mlua::Error::RuntimeError("Invalid UTF-8".to_string()))
+    })?;
+    globals.set("string_from_hex", from_hex)?;
+
+    // hex_encode
+    let encode = lua.create_function(|_, data: Vec<u8>| {
+        Ok(data
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>())
+    })?;
+    globals.set("hex_encode", encode)?;
+
+    // hex_decode
+    let decode = lua.create_function(|_, hex: String| {
+        if !hex.len().is_multiple_of(2) {
+            return Err(mlua::Error::RuntimeError(
+                "Hex string must have even length".to_string(),
+            ));
+        }
+
+        let mut bytes = Vec::new();
+        for i in (0..hex.len()).step_by(2) {
+            let byte_str = &hex[i..i + 2];
+            let byte = u8::from_str_radix(byte_str, 16)
+                .map_err(|_| mlua::Error::RuntimeError("Invalid hex string".to_string()))?;
+            bytes.push(byte);
+        }
+
+        Ok(bytes)
+    })?;
+    globals.set("hex_decode", decode)?;
+
+    // hex_to_bytes
+    let hex_to_bytes = lua.create_function(|lua: &mlua::Lua, hex: String| {
+        if !hex.len().is_multiple_of(2) {
+            return Err(mlua::Error::RuntimeError(
+                "Hex string must have even length".to_string(),
+            ));
+        }
+
+        let mut bytes = Vec::new();
+        for i in (0..hex.len()).step_by(2) {
+            let byte_str = &hex[i..i + 2];
+            let byte = u8::from_str_radix(byte_str, 16).map_err(|_| {
+                mlua::Error::RuntimeError(format!("Invalid hex: {}", byte_str))
+            })?;
+            bytes.push(byte);
+        }
+
+        let result = lua.create_table()?;
+        for (i, byte) in bytes.iter().enumerate() {
+            result.set(i + 1, *byte)?;
+        }
+        Ok(result)
+    })?;
+    globals.set("hex_to_bytes", hex_to_bytes)?;
+
+    // bytes_to_hex
+    let bytes_to_hex = lua.create_function(|_, bytes: Value| {
+        let bytes_vec = match bytes {
+            Value::String(s) => {
+                let s = s.to_str().unwrap();
+                s.as_bytes().to_vec()
+            }
+            Value::Table(t) => {
+                let mut vec = Vec::new();
+                for pair in t.pairs::<usize, u8>() {
+                    let (_, byte) = pair.unwrap();
+                    vec.push(byte);
+                }
+                vec
+            }
+            _ => {
+                return Err(mlua::Error::RuntimeError(
+                    "Expected string or table".to_string(),
+                ))
+            }
+        };
+
+        let hex: String = bytes_vec.iter().map(|b| format!("{:02x}", b)).collect();
+        Ok(hex)
+    })?;
+    globals.set("bytes_to_hex", bytes_to_hex)?;
+
+    // bytes_to_string
+    let bytes_to_string = lua.create_function(|_, bytes: Value| {
+        let bytes_vec = match bytes {
+            Value::Table(t) => {
+                let mut vec = Vec::new();
+                for pair in t.pairs::<usize, u8>() {
+                    let (_, byte) = pair.unwrap();
+                    vec.push(byte);
+                }
+                vec
+            }
+            _ => {
+                return Err(mlua::Error::RuntimeError(
+                    "Expected table of bytes".to_string(),
+                ))
+            }
+        };
+
+        String::from_utf8(bytes_vec)
+            .map_err(|_| mlua::Error::RuntimeError("Invalid UTF-8 sequence".to_string()))
+    })?;
+    globals.set("bytes_to_string", bytes_to_string)?;
+
+    // string_to_bytes
+    let string_to_bytes = lua.create_function(|lua: &mlua::Lua, s: String| {
+        let bytes = s.into_bytes();
+        let result = lua.create_table()?;
+        for (i, byte) in bytes.iter().enumerate() {
+            result.set(i + 1, *byte)?;
+        }
+        Ok(result)
+    })?;
+    globals.set("string_to_bytes", string_to_bytes)?;
+
+    // time_now
+    let now = lua.create_function(|_, _: ()| {
+        Ok(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0))
+    })?;
+    globals.set("time_now", now)?;
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -69,7 +256,7 @@ async fn main() -> Result<()> {
             shell.run().await?;
         }
         Commands::Run { script } => {
-            println!("Running script: {} - coming soon!", script);
+            run_lua_script(PathBuf::from(script)).await?;
         }
     }
 
