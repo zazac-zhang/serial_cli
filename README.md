@@ -46,6 +46,7 @@ serial-cli run script.lua
 - **[USAGE.md](USAGE.md)** - Complete usage guide with examples
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development setup and contributing
 - **[CROSS_COMPILE.md](CROSS_COMPILE.md)** - Cross-compilation guide
+- **[docs/windows.md](docs/windows.md)** - Windows platform guide
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Troubleshooting
 
 ## Interactive Mode Example
