@@ -30,6 +30,17 @@ pub struct SerialConfig {
     pub stopbits: u8,
     pub parity: Parity,
     pub timeout_ms: u64,
+    pub flow_control: FlowControl,
+    pub dtr_enable: bool,
+    pub rts_enable: bool,
+}
+
+/// Flow control setting
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FlowControl {
+    None,
+    Software,   // XON/XOFF
+    Hardware,   // RTS/CTS
 }
 
 /// Parity setting
@@ -48,6 +59,9 @@ impl Default for SerialConfig {
             stopbits: 1,
             parity: Parity::None,
             timeout_ms: 1000,
+            flow_control: FlowControl::None,
+            dtr_enable: true,
+            rts_enable: true,
         }
     }
 }
@@ -67,9 +81,34 @@ impl PortManager {
             .map(|ports| {
                 ports
                     .into_iter()
-                    .map(|p| SerialPortInfo {
-                        port_name: p.port_name,
-                        port_type: format!("{:?}", p.port_type),
+                    .map(|p| {
+                        let info = SerialPortInfo {
+                            port_name: p.port_name.clone(),
+                            port_type: format!("{:?}", p.port_type),
+                            friendly_name: None,
+                            hardware_id: None,
+                            manufacturer: None,
+                            com_number: None,
+                        };
+
+                        // Try to extract COM port number on Windows
+                        #[cfg(target_os = "windows")]
+                        {
+                            if let Some(com_str) = p.port_name.strip_prefix("COM") {
+                                if let Ok(num) = com_str.parse::<u32>() {
+                                    info.com_number = Some(num);
+                                }
+                            }
+
+                            // Try to get friendly name from port type info
+                            // Note: This is a placeholder - real implementation would
+                            // query Windows registry or device manager
+                            if info.com_number.is_some() {
+                                info.friendly_name = Some(format!("Serial Port {}", p.port_name));
+                            }
+                        }
+
+                        info
                     })
                     .collect()
             })
@@ -80,8 +119,9 @@ impl PortManager {
         // Check if port is already open
         let ports_guard = self.ports.lock().await;
         if ports_guard.contains_key(name) {
-            return Err(SerialError::Serial(SerialPortError::PortBusy(
-                name.to_string(),
+            return Err(SerialError::Serial(SerialPortError::port_busy(
+                name,
+                Some("Port is already opened by this application"),
             )));
         }
         drop(ports_guard);
@@ -91,18 +131,69 @@ impl PortManager {
 
         builder = builder.timeout(Duration::from_millis(config.timeout_ms));
 
+        // Configure data bits
+        let data_bits = match config.databits {
+            5 => tokio_serial::DataBits::Five,
+            6 => tokio_serial::DataBits::Six,
+            7 => tokio_serial::DataBits::Seven,
+            8 => tokio_serial::DataBits::Eight,
+            _ => tokio_serial::DataBits::Eight,
+        };
+        builder = builder.data_bits(data_bits);
+
+        // Configure parity
+        let parity = match config.parity {
+            Parity::None => tokio_serial::Parity::None,
+            Parity::Odd => tokio_serial::Parity::Odd,
+            Parity::Even => tokio_serial::Parity::Even,
+        };
+        builder = builder.parity(parity);
+
+        // Configure stop bits
+        let stop_bits = match config.stopbits {
+            1 => tokio_serial::StopBits::One,
+            2 => tokio_serial::StopBits::Two,
+            _ => tokio_serial::StopBits::One,
+        };
+        builder = builder.stop_bits(stop_bits);
+
+        // Configure flow control
+        let flow_control = match config.flow_control {
+            FlowControl::None => tokio_serial::FlowControl::None,
+            FlowControl::Software => tokio_serial::FlowControl::Software,
+            FlowControl::Hardware => tokio_serial::FlowControl::Hardware,
+        };
+        builder = builder.flow_control(flow_control);
+
         // Open the port
         let port = builder.open().map_err(|e| {
             // Map tokio-serial errors to our error types
             let error_msg = e.to_string();
-            if error_msg.contains("permission denied") || error_msg.contains("Permission denied") {
-                SerialError::Serial(SerialPortError::PermissionDenied(name.to_string()))
-            } else if error_msg.contains("not found") || error_msg.contains("No such file") {
+            if error_msg.contains("permission denied") || error_msg.contains("Permission denied")
+                || error_msg.contains("Access is denied") {
+                SerialError::Serial(SerialPortError::permission_denied(
+                    name,
+                    Some("Try running as Administrator or check port permissions")
+                ))
+            } else if error_msg.contains("not found") || error_msg.contains("No such file")
+                || error_msg.contains("The system cannot find the file") {
                 SerialError::Serial(SerialPortError::PortNotFound(name.to_string()))
+            } else if error_msg.contains("busy") || error_msg.contains("Busy")
+                || error_msg.contains("used by another application") {
+                SerialError::Serial(SerialPortError::port_busy(
+                    name,
+                    Some("Close other applications using this port or try a different port")
+                ))
             } else {
                 SerialError::Serial(SerialPortError::IoError(error_msg))
             }
         })?;
+
+        // Note: DTR/RTS control would require platform-specific implementation
+        // For now, we'll just log if non-default settings are requested
+        if !config.dtr_enable || !config.rts_enable {
+            tracing::warn!("DTR/RTS control requested but not yet implemented");
+        }
 
         // Create handle
         let handle = SerialPortHandle {
@@ -181,6 +272,14 @@ impl SerialPortHandle {
 pub struct SerialPortInfo {
     pub port_name: String,
     pub port_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub friendly_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hardware_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub com_number: Option<u32>,
 }
 
 #[cfg(test)]

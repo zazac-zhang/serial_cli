@@ -167,11 +167,41 @@ impl LuaBindings {
 
         let open = self
             .lua
-            .create_function(move |_, (port_name, baudrate): (String, u32)| {
+            .create_function(move |_, (port_name, config_table): (String, mlua::Table)| {
+                // Parse configuration table
+                let baudrate: u32 = config_table.get("baudrate").unwrap_or(115200);
+                let databits: u8 = config_table.get("data_bits").unwrap_or(8);
+                let stopbits: u8 = config_table.get("stop_bits").unwrap_or(1);
+                let parity_str: String = config_table.get("parity").unwrap_or("none".to_string());
+                let timeout: u64 = config_table.get("timeout").unwrap_or(1000);
+                let flow_control_str: String = config_table.get("flow_control").unwrap_or("none".to_string());
+                let dtr_enable: bool = config_table.get("dtr_enable").unwrap_or(true);
+                let rts_enable: bool = config_table.get("rts_enable").unwrap_or(true);
+
+                // Parse parity
+                let parity = match parity_str.to_lowercase().as_str() {
+                    "odd" => crate::serial_core::Parity::Odd,
+                    "even" => crate::serial_core::Parity::Even,
+                    _ => crate::serial_core::Parity::None,
+                };
+
+                // Parse flow control
+                let flow_control = match flow_control_str.to_lowercase().as_str() {
+                    "software" => crate::serial_core::FlowControl::Software,
+                    "hardware" => crate::serial_core::FlowControl::Hardware,
+                    _ => crate::serial_core::FlowControl::None,
+                };
+
                 let pm_guard = runtime.block_on(port_manager.lock());
                 let config = crate::serial_core::SerialConfig {
                     baudrate,
-                    ..Default::default()
+                    databits,
+                    stopbits,
+                    parity,
+                    timeout_ms: timeout,
+                    flow_control,
+                    dtr_enable,
+                    rts_enable,
                 };
 
                 let port_id = runtime
@@ -599,7 +629,7 @@ mod tests {
         bindings.register_serial_open().unwrap();
 
         let script = r#"
-            local ok, result = pcall(serial_open, "/dev/ttyUSB0", 115200)
+            local ok, result = pcall(serial_open, "/dev/ttyUSB0", {baudrate = 115200})
             -- ok should be false (port doesn't exist)
             assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
 

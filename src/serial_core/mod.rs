@@ -7,5 +7,5 @@ pub mod port;
 pub mod sniffer;
 
 pub use io_loop::IoLoop;
-pub use port::{Parity, PortManager, SerialConfig, SerialPortHandle};
+pub use port::{FlowControl, Parity, PortManager, SerialConfig, SerialPortHandle};
 pub use sniffer::{CapturedPacket, PacketDirection, SerialSniffer, SnifferConfig, SnifferSession};

@@ -56,16 +56,16 @@ pub enum SerialPortError {
     PortNotFound(String),
 
     /// Permission denied
-    #[error("Permission denied for port '{0}'")]
-    PermissionDenied(String),
+    #[error("{0}")]
+    PermissionDeniedWithHelp(String),
 
     /// Timeout
     #[error("Operation timeout on port '{0}'")]
     Timeout(String),
 
     /// Port busy
-    #[error("Port '{0}' is already in use")]
-    PortBusy(String),
+    #[error("{0}")]
+    PortBusyWithHelp(String),
 
     /// Invalid configuration
     #[error("Invalid port configuration: {0}")]
@@ -74,6 +74,28 @@ pub enum SerialPortError {
     /// General I/O error
     #[error("Serial I/O error: {0}")]
     IoError(String),
+}
+
+impl SerialPortError {
+    pub fn permission_denied(port: &str, help: Option<&str>) -> Self {
+        let msg = format!("Permission denied for port '{}'", port);
+        let msg = if let Some(help) = help {
+            format!("{}: {}", msg, help)
+        } else {
+            msg
+        };
+        SerialPortError::PermissionDeniedWithHelp(msg)
+    }
+
+    pub fn port_busy(port: &str, help: Option<&str>) -> Self {
+        let msg = format!("Port '{}' is already in use", port);
+        let msg = if let Some(help) = help {
+            format!("{}: {}", msg, help)
+        } else {
+            msg
+        };
+        SerialPortError::PortBusyWithHelp(msg)
+    }
 }
 
 /// Protocol specific errors
