@@ -274,6 +274,40 @@ impl LuaBindings {
         Ok(())
     }
 
+    /// Register serial_list API
+    pub fn register_serial_list(&self) -> Result<()> {
+        self.ensure_runtime()?;
+
+        let port_manager = self.port_manager.clone()
+            .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
+
+        let runtime = self.runtime.borrow()
+            .as_ref()
+            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .clone();
+
+        let list = self.lua.create_function(move |lua, ()| {
+            let pm_guard = runtime.block_on(port_manager.lock());
+
+            let ports = pm_guard.list_ports()
+                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+
+            // Convert to Lua table
+            let result = lua.create_table()?;
+            for (i, port) in ports.iter().enumerate() {
+                let port_table = lua.create_table()?;
+                port_table.set("port_name", port.port_name.clone())?;
+                port_table.set("port_type", port.port_type.clone())?;
+                result.set(i + 1, port_table)?;
+            }
+
+            Ok(result)
+        })?;
+
+        self.lua.globals().set("serial_list", list)?;
+        Ok(())
+    }
+
     /// Get the Lua instance
     pub fn lua(&self) -> &Lua {
         &self.lua
@@ -423,6 +457,21 @@ mod tests {
             -- Will fail but tests the API
             assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
             assert(result ~= nil, "Expected result to not be nil")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_serial_list_lua() {
+        let mut bindings = LuaBindings::new().unwrap();
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
+        bindings.register_serial_list().unwrap();
+
+        let script = r#"
+            local ports = serial_list()
+            assert(type(ports) == "table", "Expected ports to be a table")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
