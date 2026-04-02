@@ -55,6 +55,14 @@ libc = "0.2"
 name = "serial-cli"
 path = "src/main.rs"
 
+[[bench]]
+name = "io_throughput"
+harness = false
+
+[[bench]]
+name = "io_latency"
+harness = false
+
 [lib]
 name = "serial_cli"
 path = "src/lib.rs"
