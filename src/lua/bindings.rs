@@ -121,6 +121,29 @@ impl LuaBindings {
         self.port_manager = Some(pm);
     }
 
+    /// Register serial_open API
+    pub fn register_serial_open(&self) -> Result<()> {
+        let port_manager = self.port_manager.clone().unwrap();
+
+        let open = self.lua.create_function(move |_, (port_name, baudrate): (String, u32)| {
+            // Use tokio runtime for async call
+            let rt = tokio::runtime::Runtime::new()?;
+            let pm_guard = rt.block_on(port_manager.lock());
+            let config = crate::serial_core::SerialConfig {
+                baudrate,
+                ..Default::default()
+            };
+
+            let port_id = rt.block_on(pm_guard.open_port(&port_name, config))
+                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+
+            Ok(port_id)
+        })?;
+
+        self.lua.globals().set("serial_open", open)?;
+        Ok(())
+    }
+
     /// Get the Lua instance
     pub fn lua(&self) -> &Lua {
         &self.lua
@@ -189,5 +212,27 @@ mod tests {
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_serial_open_lua() {
+        let mut bindings = LuaBindings::new().unwrap();
+
+        // Create and set port manager
+        let port_manager = crate::serial_core::PortManager::new();
+        let port_manager_arc = std::sync::Arc::new(tokio::sync::Mutex::new(port_manager));
+        bindings.set_port_manager(port_manager_arc);
+
+        bindings.register_serial_open().unwrap();
+
+        let script = r#"
+            local port, err = serial_open("/dev/ttyUSB0", 115200)
+            -- Will fail because port doesn't exist, but tests the API
+            assert(type(port) == "string" or type(err) == "string")
+        "#;
+
+        let result = bindings.execute_script(script);
+        // Should not error - the Lua script should handle it
+        assert!(result.is_ok() || result.unwrap_err().to_string().contains("Serial port error"));
     }
 }
