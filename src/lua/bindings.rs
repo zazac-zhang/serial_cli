@@ -217,6 +217,63 @@ impl LuaBindings {
         Ok(())
     }
 
+    /// Register serial_recv API
+    pub fn register_serial_recv(&self) -> Result<()> {
+        self.ensure_runtime()?;
+
+        let port_manager = self.port_manager.clone()
+            .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
+
+        let runtime = self.runtime.borrow()
+            .as_ref()
+            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .clone();
+
+        let recv = self.lua.create_function(move |_, (port_id, timeout_ms): (String, u64)| {
+            let pm_guard = runtime.block_on(port_manager.lock());
+
+            let port_handle = runtime.block_on(pm_guard.get_port(&port_id))
+                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+
+            // Clone runtime for the async block
+            let rt_clone = runtime.clone();
+
+            // Wrap synchronous read in async block for timeout
+            let read_future = async move {
+                // Move port_handle into the blocking task
+                let read_result = tokio::task::spawn_blocking(move || {
+                    let mut handle = rt_clone.block_on(port_handle.lock());
+                    let mut buffer = vec![0u8; 4096];
+
+                    let n = handle.read(&mut buffer)?;
+
+                    buffer.truncate(n);
+                    Ok(String::from_utf8_lossy(&buffer).to_string())
+                }).await
+                .map_err(|e| crate::error::SerialError::Serial(
+                    crate::error::SerialPortError::IoError(e.to_string())
+                ))?;
+
+                read_result
+            };
+
+            // Apply timeout
+            let result = tokio::time::timeout(
+                std::time::Duration::from_millis(timeout_ms),
+                read_future
+            );
+
+            let data = runtime.block_on(result)
+                .map_err(|_| mlua::Error::RuntimeError("Timeout".to_string()))?
+                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+
+            Ok(data)
+        })?;
+
+        self.lua.globals().set("serial_recv", recv)?;
+        Ok(())
+    }
+
     /// Get the Lua instance
     pub fn lua(&self) -> &Lua {
         &self.lua
@@ -347,6 +404,23 @@ mod tests {
         let script = r#"
             local ok, result = pcall(serial_send, "test-port", "Hello")
             -- Will fail (port doesn't exist) but tests the API
+            assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
+            assert(result ~= nil, "Expected result to not be nil")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_serial_recv_lua() {
+        let mut bindings = LuaBindings::new().unwrap();
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
+        bindings.register_serial_recv().unwrap();
+
+        let script = r#"
+            local ok, result = pcall(serial_recv, "test-port", 1000)
+            -- Will fail but tests the API
             assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
             assert(result ~= nil, "Expected result to not be nil")
         "#;
