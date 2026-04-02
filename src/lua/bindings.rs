@@ -188,6 +188,35 @@ impl LuaBindings {
         Ok(())
     }
 
+    /// Register serial_send API
+    pub fn register_serial_send(&self) -> Result<()> {
+        self.ensure_runtime()?;
+
+        let port_manager = self.port_manager.clone()
+            .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
+
+        let runtime = self.runtime.borrow()
+            .as_ref()
+            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .clone();
+
+        let send = self.lua.create_function(move |_, (port_id, data): (String, String)| {
+            let pm_guard = runtime.block_on(port_manager.lock());
+
+            let port_handle = runtime.block_on(pm_guard.get_port(&port_id))
+                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+
+            let mut handle = runtime.block_on(port_handle.lock());
+            let bytes = handle.write(data.as_bytes())
+                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+
+            Ok(bytes)
+        })?;
+
+        self.lua.globals().set("serial_send", send)?;
+        Ok(())
+    }
+
     /// Get the Lua instance
     pub fn lua(&self) -> &Lua {
         &self.lua
@@ -306,5 +335,22 @@ mod tests {
         "#;
 
         bindings.execute_script(script).unwrap();
+    }
+
+    #[test]
+    fn test_serial_send_lua() {
+        let mut bindings = LuaBindings::new().unwrap();
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
+        bindings.register_serial_send().unwrap();
+
+        let script = r#"
+            local ok, result = pcall(serial_send, "test-port", "Hello")
+            -- Will fail (port doesn't exist) but tests the API
+            assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
+            assert(result ~= nil, "Expected result to not be nil")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
     }
 }
