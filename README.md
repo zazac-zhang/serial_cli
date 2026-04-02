@@ -1,55 +1,86 @@
-# Serial CLI
+<div align="center">
 
-> **Status:** ✅ Production Ready | **Version:** 0.1.0 | **Tests:** 58/58 Passing
+  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.1.0-blue?style=for-the-badge&logo=rust)
+  [![Build Status](https://img.shields.io/github/actions/workflow/status/zazac-zhang/serial_cli/ci.yml?branch=master&style=for-the-badge&logo=github)](https://github.com/zazac-zhang/serial_cli/actions)
+  [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE)
+  [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
 
-A universal serial port CLI tool optimized for AI interaction, built with Rust.
+  # 🚀 Serial CLI
 
-## Quick Start
+  **A Universal Serial Port CLI Tool Optimized for AI Interaction**
+
+  [Quick Start](#-quick-start) • [Features](#-features) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Docs](#-documentation)
+
+</div>
+
+---
+
+## 💡 What is Serial CLI?
+
+Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **structured JSON output**, **embedded LuaJIT scripting**, and **support for multiple protocols** - making it perfect for both human interaction and AI/automation workflows.
+
+**✨ Production Ready** • **🔧 58/58 Tests Passing** • **🌍 Linux • macOS • Windows**
+
+---
+
+## 🚀 Quick Start
 
 ### Installation
 
 ```bash
-# From source
-cargo install --path .
+# Install from source
+cargo install serial-cli
 
-# Or download pre-built binaries from
-# https://github.com/yourusername/serial-cli/releases
+# Or download pre-built binaries
+# Visit: https://github.com/zazac-zhang/serial_cli/releases
 ```
 
 ### Basic Usage
 
 ```bash
-# List available ports
+# List available serial ports
 serial-cli list-ports
 
-# Interactive mode
+# Start interactive mode
 serial-cli interactive
 
-# Send data
+# Send data to a port
 serial-cli send --port=/dev/ttyUSB0 "AT+CMD"
 
-# Run Lua script
-serial-cli run script.lua
+# Run a Lua script
+serial-cli run script.lua --port=/dev/ttyUSB0
 ```
 
-## Features
+---
 
-- **Universal** - Works with any serial device
-- **AI-Optimized** - Structured JSON output for machine readability
-- **Scriptable** - Embedded LuaJIT for automation
-- **Cross-Platform** - Linux, macOS, Windows
-- **Protocol Support** - Modbus RTU/ASCII, AT Command, Line-based, Custom Lua
-- **Batch Processing** - Execute multiple scripts sequentially or in parallel
+## ✨ Features
 
-## Documentation
+<div align="center">
 
-- **[USAGE.md](USAGE.md)** - Complete usage guide with examples
-- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development setup and contributing
-- **[CROSS_COMPILE.md](CROSS_COMPILE.md)** - Cross-compilation guide
-- **[docs/windows.md](docs/windows.md)** - Windows platform guide
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Troubleshooting
+| 🎯 **Universal** | 🤖 **AI-Optimized** | ⚡ **Scriptable** | 🌍 **Cross-Platform** |
+|:---:|:---:|:---:|:---:|
+| Works with any serial device | Structured JSON output | Embedded LuaJIT runtime | Linux • macOS • Windows |
 
-## Interactive Mode Example
+| 📡 **Protocols** | 🔄 **Batch Mode** | 🛠️ **Interactive** | 🧪 **Well-Tested** |
+|:---:|:---:|:---:|:---:|
+| Modbus • AT Commands • Custom | Sequential & Parallel execution | REPL shell | 58 passing tests |
+
+</div>
+
+### Core Capabilities
+
+- **🔌 Serial Port Management** - List, open, configure, and manage serial ports
+- **📜 Lua Scripting** - Automate tasks with embedded LuaJIT (high-performance)
+- **📡 Protocol Support** - Built-in Modbus RTU/ASCII, AT Commands, line-based, and custom protocols
+- **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
+- **🔄 Batch Processing** - Execute multiple scripts sequentially or in parallel
+- **🖥️ Interactive Shell** - Powerful REPL with command history and auto-completion
+
+---
+
+## 📖 Examples
+
+### Interactive Mode
 
 ```bash
 $ serial-cli interactive
@@ -60,11 +91,11 @@ serial> list
 Available ports:
   /dev/ttyUSB0 - USB Serial Port
 
-serial> open /dev/ttyUSB0
-Opened port: uuid-12345678
+serial> open /dev/ttyUSB0 --baudrate=115200
+✓ Opened port: uuid-12345678
 
 serial> send "AT\r\n"
-Sent 3 bytes
+✓ Sent 3 bytes
 
 serial> recv
 Received: "OK"
@@ -72,71 +103,42 @@ Received: "OK"
 serial> quit
 ```
 
-## Lua Scripting
-
-Serial CLI includes an embedded LuaJIT runtime for powerful automation and custom protocol implementation.
-
-### Quick Start
-
-```bash
-# Run a script
-serial-cli run examples/raw_echo.lua --port=/dev/ttyUSB0
-
-# Pass arguments to script
-serial-cli run examples/modbus_with_tools.lua /dev/ttyUSB0 9600 1
-```
-
-### Example Scripts
-
-#### 1. Raw I/O (`examples/raw_echo.lua`)
-Simple serial communication without protocol handling:
+### Lua Scripting - Modbus RTU
 
 ```lua
-local port = serial.open("/dev/ttyUSB0", {
-    baudrate = 115200,
-    timeout = 1000
-})
+local modbus = require('serial.protocols.modbus')
 
--- Send data
-port:write("Hello, World!\r\n")
-
--- Read response
-local response = port:read(256)
-log_info("Received: " .. response)
-
-port:close()
-```
-
-#### 2. Modbus RTU (`examples/modbus_with_tools.lua`)
-Using built-in Modbus protocol tools:
-
-```lua
+-- Open port with Modbus-friendly settings
 local port = serial.open("/dev/ttyUSB0", {
     baudrate = 9600,
-    parity = "even"
+    parity = "even",
+    stop_bits = 1
 })
 
-local modbus = serial.protocols.modbus.new(port, {
+-- Create Modbus handler
+local client = modbus.new(port, {
     device_id = 1,
     timeout = 1000
 })
 
 -- Read holding registers
-local registers = modbus:read_holding_registers(0x0000, 10)
+local registers = client:read_holding_registers(0x0000, 10)
+print(string.format("Read %d registers", #registers))
 
 -- Write single register
-modbus:write_single_register(0x0001, 0x0042)
+client:write_single_register(0x0001, 0x0042)
 
-modbus:close()
+client:close()
 port:close()
 ```
 
-#### 3. Custom Protocol (`examples/custom_protocol.lua`)
-Implement your own protocol:
+### Lua Scripting - Custom Protocol
 
 ```lua
+-- Custom protocol implementation
 local port = serial.open("/dev/ttyUSB0", {
-    baudrate = 115200
+    baudrate = 115200,
+    timeout = 1000
 })
 
 -- Build custom frame
@@ -151,77 +153,137 @@ port:write(build_frame(0x01, "ping"))
 
 -- Parse response
 local response = port:read(256)
--- ... parse and validate ...
+if validate_frame(response) then
+    log_info("Valid response received")
+end
 
 port:close()
 ```
 
-### Lua API Reference
+---
 
-#### Serial Port Functions
+## 🔧 Lua Scripting API
 
-- `serial.open(path, config) -> port` - Open serial port
-  - `config.baudrate` - Baud rate (default: 9600)
-  - `config.timeout` - Read timeout in ms (default: 1000)
-  - `config.data_bits` - Data bits: 7 or 8 (default: 8)
-  - `config.parity` - Parity: "none", "odd", "even" (default: "none")
-  - `config.stop_bits` - Stop bits: 1 or 2 (default: 1)
+Serial CLI includes an embedded **LuaJIT** runtime for powerful automation:
 
-- `port:write(data) -> bytes_written` - Write data to port
-- `port:read(max_bytes) -> data` - Read data from port
-- `port:read_until(delimiter) -> data` - Read until delimiter byte
-- `port:close()` - Close the port
+### Serial Port Functions
 
-#### Protocol Tools
+```lua
+-- Open serial port
+local port = serial.open(path, {
+    baudrate = 115200,      -- Baud rate (default: 9600)
+    timeout = 1000,         -- Read timeout in ms (default: 1000)
+    data_bits = 8,          -- Data bits: 7 or 8 (default: 8)
+    parity = "none",        -- Parity: "none", "odd", "even" (default: "none")
+    stop_bits = 1,          -- Stop bits: 1 or 2 (default: 1)
+    flow_control = "none"   -- Flow control: "none", "hardware", "software"
+})
 
-- `serial.protocols.modbus.new(port, config) -> modbus` - Create Modbus handler
-  - `modbus:read_holding_registers(addr, count) -> values`
-  - `modbus:read_input_registers(addr, count) -> values`
-  - `modbus:write_single_register(addr, value) -> success`
-  - `modbus:write_multiple_registers(addr, values) -> success`
-  - `modbus:close()`
+-- Write data
+port:write("Hello, World!\r\n")
 
-#### Utility Functions
+-- Read data
+local data = port:read(256)
+local line = port:read_until("\n")
 
-- `log_info(message)` - Log info message
-- `log_warn(message)` - Log warning message
-- `log_error(message)` - Log error message
-- `sleep_ms(milliseconds)` - Sleep for specified time
-- `bytes_to_hex(bytes) -> hex_string` - Convert bytes to hex string
-- `hex_to_bytes(hex_string) -> bytes` - Convert hex string to bytes
-- `string_to_bytes(str) -> bytes` - Convert string to byte array
-- `bytes_to_string(bytes) -> str` - Convert byte array to string
+-- Close port
+port:close()
+```
 
-For complete documentation, see [USAGE.md](USAGE.md#lua-scripting).
+### Protocol Tools
 
-## Development
+```lua
+-- Modbus RTU/ASCII
+local modbus = serial.protocols.modbus.new(port, {
+    device_id = 1,
+    timeout = 1000
+})
+
+modbus:read_holding_registers(addr, count)
+modbus:read_input_registers(addr, count)
+modbus:write_single_register(addr, value)
+modbus:write_multiple_registers(addr, values)
+```
+
+### Utility Functions
+
+```lua
+-- Logging
+log_info("Information message")
+log_warn("Warning message")
+log_error("Error message")
+
+-- Utilities
+sleep_ms(1000)
+local hex = bytes_to_hex(data)
+local bytes = hex_to_bytes("48656c6c6f")
+```
+
+📚 **Complete Lua API:** [USAGE.md](USAGE.md#lua-scripting)
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|:---|:---|
+| **[USAGE.md](USAGE.md)** | Complete usage guide with all commands and options |
+| **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development setup, architecture, and contributing |
+| **[CROSS_COMPILE.md](CROSS_COMPILE.md)** | Cross-compilation guide for different platforms |
+| **[docs/windows.md](docs/windows.md)** | Windows-specific configuration and troubleshooting |
+| **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** | Common issues and solutions |
+
+---
+
+## 🛠️ Development
 
 ```bash
-# Build
+# Build the project
 just build
 
 # Run tests
 just test
 
-# Run all checks
+# Run all checks (tests, lint, fmt)
 just check
 
-# See all commands
+# List all available commands
 just --list
 ```
 
-## Project Status
-
-- ✅ Core functionality complete
-- ✅ All 58 tests passing
-- ✅ Cross-platform support (Linux/macOS/Windows)
-- ✅ CI/CD with GitHub Actions
-- ✅ Comprehensive documentation
-
-## License
-
-MIT OR Apache-2.0
+**Requirements:** Rust 1.75+, just task runner
 
 ---
 
-**Serial CLI** - A Universal Serial Port Tool Optimized for AI Interaction
+## 📊 Project Status
+
+<div align="center">
+
+✅ **Core functionality complete** • ✅ **All 58 tests passing** • ✅ **Cross-platform support** • ✅ **CI/CD configured**
+
+</div>
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read [DEVELOPMENT.md](DEVELOPMENT.md) for details on our code of conduct, development setup, and submission process.
+
+---
+
+## 📝 License
+
+Dual-licensed under:
+
+- [MIT License](LICENSE-MIT)
+- [Apache License, Version 2.0](LICENSE-APACHE)
+
+---
+
+<div align="center">
+
+**Built with ❤️ and Rust**
+
+[GitHub](https://github.com/zazac-zhang/serial_cli) • [Report Issues](https://github.com/zazac-zhang/serial_cli/issues) • [Releases](https://github.com/zazac-zhang/serial_cli/releases)
+
+</div>
