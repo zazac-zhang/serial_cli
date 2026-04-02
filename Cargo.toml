@@ -53,6 +53,27 @@ rustyline = "18.0.0"
 name = "serial-cli"
 path = "src/main.rs"
 
+# Benchmark configurations
+[[bench]]
+name = "io_throughput"
+harness = false
+
+[[bench]]
+name = "io_latency"
+harness = false
+
+[[bench]]
+name = "protocol_parsing"
+harness = false
+
+[[bench]]
+name = "lua_execution"
+harness = false
+
+[[bench]]
+name = "concurrency"
+harness = false
+
 [lib]
 name = "serial_cli"
 path = "src/lib.rs"
