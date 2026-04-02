@@ -390,6 +390,34 @@ impl LuaBindings {
         self.lua.globals().set("protocol_decode", decode)?;
         Ok(())
     }
+
+    /// Register protocol_list API
+    pub fn register_protocol_list(&self) -> Result<()> {
+        let list = self.lua.create_function(|lua, ()| {
+            use crate::protocol::ProtocolRegistry;
+
+            let rt = tokio::runtime::Runtime::new()
+                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
+            let mut registry = ProtocolRegistry::new();
+
+            rt.block_on(Self::register_builtins(&mut registry));
+
+            let protocols = rt.block_on(registry.list_protocols());
+
+            let result = lua.create_table()?;
+            for (i, protocol) in protocols.iter().enumerate() {
+                let proto_table = lua.create_table()?;
+                proto_table.set("name", protocol.name.clone())?;
+                proto_table.set("description", protocol.description.clone())?;
+                result.set(i + 1, proto_table)?;
+            }
+
+            Ok(result)
+        })?;
+
+        self.lua.globals().set("protocol_list", list)?;
+        Ok(())
+    }
 }
 
 impl Default for LuaBindings {
@@ -615,6 +643,21 @@ mod tests {
             local ok, err = pcall(protocol_decode, "invalid_protocol", "test\n")
             assert(ok == false, "Expected error for invalid protocol")
             assert(err ~= nil, "Expected error message")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_protocol_list_lua() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_protocol_list().unwrap();
+
+        let script = r#"
+            local protocols = protocol_list()
+            assert(type(protocols) == "table", "Expected protocols to be a table")
+            -- Should have at least line, at_command, modbus_rtu, modbus_ascii
+            assert(#protocols >= 4, "Expected at least 4 protocols, got " .. #protocols)
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
