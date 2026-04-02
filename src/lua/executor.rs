@@ -8,7 +8,7 @@ use std::path::Path;
 
 /// Script execution engine
 pub struct ScriptEngine {
-    bindings: LuaBindings,
+    pub bindings: LuaBindings,
     port_manager: PortManager,
 }
 

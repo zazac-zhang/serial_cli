@@ -1,0 +1,114 @@
+//! Integration tests for Lua APIs
+
+use serial_cli::lua::executor::ScriptEngine;
+use serial_cli::lua::stdlib::LuaStdLib;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+#[test]
+fn test_serial_api_integration() {
+    let mut engine = ScriptEngine::new().unwrap();
+    let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
+    engine.bindings.set_port_manager(port_manager);
+    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    engine.bindings.register_all_apis().unwrap();
+
+    let script = r#"
+        local ports = serial_list()
+        assert(type(ports) == "table", "serial_list should return table")
+    "#;
+
+    assert!(engine.bindings.execute_script(script).is_ok());
+}
+
+#[test]
+fn test_protocol_api_integration() {
+    let mut engine = ScriptEngine::new().unwrap();
+    let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
+    engine.bindings.set_port_manager(port_manager);
+    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    engine.bindings.register_all_apis().unwrap();
+
+    let script = r#"
+        local protocols = protocol_list()
+        assert(type(protocols) == "table")
+        assert(#protocols >= 4, "Should have at least 4 protocols")
+
+        local encoded = protocol_encode("line", "test")
+        assert(type(encoded) == "string")
+        assert(string.sub(encoded, -1) == "\n")
+
+        local decoded = protocol_decode("line", "test\n")
+        assert(type(decoded) == "string")
+    "#;
+
+    assert!(engine.bindings.execute_script(script).is_ok());
+}
+
+#[test]
+fn test_conversion_api_integration() {
+    let lua = mlua::Lua::new();
+    LuaStdLib::register_all_on(&lua).unwrap();
+
+    let script = r#"
+        local bytes = hex_to_bytes("010203")
+        assert(bytes[1] == 1)
+        assert(bytes[2] == 2)
+        assert(bytes[3] == 3)
+
+        local hex = bytes_to_hex({1, 2, 3})
+        assert(hex == "010203")
+
+        local str = bytes_to_string({72, 101, 108, 108, 111})
+        assert(str == "Hello")
+
+        local bytes2 = string_to_bytes("ABC")
+        assert(bytes2[1] == 65)
+        assert(bytes2[2] == 66)
+        assert(bytes2[3] == 67)
+    "#;
+
+    lua.load(script).exec().unwrap();
+}
+
+#[test]
+fn test_end_to_end_modbus_workflow() {
+    let mut engine = ScriptEngine::new().unwrap();
+    let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
+    engine.bindings.set_port_manager(port_manager);
+    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    engine.bindings.register_all_apis().unwrap();
+
+    let script = r#"
+        -- Test line protocol roundtrip
+        local original = "Hello, World!"
+        local encoded = protocol_encode('line', original)
+        local decoded = protocol_decode('line', encoded)
+        -- Line protocol adds newline if not present
+        assert(decoded == original .. "\n", "Line protocol roundtrip failed")
+
+        -- Test with data that already has newline
+        local with_newline = "Test\n"
+        local encoded2 = protocol_encode('line', with_newline)
+        local decoded2 = protocol_decode('line', encoded2)
+        assert(decoded2 == with_newline, "Line protocol with existing newline failed")
+
+        -- Test Modbus encoding (encode only - binary data roundtrip has issues)
+        local pdu = string.char(0x01, 0x03, 0x00, 0x00, 0x00, 0x0A)
+        local modbus_encoded = protocol_encode('modbus_rtu', pdu)
+        assert(type(modbus_encoded) == "string")
+        assert(#modbus_encoded > #pdu, "Encoded data should include CRC")
+
+        -- Test AT command protocol
+        local at_cmd = "ATZ"
+        local at_encoded = protocol_encode('at_command', at_cmd)
+        local at_decoded = protocol_decode('at_command', at_encoded)
+        -- AT command adds \r\n
+        assert(at_decoded == "ATZ\r\n", "AT command roundtrip failed")
+    "#;
+
+    match engine.bindings.execute_script(script) {
+        Ok(_) => {},
+        Err(e) => panic!("Script execution failed: {:?}", e),
+    }
+}

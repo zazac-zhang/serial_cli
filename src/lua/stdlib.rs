@@ -17,6 +17,15 @@ impl LuaStdLib {
         Ok(Self { lua })
     }
 
+    /// Register all standard library functions on an existing Lua instance
+    pub fn register_all_on(lua: &Lua) -> Result<()> {
+        Self::register_string_utils_on(lua)?;
+        Self::register_hex_utils_on(lua)?;
+        Self::register_time_utils_on(lua)?;
+        Self::register_data_conversion_on(lua)?;
+        Ok(())
+    }
+
     /// Register all standard library functions
     pub fn register_all(&self) -> Result<()> {
         self.register_string_utils()?;
@@ -26,12 +35,12 @@ impl LuaStdLib {
         Ok(())
     }
 
-    /// Register string utility functions
-    fn register_string_utils(&self) -> Result<()> {
-        let globals = self.lua.globals();
+    /// Register string utility functions on an existing Lua instance
+    fn register_string_utils_on(lua: &Lua) -> Result<()> {
+        let globals = lua.globals();
 
         // string.to_hex
-        let to_hex = self.lua.create_function(|_, data: String| {
+        let to_hex = lua.create_function(|_, data: String| {
             Ok(data
                 .bytes()
                 .map(|b| format!("{:02x}", b))
@@ -40,7 +49,7 @@ impl LuaStdLib {
         globals.set("string_to_hex", to_hex)?;
 
         // string.from_hex
-        let from_hex = self.lua.create_function(|_, hex: String| {
+        let from_hex = lua.create_function(|_, hex: String| {
             if !hex.len().is_multiple_of(2) {
                 return Err(mlua::Error::RuntimeError(
                     "Hex string must have even length".to_string(),
@@ -63,12 +72,12 @@ impl LuaStdLib {
         Ok(())
     }
 
-    /// Register hex utility functions
-    fn register_hex_utils(&self) -> Result<()> {
-        let globals = self.lua.globals();
+    /// Register hex utility functions on an existing Lua instance
+    fn register_hex_utils_on(lua: &Lua) -> Result<()> {
+        let globals = lua.globals();
 
         // hex.encode
-        let encode = self.lua.create_function(|_, data: Vec<u8>| {
+        let encode = lua.create_function(|_, data: Vec<u8>| {
             Ok(data
                 .iter()
                 .map(|b| format!("{:02x}", b))
@@ -77,7 +86,7 @@ impl LuaStdLib {
         globals.set("hex_encode", encode)?;
 
         // hex.decode
-        let decode = self.lua.create_function(|_, hex: String| {
+        let decode = lua.create_function(|_, hex: String| {
             if !hex.len().is_multiple_of(2) {
                 return Err(mlua::Error::RuntimeError(
                     "Hex string must have even length".to_string(),
@@ -97,7 +106,7 @@ impl LuaStdLib {
         globals.set("hex_decode", decode)?;
 
         // hex_to_bytes - converts hex string to Lua byte array (table)
-        let hex_to_bytes = self.lua.create_function(|lua, hex: String| {
+        let hex_to_bytes = lua.create_function(|lua, hex: String| {
             if !hex.len().is_multiple_of(2) {
                 return Err(mlua::Error::RuntimeError(
                     "Hex string must have even length".to_string(),
@@ -125,19 +134,19 @@ impl LuaStdLib {
         Ok(())
     }
 
-    /// Register time utility functions
-    fn register_time_utils(&self) -> Result<()> {
-        let globals = self.lua.globals();
+    /// Register time utility functions on an existing Lua instance
+    fn register_time_utils_on(lua: &Lua) -> Result<()> {
+        let globals = lua.globals();
 
         // time.sleep (milliseconds)
-        let sleep = self.lua.create_function(|_, ms: u64| {
+        let sleep = lua.create_function(|_, ms: u64| {
             std::thread::sleep(std::time::Duration::from_millis(ms));
             Ok(())
         })?;
         globals.set("sleep_ms", sleep)?;
 
         // time.now
-        let now = self.lua.create_function(|_, _: ()| {
+        let now = lua.create_function(|_, _: ()| {
             Ok(std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
@@ -148,13 +157,13 @@ impl LuaStdLib {
         Ok(())
     }
 
-    /// Register data conversion functions
-    fn register_data_conversion(&self) -> Result<()> {
+    /// Register data conversion functions on an existing Lua instance
+    fn register_data_conversion_on(lua: &Lua) -> Result<()> {
         use mlua::Value;
-        let globals = self.lua.globals();
+        let globals = lua.globals();
 
         // bytes_to_hex - convert byte array to hex string
-        let bytes_to_hex = self.lua.create_function(|_, bytes: Value| {
+        let bytes_to_hex = lua.create_function(|_, bytes: Value| {
             let bytes_vec = match bytes {
                 Value::String(s) => {
                     let s = s.to_str().unwrap();
@@ -182,7 +191,7 @@ impl LuaStdLib {
         globals.set("bytes_to_hex", bytes_to_hex)?;
 
         // bytes_to_string - convert byte array to UTF-8 string
-        let bytes_to_string = self.lua.create_function(|_, bytes: Value| {
+        let bytes_to_string = lua.create_function(|_, bytes: Value| {
             let bytes_vec = match bytes {
                 Value::Table(t) => {
                     let mut vec = Vec::new();
@@ -205,7 +214,7 @@ impl LuaStdLib {
         globals.set("bytes_to_string", bytes_to_string)?;
 
         // string_to_bytes - convert string to byte array
-        let string_to_bytes = self.lua.create_function(|lua, s: String| {
+        let string_to_bytes = lua.create_function(|lua, s: String| {
             let bytes = s.into_bytes();
             let result = lua.create_table()?;
             for (i, byte) in bytes.iter().enumerate() {
@@ -216,6 +225,26 @@ impl LuaStdLib {
         globals.set("string_to_bytes", string_to_bytes)?;
 
         Ok(())
+    }
+
+    /// Register string utility functions
+    fn register_string_utils(&self) -> Result<()> {
+        Self::register_string_utils_on(&self.lua)
+    }
+
+    /// Register hex utility functions
+    fn register_hex_utils(&self) -> Result<()> {
+        Self::register_hex_utils_on(&self.lua)
+    }
+
+    /// Register time utility functions
+    fn register_time_utils(&self) -> Result<()> {
+        Self::register_time_utils_on(&self.lua)
+    }
+
+    /// Register data conversion functions
+    fn register_data_conversion(&self) -> Result<()> {
+        Self::register_data_conversion_on(&self.lua)
     }
 }
 
