@@ -61,8 +61,8 @@ async fn run_lua_script(path: PathBuf) -> Result<()> {
     register_stdlib_utils(&bindings)?;
 
     // 4. Read and execute script file
-    let script_content = std::fs::read_to_string(&path)
-        .map_err(|e| serial_cli::error::SerialError::Io(e))?;
+    let script_content =
+        std::fs::read_to_string(&path).map_err(serial_cli::error::SerialError::Io)?;
 
     bindings.execute_script(&script_content)?;
 
@@ -100,8 +100,7 @@ fn register_stdlib_utils(bindings: &LuaBindings) -> Result<()> {
             bytes.push(byte);
         }
 
-        String::from_utf8(bytes)
-            .map_err(|_| mlua::Error::RuntimeError("Invalid UTF-8".to_string()))
+        String::from_utf8(bytes).map_err(|_| mlua::Error::RuntimeError("Invalid UTF-8".to_string()))
     })?;
     globals.set("string_from_hex", from_hex)?;
 
@@ -145,9 +144,8 @@ fn register_stdlib_utils(bindings: &LuaBindings) -> Result<()> {
         let mut bytes = Vec::new();
         for i in (0..hex.len()).step_by(2) {
             let byte_str = &hex[i..i + 2];
-            let byte = u8::from_str_radix(byte_str, 16).map_err(|_| {
-                mlua::Error::RuntimeError(format!("Invalid hex: {}", byte_str))
-            })?;
+            let byte = u8::from_str_radix(byte_str, 16)
+                .map_err(|_| mlua::Error::RuntimeError(format!("Invalid hex: {}", byte_str)))?;
             bytes.push(byte);
         }
 

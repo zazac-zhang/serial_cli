@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn test_shell_creation() {
         let shell = InteractiveShell::new();
-        assert_eq!(shell.running, false);
+        assert!(!shell.running);
         assert!(shell.current_port_id.is_none());
     }
 }

@@ -5,8 +5,8 @@
 use crate::error::{Result, SerialError};
 use crate::serial_core::PortManager;
 use mlua::{Function, Lua, Value};
-use std::sync::Arc;
 use std::cell::RefCell;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// Lua API bindings
@@ -153,26 +153,35 @@ impl LuaBindings {
     pub fn register_serial_open(&self) -> Result<()> {
         self.ensure_runtime()?;
 
-        let port_manager = self.port_manager.clone()
+        let port_manager = self
+            .port_manager
+            .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self.runtime.borrow()
+        let runtime = self
+            .runtime
+            .borrow()
             .as_ref()
             .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
             .clone();
 
-        let open = self.lua.create_function(move |_, (port_name, baudrate): (String, u32)| {
-            let pm_guard = runtime.block_on(port_manager.lock());
-            let config = crate::serial_core::SerialConfig {
-                baudrate,
-                ..Default::default()
-            };
+        let open = self
+            .lua
+            .create_function(move |_, (port_name, baudrate): (String, u32)| {
+                let pm_guard = runtime.block_on(port_manager.lock());
+                let config = crate::serial_core::SerialConfig {
+                    baudrate,
+                    ..Default::default()
+                };
 
-            let port_id = runtime.block_on(pm_guard.open_port(&port_name, config))
-                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+                let port_id = runtime
+                    .block_on(pm_guard.open_port(&port_name, config))
+                    .map_err(|e: crate::error::SerialError| {
+                        mlua::Error::RuntimeError(e.to_string())
+                    })?;
 
-            Ok(port_id)
-        })?;
+                Ok(port_id)
+            })?;
 
         self.lua.globals().set("serial_open", open)?;
         Ok(())
@@ -182,10 +191,14 @@ impl LuaBindings {
     pub fn register_serial_close(&self) -> Result<()> {
         self.ensure_runtime()?;
 
-        let port_manager = self.port_manager.clone()
+        let port_manager = self
+            .port_manager
+            .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self.runtime.borrow()
+        let runtime = self
+            .runtime
+            .borrow()
             .as_ref()
             .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
             .clone();
@@ -193,7 +206,8 @@ impl LuaBindings {
         let close = self.lua.create_function(move |_, port_id: String| {
             let pm_guard = runtime.block_on(port_manager.lock());
 
-            runtime.block_on(pm_guard.close_port(&port_id))
+            runtime
+                .block_on(pm_guard.close_port(&port_id))
                 .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
 
             Ok(true)
@@ -207,26 +221,37 @@ impl LuaBindings {
     pub fn register_serial_send(&self) -> Result<()> {
         self.ensure_runtime()?;
 
-        let port_manager = self.port_manager.clone()
+        let port_manager = self
+            .port_manager
+            .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self.runtime.borrow()
+        let runtime = self
+            .runtime
+            .borrow()
             .as_ref()
             .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
             .clone();
 
-        let send = self.lua.create_function(move |_, (port_id, data): (String, String)| {
-            let pm_guard = runtime.block_on(port_manager.lock());
+        let send = self
+            .lua
+            .create_function(move |_, (port_id, data): (String, String)| {
+                let pm_guard = runtime.block_on(port_manager.lock());
 
-            let port_handle = runtime.block_on(pm_guard.get_port(&port_id))
-                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+                let port_handle = runtime.block_on(pm_guard.get_port(&port_id)).map_err(
+                    |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
+                )?;
 
-            let mut handle = runtime.block_on(port_handle.lock());
-            let bytes = handle.write(data.as_bytes())
-                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+                let mut handle = runtime.block_on(port_handle.lock());
+                let bytes =
+                    handle
+                        .write(data.as_bytes())
+                        .map_err(|e: crate::error::SerialError| {
+                            mlua::Error::RuntimeError(e.to_string())
+                        })?;
 
-            Ok(bytes)
-        })?;
+                Ok(bytes)
+            })?;
 
         self.lua.globals().set("serial_send", send)?;
         Ok(())
@@ -236,54 +261,65 @@ impl LuaBindings {
     pub fn register_serial_recv(&self) -> Result<()> {
         self.ensure_runtime()?;
 
-        let port_manager = self.port_manager.clone()
+        let port_manager = self
+            .port_manager
+            .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self.runtime.borrow()
+        let runtime = self
+            .runtime
+            .borrow()
             .as_ref()
             .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
             .clone();
 
-        let recv = self.lua.create_function(move |_, (port_id, timeout_ms): (String, u64)| {
-            let pm_guard = runtime.block_on(port_manager.lock());
+        let recv = self
+            .lua
+            .create_function(move |_, (port_id, timeout_ms): (String, u64)| {
+                let pm_guard = runtime.block_on(port_manager.lock());
 
-            let port_handle = runtime.block_on(pm_guard.get_port(&port_id))
-                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+                let port_handle = runtime.block_on(pm_guard.get_port(&port_id)).map_err(
+                    |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
+                )?;
 
-            // Clone runtime for the async block
-            let rt_clone = runtime.clone();
+                // Clone runtime for the async block
+                let rt_clone = runtime.clone();
 
-            // Wrap synchronous read in async block for timeout
-            let read_future = async move {
-                // Move port_handle into the blocking task
-                let read_result = tokio::task::spawn_blocking(move || {
-                    let mut handle = rt_clone.block_on(port_handle.lock());
-                    let mut buffer = vec![0u8; 4096];
+                // Wrap synchronous read in async block for timeout
+                let read_future = async move {
+                    // Move port_handle into the blocking task
+                    let read_result = tokio::task::spawn_blocking(move || {
+                        let mut handle = rt_clone.block_on(port_handle.lock());
+                        let mut buffer = vec![0u8; 4096];
 
-                    let n = handle.read(&mut buffer)?;
+                        let n = handle.read(&mut buffer)?;
 
-                    buffer.truncate(n);
-                    Ok(String::from_utf8_lossy(&buffer).to_string())
-                }).await
-                .map_err(|e| crate::error::SerialError::Serial(
-                    crate::error::SerialPortError::IoError(e.to_string())
-                ))?;
+                        buffer.truncate(n);
+                        Ok(String::from_utf8_lossy(&buffer).to_string())
+                    })
+                    .await
+                    .map_err(|e| {
+                        crate::error::SerialError::Serial(crate::error::SerialPortError::IoError(
+                            e.to_string(),
+                        ))
+                    })?;
 
-                read_result
-            };
+                    read_result
+                };
 
-            // Apply timeout
-            let result = tokio::time::timeout(
-                std::time::Duration::from_millis(timeout_ms),
-                read_future
-            );
+                // Apply timeout
+                let result =
+                    tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), read_future);
 
-            let data = runtime.block_on(result)
-                .map_err(|_| mlua::Error::RuntimeError("Timeout".to_string()))?
-                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+                let data = runtime
+                    .block_on(result)
+                    .map_err(|_| mlua::Error::RuntimeError("Timeout".to_string()))?
+                    .map_err(|e: crate::error::SerialError| {
+                        mlua::Error::RuntimeError(e.to_string())
+                    })?;
 
-            Ok(data)
-        })?;
+                Ok(data)
+            })?;
 
         self.lua.globals().set("serial_recv", recv)?;
         Ok(())
@@ -293,10 +329,14 @@ impl LuaBindings {
     pub fn register_serial_list(&self) -> Result<()> {
         self.ensure_runtime()?;
 
-        let port_manager = self.port_manager.clone()
+        let port_manager = self
+            .port_manager
+            .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self.runtime.borrow()
+        let runtime = self
+            .runtime
+            .borrow()
             .as_ref()
             .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
             .clone();
@@ -304,7 +344,8 @@ impl LuaBindings {
         let list = self.lua.create_function(move |lua, ()| {
             let pm_guard = runtime.block_on(port_manager.lock());
 
-            let ports = pm_guard.list_ports()
+            let ports = pm_guard
+                .list_ports()
                 .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
 
             // Convert to Lua table
@@ -333,50 +374,63 @@ impl LuaBindings {
         use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
         use crate::protocol::registry::SimpleProtocolFactory;
 
-        registry.register(SimpleProtocolFactory::new(
-            "line".to_string(),
-            "Line-based protocol".to_string(),
-            LineProtocol::new,
-        )).await;
+        registry
+            .register(SimpleProtocolFactory::new(
+                "line".to_string(),
+                "Line-based protocol".to_string(),
+                LineProtocol::new,
+            ))
+            .await;
 
-        registry.register(SimpleProtocolFactory::new(
-            "at_command".to_string(),
-            "AT Command protocol".to_string(),
-            AtCommandProtocol::new,
-        )).await;
+        registry
+            .register(SimpleProtocolFactory::new(
+                "at_command".to_string(),
+                "AT Command protocol".to_string(),
+                AtCommandProtocol::new,
+            ))
+            .await;
 
-        registry.register(SimpleProtocolFactory::new(
-            "modbus_rtu".to_string(),
-            "Modbus RTU protocol".to_string(),
-            || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Rtu),
-        )).await;
+        registry
+            .register(SimpleProtocolFactory::new(
+                "modbus_rtu".to_string(),
+                "Modbus RTU protocol".to_string(),
+                || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Rtu),
+            ))
+            .await;
 
-        registry.register(SimpleProtocolFactory::new(
-            "modbus_ascii".to_string(),
-            "Modbus ASCII protocol".to_string(),
-            || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Ascii),
-        )).await;
+        registry
+            .register(SimpleProtocolFactory::new(
+                "modbus_ascii".to_string(),
+                "Modbus ASCII protocol".to_string(),
+                || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Ascii),
+            ))
+            .await;
     }
 
     /// Register protocol_encode API
     pub fn register_protocol_encode(&self) -> Result<()> {
-        let encode = self.lua.create_function(move |_, (protocol_name, data): (String, String)| {
-            use crate::protocol::ProtocolRegistry;
+        let encode =
+            self.lua
+                .create_function(move |_, (protocol_name, data): (String, String)| {
+                    use crate::protocol::ProtocolRegistry;
 
-            let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
-            let mut registry = ProtocolRegistry::new();
+                    let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                        mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e))
+                    })?;
+                    let mut registry = ProtocolRegistry::new();
 
-            rt.block_on(Self::register_builtins(&mut registry));
+                    rt.block_on(Self::register_builtins(&mut registry));
 
-            let mut protocol = rt.block_on(registry.get_protocol(&protocol_name))
-                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let mut protocol = rt
+                        .block_on(registry.get_protocol(&protocol_name))
+                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
-            let encoded = protocol.encode(data.as_bytes())
-                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let encoded = protocol
+                        .encode(data.as_bytes())
+                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
-            Ok(String::from_utf8_lossy(&encoded).to_string())
-        })?;
+                    Ok(String::from_utf8_lossy(&encoded).to_string())
+                })?;
 
         self.lua.globals().set("protocol_encode", encode)?;
         Ok(())
@@ -384,23 +438,28 @@ impl LuaBindings {
 
     /// Register protocol_decode API
     pub fn register_protocol_decode(&self) -> Result<()> {
-        let decode = self.lua.create_function(move |_, (protocol_name, data): (String, String)| {
-            use crate::protocol::ProtocolRegistry;
+        let decode =
+            self.lua
+                .create_function(move |_, (protocol_name, data): (String, String)| {
+                    use crate::protocol::ProtocolRegistry;
 
-            let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
-            let mut registry = ProtocolRegistry::new();
+                    let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                        mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e))
+                    })?;
+                    let mut registry = ProtocolRegistry::new();
 
-            rt.block_on(Self::register_builtins(&mut registry));
+                    rt.block_on(Self::register_builtins(&mut registry));
 
-            let mut protocol = rt.block_on(registry.get_protocol(&protocol_name))
-                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let mut protocol = rt
+                        .block_on(registry.get_protocol(&protocol_name))
+                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
-            let decoded = protocol.parse(data.as_bytes())
-                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let decoded = protocol
+                        .parse(data.as_bytes())
+                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
-            Ok(String::from_utf8_lossy(&decoded).to_string())
-        })?;
+                    Ok(String::from_utf8_lossy(&decoded).to_string())
+                })?;
 
         self.lua.globals().set("protocol_decode", decode)?;
         Ok(())
@@ -411,8 +470,9 @@ impl LuaBindings {
         let list = self.lua.create_function(|lua, ()| {
             use crate::protocol::ProtocolRegistry;
 
-            let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
+            let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e))
+            })?;
             let mut registry = ProtocolRegistry::new();
 
             rt.block_on(Self::register_builtins(&mut registry));
@@ -439,16 +499,20 @@ impl LuaBindings {
         let info = self.lua.create_function(|lua, protocol_name: String| {
             use crate::protocol::ProtocolRegistry;
 
-            let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
+            let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e))
+            })?;
             let mut registry = ProtocolRegistry::new();
 
             rt.block_on(Self::register_builtins(&mut registry));
 
             let protocols = rt.block_on(registry.list_protocols());
-            let protocol = protocols.iter()
+            let protocol = protocols
+                .iter()
                 .find(|p| p.name == protocol_name)
-                .ok_or_else(|| mlua::Error::RuntimeError(format!("Protocol not found: {}", protocol_name)))?;
+                .ok_or_else(|| {
+                    mlua::Error::RuntimeError(format!("Protocol not found: {}", protocol_name))
+                })?;
 
             let result = lua.create_table()?;
             result.set("name", protocol.name.clone())?;

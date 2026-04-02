@@ -147,6 +147,6 @@ mod tests {
         let executor = CommandExecutor::new("COM1".to_string(), 1000, false);
         assert_eq!(executor.port, "COM1");
         assert_eq!(executor.timeout, 1000);
-        assert_eq!(executor.json, false);
+        assert!(!executor.json);
     }
 }

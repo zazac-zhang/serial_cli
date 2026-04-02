@@ -108,7 +108,7 @@ fn test_end_to_end_modbus_workflow() {
     "#;
 
     match engine.bindings.execute_script(script) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => panic!("Script execution failed: {:?}", e),
     }
 }

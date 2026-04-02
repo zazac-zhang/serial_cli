@@ -116,9 +116,8 @@ impl LuaStdLib {
             let mut bytes = Vec::new();
             for i in (0..hex.len()).step_by(2) {
                 let byte_str = &hex[i..i + 2];
-                let byte = u8::from_str_radix(byte_str, 16).map_err(|_| {
-                    mlua::Error::RuntimeError(format!("Invalid hex: {}", byte_str))
-                })?;
+                let byte = u8::from_str_radix(byte_str, 16)
+                    .map_err(|_| mlua::Error::RuntimeError(format!("Invalid hex: {}", byte_str)))?;
                 bytes.push(byte);
             }
 

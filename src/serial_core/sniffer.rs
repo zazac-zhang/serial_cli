@@ -347,8 +347,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_max_packets_limit() {
-        let mut config = SnifferConfig::default();
-        config.max_packets = 2;
+        let config = SnifferConfig {
+            max_packets: 2,
+            ..Default::default()
+        };
 
         let sniffer = SerialSniffer::new(config);
 

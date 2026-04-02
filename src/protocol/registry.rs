@@ -140,7 +140,7 @@ mod tests {
         let factory = SimpleProtocolFactory::new(
             "line".to_string(),
             "Line-based protocol".to_string(),
-            || LineProtocol::new(),
+            LineProtocol::new,
         );
         registry.register(factory).await;
 
