@@ -22,6 +22,7 @@ impl LuaStdLib {
         self.register_string_utils()?;
         self.register_hex_utils()?;
         self.register_time_utils()?;
+        self.register_data_conversion()?;
         Ok(())
     }
 
@@ -146,6 +147,76 @@ impl LuaStdLib {
 
         Ok(())
     }
+
+    /// Register data conversion functions
+    fn register_data_conversion(&self) -> Result<()> {
+        use mlua::Value;
+        let globals = self.lua.globals();
+
+        // bytes_to_hex - convert byte array to hex string
+        let bytes_to_hex = self.lua.create_function(|_, bytes: Value| {
+            let bytes_vec = match bytes {
+                Value::String(s) => {
+                    let s = s.to_str().unwrap();
+                    s.as_bytes().to_vec()
+                }
+                Value::Table(t) => {
+                    let mut vec = Vec::new();
+                    for pair in t.pairs::<usize, u8>() {
+                        let (_, byte) = pair.unwrap();
+                        vec.push(byte);
+                    }
+                    vec
+                }
+                _ => {
+                    return Err(mlua::Error::RuntimeError(
+                        "Expected string or table".to_string(),
+                    ))
+                }
+            };
+
+            let hex: String = bytes_vec.iter().map(|b| format!("{:02x}", b)).collect();
+
+            Ok(hex)
+        })?;
+        globals.set("bytes_to_hex", bytes_to_hex)?;
+
+        // bytes_to_string - convert byte array to UTF-8 string
+        let bytes_to_string = self.lua.create_function(|_, bytes: Value| {
+            let bytes_vec = match bytes {
+                Value::Table(t) => {
+                    let mut vec = Vec::new();
+                    for pair in t.pairs::<usize, u8>() {
+                        let (_, byte) = pair.unwrap();
+                        vec.push(byte);
+                    }
+                    vec
+                }
+                _ => {
+                    return Err(mlua::Error::RuntimeError(
+                        "Expected table of bytes".to_string(),
+                    ))
+                }
+            };
+
+            String::from_utf8(bytes_vec)
+                .map_err(|_| mlua::Error::RuntimeError("Invalid UTF-8 sequence".to_string()))
+        })?;
+        globals.set("bytes_to_string", bytes_to_string)?;
+
+        // string_to_bytes - convert string to byte array
+        let string_to_bytes = self.lua.create_function(|lua, s: String| {
+            let bytes = s.into_bytes();
+            let result = lua.create_table()?;
+            for (i, byte) in bytes.iter().enumerate() {
+                result.set(i + 1, *byte)?;
+            }
+            Ok(result)
+        })?;
+        globals.set("string_to_bytes", string_to_bytes)?;
+
+        Ok(())
+    }
 }
 
 impl Default for LuaStdLib {
@@ -201,6 +272,114 @@ mod tests {
             assert(bytes[1] == 1)
             assert(bytes[2] == 2)
             assert(bytes[3] == 3)
+        "#;
+
+        assert!(stdlib.lua.load(script).exec().is_ok());
+    }
+
+    #[test]
+    fn test_bytes_to_hex_from_string() {
+        let stdlib = LuaStdLib::new().unwrap();
+        stdlib.register_all().unwrap();
+
+        let script = r#"
+            local result = bytes_to_hex("AB")
+            assert(result == "4142", "Expected 4142, got " .. result)
+        "#;
+
+        assert!(stdlib.lua.load(script).exec().is_ok());
+    }
+
+    #[test]
+    fn test_bytes_to_hex_from_table() {
+        let stdlib = LuaStdLib::new().unwrap();
+        stdlib.register_all().unwrap();
+
+        let script = r#"
+            local result = bytes_to_hex({0x41, 0x42, 0x43})
+            assert(result == "414243", "Expected 414243, got " .. result)
+        "#;
+
+        assert!(stdlib.lua.load(script).exec().is_ok());
+    }
+
+    #[test]
+    fn test_bytes_to_string() {
+        let stdlib = LuaStdLib::new().unwrap();
+        stdlib.register_all().unwrap();
+
+        let script = r#"
+            local bytes = {0x48, 0x65, 0x6c, 0x6c, 0x6f} -- "Hello" in ASCII
+            local result = bytes_to_string(bytes)
+            assert(result == "Hello", "Expected Hello, got " .. result)
+        "#;
+
+        assert!(stdlib.lua.load(script).exec().is_ok());
+    }
+
+    #[test]
+    fn test_bytes_to_string_invalid_utf8() {
+        let stdlib = LuaStdLib::new().unwrap();
+        stdlib.register_all().unwrap();
+
+        let script = r#"
+            local bytes = {0xFF, 0xFE, 0xFD} -- Invalid UTF-8
+            local ok, err = pcall(bytes_to_string, bytes)
+            if not ok then
+                -- Success! We got an error as expected
+                return true
+            else
+                error("Expected error but got: " .. tostring(err))
+            end
+        "#;
+
+        assert!(stdlib.lua.load(script).exec().is_ok());
+    }
+
+    #[test]
+    fn test_string_to_bytes() {
+        let stdlib = LuaStdLib::new().unwrap();
+        stdlib.register_all().unwrap();
+
+        let script = r#"
+            local bytes = string_to_bytes("ABC")
+            assert(type(bytes) == "table")
+            assert(bytes[1] == 0x41) -- 'A'
+            assert(bytes[2] == 0x42) -- 'B'
+            assert(bytes[3] == 0x43) -- 'C'
+        "#;
+
+        assert!(stdlib.lua.load(script).exec().is_ok());
+    }
+
+    #[test]
+    fn test_string_to_bytes_roundtrip() {
+        let stdlib = LuaStdLib::new().unwrap();
+        stdlib.register_all().unwrap();
+
+        let script = r#"
+            local original = "Hello, World!"
+            local bytes = string_to_bytes(original)
+            local restored = bytes_to_string(bytes)
+            assert(restored == original, "Roundtrip failed: " .. restored)
+        "#;
+
+        assert!(stdlib.lua.load(script).exec().is_ok());
+    }
+
+    #[test]
+    fn test_bytes_to_hex_roundtrip() {
+        let stdlib = LuaStdLib::new().unwrap();
+        stdlib.register_all().unwrap();
+
+        let script = r#"
+            local original = {0x01, 0x02, 0x03, 0xFF, 0xFE}
+            local hex = bytes_to_hex(original)
+            local decoded = hex_to_bytes(hex)
+            assert(#decoded == #original)
+            for i = 1, #original do
+                assert(decoded[i] == original[i], "Mismatch at index " .. i)
+            end
         "#;
 
         assert!(stdlib.lua.load(script).exec().is_ok());
