@@ -3,18 +3,11 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
-// Re-export the specific function we need from the common module
-fn generate_random_data(size: usize) -> Vec<u8> {
-    use rand::Rng;
-    let mut data = Vec::with_capacity(size);
-    let mut rng = rand::thread_rng();
+// Import the common module (sibling directory)
+mod common;
 
-    for _ in 0..size {
-        data.push(rng.gen());
-    }
-
-    data
-}
+// Use the data_generator function from the common module
+use common::data_generator::generate_random_data;
 
 /// Benchmark single port write throughput
 fn bench_single_port_write_throughput(c: &mut Criterion) {

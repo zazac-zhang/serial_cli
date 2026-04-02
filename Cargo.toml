@@ -49,6 +49,7 @@ proptest = "1.4"
 criterion = "0.5"
 rustyline = "18.0.0"
 rand = "0.8"
+libc = "0.2"
 
 [[bin]]
 name = "serial-cli"
