@@ -89,8 +89,23 @@ impl LuaBindings {
 
     /// Register all APIs
     pub fn register_all_apis(&self) -> Result<()> {
+        // Existing APIs
         self.register_log_api()?;
         self.register_utility_apis()?;
+
+        // New Serial APIs
+        self.register_serial_open()?;
+        self.register_serial_close()?;
+        self.register_serial_send()?;
+        self.register_serial_recv()?;
+        self.register_serial_list()?;
+
+        // New Protocol APIs
+        self.register_protocol_encode()?;
+        self.register_protocol_decode()?;
+        self.register_protocol_list()?;
+        self.register_protocol_info()?;
+
         Ok(())
     }
 
@@ -458,7 +473,9 @@ mod tests {
 
     #[test]
     fn test_bindings_creation() {
-        let bindings = LuaBindings::new().unwrap();
+        let mut bindings = LuaBindings::new().unwrap();
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
         assert!(bindings.register_all_apis().is_ok());
     }
 
