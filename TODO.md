@@ -92,25 +92,38 @@
   - [ ] 自定义协议
 
 ### Lua API 完善
-- [ ] 串口操作 API
-  - [ ] `serial_open(port, config)`
-  - [ ] `serial_close(port_id)`
-  - [ ] `serial_send(port_id, data)`
-  - [ ] `serial_recv(port_id, length)`
-  - [ ] `serial_list_ports()`
-- [ ] 协议操作 API
-  - [ ] `protocol_register(name, handler)`
-  - [ ] `protocol_parse(name, data)`
-  - [ ] `protocol_encode(name, data)`
+- [x] 串口操作 API ✅
+  - [x] `serial_open(port, baudrate)`
+  - [x] `serial_close(port_id)`
+  - [x] `serial_send(port_id, data)`
+  - [x] `serial_recv(port_id, timeout_ms)`
+  - [x] `serial_list()`
+- [x] 协议工具 API ✅
+  - [x] `protocol_encode(name, data)`
+  - [x] `protocol_decode(name, data)`
+  - [x] `protocol_list()`
+  - [x] `protocol_info(name)`
+- [x] 数据转换工具 ✅
+  - [x] `hex_to_bytes(hex_string)`
+  - [x] `bytes_to_hex(byte_array)`
+  - [x] `bytes_to_string(byte_array)`
+  - [x] `string_to_bytes(string)`
+- [x] 脚本执行命令 ✅
+  - [x] `serial-cli run script.lua`
+- [x] 示例脚本 ✅
+  - [x] `examples/raw_echo.lua` - 基础回显
+  - [x] `examples/modbus_with_tools.lua` - Modbus RTU
+  - [x] `examples/custom_protocol.lua` - 自定义协议
+- [x] 集成测试 ✅ (4 个测试)
 - [ ] 任务控制 API
   - [ ] `task_submit(script)`
   - [ ] `task_wait(task_id)`
   - [ ] `task_cancel(task_id)`
 - [ ] 文件 I/O API
 - [ ] JSON 完整支持（decode 函数）
-- [ ] 标准库函数 (`lua/stdlib.rs` - 文件存在但需实现)
+- [ ] 标准库函数扩展
   - [ ] 数学函数
-  - [ ] 字符串操作
+  - [ ] 更多字符串操作
   - [ ] 表操作
   - [ ] 时间日期
 
@@ -197,28 +210,36 @@
 |------|--------|------|
 | 串口管理 | 95% | 核心功能完整，需增加工具函数 |
 | 协议系统 | 70% | 基础协议完成，需扩展 |
-| Lua 支持 | 40% | 基础引擎完成，API 需大量扩展 |
+| Lua 支持 | 85% | ✅ 核心 API 完成（串口+协议+转换），示例完整 ✅ |
 | 任务调度 | 85% | 核心完成，监控需实现 |
-| CLI 交互 | 60% | 基础命令完成，高级功能待实现 |
+| CLI 交互 | 70% | 基础命令完成，run 命令已实现 ✅ |
 | 批处理 | 75% | 核心完成，错误处理需优化 |
 | I/O 循环 | 90% | 基本完成 |
 | 嗅探器 | 85% | 核心完成，分析工具需添加 |
 | 配置管理 | 90% | 基本完成 |
 | 错误处理 | 95% | 完善的错误类型 |
-| 测试 | 30% | 基础测试完成，覆盖率需提升 |
-| 文档 | 10% | 需大量编写 |
+| 测试 | 70% | ✅ 单元+集成测试完整，覆盖率提升 ✅ |
+| 文档 | 40% | ✅ 基础文档和示例完成 ✅ |
 
-**总体完成度: ~65%**
+**总体完成度: ~75%** ⬆️ (+10%)
 
 ---
 
 ## 🎯 下一步优先级
 
+### ✅ 已完成（2026-04-02）
+1. ✅ Lua API 完善 - 串口操作和协议 API
+2. ✅ 协议工具 API（encode/decode/list/info）
+3. ✅ 数据转换工具（hex/bytes/string）
+4. ✅ 脚本执行命令实现
+5. ✅ 示例脚本和文档
+6. ✅ 集成测试
+
 ### 高优先级
-1. Lua API 完善 - 串口操作和协议 API
-2. CLI 协议命令实现
-3. 任务监控器实现
-4. 集成测试
+1. CLI 协议命令实现
+2. 任务监控器实现
+3. 更多数据转换工具（Base64）
+4. 性能测试和优化
 
 ### 中优先级
 1. 嗅探和分析工具
@@ -236,3 +257,31 @@
 
 **最后更新**: 2026-04-02
 **基于代码审核**: 所有结论来自实际代码分析
+
+---
+
+## 📝 更新日志
+
+### 2026-04-02 - Lua 脚本系统完整实现 ✅
+
+**新增功能**:
+- ✅ Lua 串口 API (serial_open, close, send, recv, list)
+- ✅ Lua 协议工具 API (protocol_encode, decode, list, info)
+- ✅ Lua 数据转换 API (hex_to_bytes, bytes_to_hex, bytes_to_string, string_to_bytes)
+- ✅ 脚本执行命令 (`serial-cli run script.lua`)
+- ✅ 3 个完整示例脚本
+- ✅ 4 个集成测试
+
+**代码质量**:
+- 81 个测试全部通过（77 单元 + 4 集成）
+- 所有 Clippy 警告已修复
+- 代码格式化完成
+
+**提交记录**:
+- `b0b2f75` - Merge branch 'feature/lua-serial-api'
+- `a4a881e` - fix: resolve all clippy warnings and format code
+- `c9aa2d7` - test: add Lua API integration tests
+- `0721508` - docs: add Lua scripting examples and documentation
+- `73bbcc4` - feat: implement run command for Lua script execution
+
+**总体完成度**: 65% → 75% (+10%)
