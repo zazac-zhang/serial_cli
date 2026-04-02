@@ -2,12 +2,14 @@
 
 use crate::error::{Result, SerialError};
 use crate::lua::bindings::LuaBindings;
+use crate::serial_core::PortManager;
 use std::fs;
 use std::path::Path;
 
 /// Script execution engine
 pub struct ScriptEngine {
     bindings: LuaBindings,
+    port_manager: PortManager,
 }
 
 impl ScriptEngine {
@@ -15,6 +17,7 @@ impl ScriptEngine {
     pub fn new() -> Result<Self> {
         Ok(Self {
             bindings: LuaBindings::new()?,
+            port_manager: PortManager::new(),
         })
     }
 
@@ -34,6 +37,11 @@ impl ScriptEngine {
     pub fn execute_with_args(&self, script: &str, _args: Vec<String>) -> Result<()> {
         // TODO: Implement argument passing
         self.bindings.execute_script(script)
+    }
+
+    /// Get the port manager
+    pub fn port_manager(&self) -> &PortManager {
+        &self.port_manager
     }
 }
 

@@ -3,18 +3,25 @@
 //! This module provides the Rust API bindings for Lua scripts.
 
 use crate::error::{Result, SerialError};
+use crate::serial_core::PortManager;
 use mlua::{Function, Lua, Value};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Lua API bindings
 pub struct LuaBindings {
     lua: Lua,
+    port_manager: Option<Arc<Mutex<PortManager>>>,
 }
 
 impl LuaBindings {
     /// Create new Lua bindings
     pub fn new() -> Result<Self> {
         let lua = Lua::new();
-        Ok(Self { lua })
+        Ok(Self {
+            lua,
+            port_manager: None,
+        })
     }
 
     /// Register logging API
@@ -107,6 +114,16 @@ impl LuaBindings {
     pub fn set_global(&self, name: &str, value: Value) -> Result<()> {
         let globals = self.lua.globals();
         globals.set(name, value).map_err(SerialError::Lua)
+    }
+
+    /// Set the port manager
+    pub fn set_port_manager(&mut self, pm: Arc<Mutex<PortManager>>) {
+        self.port_manager = Some(pm);
+    }
+
+    /// Get the Lua instance
+    pub fn lua(&self) -> &Lua {
+        &self.lua
     }
 }
 
