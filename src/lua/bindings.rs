@@ -6,12 +6,14 @@ use crate::error::{Result, SerialError};
 use crate::serial_core::PortManager;
 use mlua::{Function, Lua, Value};
 use std::sync::Arc;
+use std::cell::RefCell;
 use tokio::sync::Mutex;
 
 /// Lua API bindings
 pub struct LuaBindings {
     lua: Lua,
     port_manager: Option<Arc<Mutex<PortManager>>>,
+    runtime: RefCell<Option<Arc<tokio::runtime::Runtime>>>,
 }
 
 impl LuaBindings {
@@ -21,6 +23,7 @@ impl LuaBindings {
         Ok(Self {
             lua,
             port_manager: None,
+            runtime: RefCell::new(None),
         })
     }
 
@@ -121,26 +124,67 @@ impl LuaBindings {
         self.port_manager = Some(pm);
     }
 
+    /// Ensure runtime is initialized
+    fn ensure_runtime(&self) -> Result<()> {
+        if self.runtime.borrow().is_none() {
+            let rt = tokio::runtime::Runtime::new()
+                .map_err(|e| SerialError::Config(format!("Failed to create runtime: {}", e)))?;
+            *self.runtime.borrow_mut() = Some(Arc::new(rt));
+        }
+        Ok(())
+    }
+
     /// Register serial_open API
     pub fn register_serial_open(&self) -> Result<()> {
-        let port_manager = self.port_manager.clone().unwrap();
+        self.ensure_runtime()?;
+
+        let port_manager = self.port_manager.clone()
+            .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
+
+        let runtime = self.runtime.borrow()
+            .as_ref()
+            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .clone();
 
         let open = self.lua.create_function(move |_, (port_name, baudrate): (String, u32)| {
-            // Use tokio runtime for async call
-            let rt = tokio::runtime::Runtime::new()?;
-            let pm_guard = rt.block_on(port_manager.lock());
+            let pm_guard = runtime.block_on(port_manager.lock());
             let config = crate::serial_core::SerialConfig {
                 baudrate,
                 ..Default::default()
             };
 
-            let port_id = rt.block_on(pm_guard.open_port(&port_name, config))
-                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+            let port_id = runtime.block_on(pm_guard.open_port(&port_name, config))
+                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
 
             Ok(port_id)
         })?;
 
         self.lua.globals().set("serial_open", open)?;
+        Ok(())
+    }
+
+    /// Register serial_close API
+    pub fn register_serial_close(&self) -> Result<()> {
+        self.ensure_runtime()?;
+
+        let port_manager = self.port_manager.clone()
+            .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
+
+        let runtime = self.runtime.borrow()
+            .as_ref()
+            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .clone();
+
+        let close = self.lua.create_function(move |_, port_id: String| {
+            let pm_guard = runtime.block_on(port_manager.lock());
+
+            runtime.block_on(pm_guard.close_port(&port_id))
+                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
+
+            Ok(true)
+        })?;
+
+        self.lua.globals().set("serial_close", close)?;
         Ok(())
     }
 
@@ -217,22 +261,50 @@ mod tests {
     #[test]
     fn test_serial_open_lua() {
         let mut bindings = LuaBindings::new().unwrap();
-
-        // Create and set port manager
-        let port_manager = crate::serial_core::PortManager::new();
-        let port_manager_arc = std::sync::Arc::new(tokio::sync::Mutex::new(port_manager));
-        bindings.set_port_manager(port_manager_arc);
-
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
         bindings.register_serial_open().unwrap();
 
         let script = r#"
-            local port, err = serial_open("/dev/ttyUSB0", 115200)
-            -- Will fail because port doesn't exist, but tests the API
-            assert(type(port) == "string" or type(err) == "string")
+            local ok, result = pcall(serial_open, "/dev/ttyUSB0", 115200)
+            -- ok should be false (port doesn't exist)
+            assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
+
+            -- result should be an error (can be string, userdata, or other type)
+            -- The important thing is that pcall caught the error
+            assert(result ~= nil, "Expected result to not be nil")
+
+            -- Convert result to string to verify it's an error
+            local result_str = tostring(result)
+            assert(type(result_str) == "string", "Expected result_str to be string")
+            assert(string.find(result_str, "Serial") ~= nil or
+                   string.find(result_str, "not found") ~= nil,
+                   "Expected error message to contain 'Serial' or 'not found', got: " .. result_str)
         "#;
 
-        let result = bindings.execute_script(script);
-        // Should not error - the Lua script should handle it
-        assert!(result.is_ok() || result.unwrap_err().to_string().contains("Serial port error"));
+        bindings.execute_script(script).unwrap();
+    }
+
+    #[test]
+    fn test_serial_close_lua() {
+        let mut bindings = LuaBindings::new().unwrap();
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
+        bindings.register_serial_close().unwrap();
+
+        let script = r#"
+            local ok, result = pcall(serial_close, "nonexistent-port")
+            -- ok should be false (port doesn't exist)
+            assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
+
+            -- result should be an error
+            assert(result ~= nil, "Expected result to not be nil")
+
+            -- Convert result to string to verify it's an error
+            local result_str = tostring(result)
+            assert(type(result_str) == "string", "Expected result_str to be string")
+        "#;
+
+        bindings.execute_script(script).unwrap();
     }
 }
