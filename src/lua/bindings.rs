@@ -366,6 +366,30 @@ impl LuaBindings {
         self.lua.globals().set("protocol_encode", encode)?;
         Ok(())
     }
+
+    /// Register protocol_decode API
+    pub fn register_protocol_decode(&self) -> Result<()> {
+        let decode = self.lua.create_function(move |_, (protocol_name, data): (String, String)| {
+            use crate::protocol::ProtocolRegistry;
+
+            let rt = tokio::runtime::Runtime::new()
+                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
+            let mut registry = ProtocolRegistry::new();
+
+            rt.block_on(Self::register_builtins(&mut registry));
+
+            let mut protocol = rt.block_on(registry.get_protocol(&protocol_name))
+                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+
+            let decoded = protocol.parse(data.as_bytes())
+                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+
+            Ok(String::from_utf8_lossy(&decoded).to_string())
+        })?;
+
+        self.lua.globals().set("protocol_decode", decode)?;
+        Ok(())
+    }
 }
 
 impl Default for LuaBindings {
@@ -561,6 +585,34 @@ mod tests {
 
         let script = r#"
             local ok, err = pcall(protocol_encode, "invalid_protocol", "test")
+            assert(ok == false, "Expected error for invalid protocol")
+            assert(err ~= nil, "Expected error message")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_protocol_decode_lua() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_protocol_decode().unwrap();
+
+        let script = r#"
+            local decoded = protocol_decode("line", "Hello\n")
+            assert(type(decoded) == "string")
+            assert(decoded == "Hello\n")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_protocol_decode_invalid_protocol() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_protocol_decode().unwrap();
+
+        let script = r#"
+            local ok, err = pcall(protocol_decode, "invalid_protocol", "test\n")
             assert(ok == false, "Expected error for invalid protocol")
             assert(err ~= nil, "Expected error message")
         "#;
