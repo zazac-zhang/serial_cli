@@ -130,17 +130,92 @@ just test-test test_name
 cargo test test_name
 ```
 
+### Test Categories
+
+```bash
+# Unit tests
+cargo test
+
+# Integration tests
+cargo test --test '*'
+
+# Benchmarks
+cargo bench
+```
+
 ### Test Coverage
 
 ```bash
 # Install tarpaulin
 cargo install cargo-tarpaulin
 
-# Generate coverage report
-cargo tarpaulin --out Html
+# Generate HTML coverage report
+cargo tarpaulin --out Html --output-dir ./coverage
+
+# Generate XML coverage report (for CI)
+cargo tarpaulin --out Xml --output-dir ./coverage --timeout 300 --all-features
 ```
 
-Current test status: **58/58 passing** ✅
+### Performance Testing
+
+```bash
+# Run benchmarks
+cargo bench --bench serial_performance -- --save-baseline main
+
+# Check for performance regression
+cargo install critcmp
+critcmp main
+```
+
+### Continuous Integration
+
+Add to `.github/workflows/ci.yml`:
+
+```yaml
+- name: Run tests with coverage
+  if: matrix.os == 'ubuntu-latest'
+  run: |
+    cargo install cargo-tarpaulin
+    cargo tarpaulin --out Xml --output-dir ./coverage --timeout 300 --all-features
+
+- name: Upload coverage to Codecov
+  if: matrix.os == 'ubuntu-latest'
+  uses: codecov/codecov-action@v4
+  with:
+    files: ./coverage/cobertura.xml
+    flags: unittests
+    name: codecov-umbrella
+    fail_ci_if_error: false
+
+- name: Run benchmarks
+  if: matrix.os == 'ubuntu-latest'
+  run: |
+    cargo bench --bench serial_performance -- --save-baseline main
+```
+
+### Update justfile
+
+Add these commands to your justfile:
+
+```toml
+# Coverage report
+coverage:
+    cargo tarpaulin --out Html --output-dir ./coverage
+
+# Benchmarks
+bench:
+    cargo bench
+
+# Performance regression check
+bench-check:
+    cargo bench -- --save-baseline main
+    critcmp main
+
+# Complete quality check
+qa: fmt-check lint test coverage
+```
+
+Current test status: **81/81 passing** ✅
 
 ## Code Quality
 
@@ -222,6 +297,24 @@ See [CROSS_COMPILE.md](CROSS_COMPILE.md) for detailed cross-compilation guide.
 
 ## Contributing
 
+感谢您对Serial CLI的贡献！Serial CLI是一个面向制造业和工业自动化的串口通信工具。
+
+### Contribution Types
+
+**Code Contributions:**
+- 🐛 Bug fixes
+- ✨ New features (discuss in issue first)
+- 🧪 Test cases
+- 📚 Documentation improvements
+- 🔧 Performance optimizations
+
+**Non-Code Contributions:**
+- 📝 Documentation translation
+- 💡 Use case sharing
+- 🐛 Bug reports
+- 💬 Discussion participation
+- 🎨 Design suggestions
+
 ### Workflow
 
 1. **Fork** the repository
@@ -234,7 +327,7 @@ See [CROSS_COMPILE.md](CROSS_COMPILE.md) for detailed cross-compilation guide.
    ```bash
    just check
    ```
-5. **Commit** with clear message
+5. **Commit** with clear message using conventional commits
    ```bash
    git commit -m "Add: Your feature description"
    ```
@@ -246,45 +339,112 @@ See [CROSS_COMPILE.md](CROSS_COMPILE.md) for detailed cross-compilation guide.
 
 ### Commit Message Style
 
-Use conventional commits:
+Use conventional commits format:
 
-- `Add:` - New features
-- `Fix:` - Bug fixes
-- `Update:` - Updates to existing features
-- `Refactor:` - Code refactoring
-- `Docs:` - Documentation changes
-- `Test:` - Adding or updating tests
-- `Chore:` - Maintenance tasks
-
-Examples:
 ```
-Add: Support for custom Lua protocols
-Fix: Correct timeout handling in recv command
-Refactor: Simplify error handling in serial_core
-Docs: Update USAGE.md with new examples
+<类型>: <简短描述>
+
+<详细描述（可选）>
+
+<引用Issue（可选）>
 ```
 
-### Code Style
+**类型说明**：
+- `Add:` - 新功能
+- `Fix:` - Bug修复
+- `Update:` - 功能更新
+- `Refactor:` - 代码重构（不改变功能）
+- `Docs:` - 文档变更
+- `Test:` - 测试相关
+- `Chore:` - 构建/工具链相关
+- `Perf:` - 性能改进
+
+**示例**：
+```
+Add: Modbus TCP protocol support
+
+Implemented Modbus TCP protocol for network-connected devices.
+This feature allows users to interact with Modbus TCP devices
+using the existing Modbus RTU API.
+
+Closes #123
+```
+
+### Code Style Requirements
 
 Follow Rust best practices:
 
-- Use `cargo fmt` for formatting
-- Fix all `clippy` warnings
-- Add tests for new features
-- Update documentation for public APIs
-- Keep functions focused and small
-- Use meaningful variable names
-- Add comments for complex logic
+- ✅ 使用 `cargo fmt` 格式化代码
+- ✅ 修复所有 `clippy` 警告
+- ✅ 新功能需要单元测试
+- ✅ 公共API必须有文档注释
+- ✅ 复杂逻辑需要注释说明
+- ✅ 保持函数专注和小巧
+- ✅ 使用有意义的变量名
 
-### Adding Features
+### Testing Requirements
 
-1. **Design** first - discuss in issue if major feature
-2. **Implement** with tests
-3. **Document** - update USAGE.md if user-facing
-4. **Test** manually and with unit tests
-5. **Update** CHANGELOG.md (if it exists)
+- ✅ 所有测试必须通过
+- ✅ 新功能需要单元测试
+- ✅ 复杂逻辑需要集成测试
+- ✅ 目标测试覆盖率：>85%
 
-### Reporting Issues
+### Pull Request Checklist
+
+提交PR前请确认：
+
+- [ ] 代码通过所有检查：`just check`
+- [ ] 新功能有测试用例
+- [ ] 文档已更新（如需要）
+- [ ] 提交消息符合规范
+- [ ] PR描述清晰完整
+- [ ] 关联相关Issue
+- [ ] 通过了CI/CD检查
+
+### PR Description Template
+
+```markdown
+## 变更类型
+- [ ] Bug修复
+- [ ] 新功能
+- [ ] 性能改进
+- [ ] 文档更新
+- [ ] 代码重构
+
+## 变更说明
+<!-- 清晰描述你的变更 -->
+
+## 动机
+<!-- 说明为什么需要这个变更 -->
+
+## 测试
+<!-- 描述你如何测试这个变更 -->
+
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试完成
+
+## 相关Issue
+Closes #issue_number
+```
+
+### Manufacturing Industry Considerations
+
+Serial CLI主要用于制造业和工业自动化，贡献时请注意：
+
+**稳定性优先：**
+- ✅ 保持API向后兼容
+- ✅ 避免破坏性变更
+- ✅ 优先考虑可靠性而非性能
+- ✅ 充分测试边界情况
+
+**实用性导向：**
+- ✅ 解决实际工程问题
+- ✅ 提供清晰的使用示例
+- ✅ 考虑工业现场环境
+- ✅ 支持常见工业协议
+
+### Bug Reports
 
 Include:
 - Rust version (`rustc --version`)
@@ -293,6 +453,15 @@ Include:
 - Expected vs actual behavior
 - Error messages or logs
 - Minimal reproducible example if possible
+
+### Feature Requests
+
+Include:
+- Clear feature description
+- Use case and value
+- Suggested implementation approach
+- Alternative solutions considered
+- Priority level (High/Medium/Low)
 
 ## Release Process
 

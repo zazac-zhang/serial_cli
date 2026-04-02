@@ -2,7 +2,7 @@
 
   ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.1.0-blue?style=for-the-badge&logo=rust)
   [![Build Status](https://img.shields.io/github/actions/workflow/status/zazac-zhang/serial_cli/ci.yml?branch=master&style=for-the-badge&logo=github)](https://github.com/zazac-zhang/serial_cli/actions)
-  [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE)
+  [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
 
   # 🚀 Serial CLI
