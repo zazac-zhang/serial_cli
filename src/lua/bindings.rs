@@ -418,6 +418,32 @@ impl LuaBindings {
         self.lua.globals().set("protocol_list", list)?;
         Ok(())
     }
+
+    /// Register protocol_info API
+    pub fn register_protocol_info(&self) -> Result<()> {
+        let info = self.lua.create_function(|lua, protocol_name: String| {
+            use crate::protocol::ProtocolRegistry;
+
+            let rt = tokio::runtime::Runtime::new()
+                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
+            let mut registry = ProtocolRegistry::new();
+
+            rt.block_on(Self::register_builtins(&mut registry));
+
+            let protocols = rt.block_on(registry.list_protocols());
+            let protocol = protocols.iter()
+                .find(|p| p.name == protocol_name)
+                .ok_or_else(|| mlua::Error::RuntimeError(format!("Protocol not found: {}", protocol_name)))?;
+
+            let result = lua.create_table()?;
+            result.set("name", protocol.name.clone())?;
+            result.set("description", protocol.description.clone())?;
+            Ok(result)
+        })?;
+
+        self.lua.globals().set("protocol_info", info)?;
+        Ok(())
+    }
 }
 
 impl Default for LuaBindings {
@@ -658,6 +684,21 @@ mod tests {
             assert(type(protocols) == "table", "Expected protocols to be a table")
             -- Should have at least line, at_command, modbus_rtu, modbus_ascii
             assert(#protocols >= 4, "Expected at least 4 protocols, got " .. #protocols)
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_protocol_info_lua() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_protocol_info().unwrap();
+
+        let script = r#"
+            local info = protocol_info("line")
+            assert(type(info) == "table")
+            assert(info.name == "line")
+            assert(type(info.description) == "string")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
