@@ -3,6 +3,9 @@
 pub mod data_generator;
 pub mod virtual_serial;
 
+// Re-export commonly used functions for convenience
+pub use data_generator::{generate_random_data, generate_pattern_data, generate_ascii_data};
+
 use std::time::Duration;
 
 /// Benchmark configuration

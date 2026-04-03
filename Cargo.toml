@@ -67,6 +67,10 @@ harness = false
 name = "protocol_parsing"
 harness = false
 
+[[bench]]
+name = "lua_execution"
+harness = false
+
 [lib]
 name = "serial_cli"
 path = "src/lib.rs"
