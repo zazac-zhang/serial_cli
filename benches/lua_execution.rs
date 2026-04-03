@@ -11,9 +11,8 @@ fn bench_script_overhead(c: &mut Criterion) {
 
     // Empty script baseline
     group.bench_function("empty", |b| {
-        let engine = LuaEngine::new().unwrap();
-
         b.iter(|| {
+            let engine = LuaEngine::new().unwrap();
             let lua = engine.lua();
             black_box(lua.load("").exec()).unwrap()
         });
@@ -21,9 +20,8 @@ fn bench_script_overhead(c: &mut Criterion) {
 
     // Simple script
     group.bench_function("simple", |b| {
-        let engine = LuaEngine::new().unwrap();
-
         b.iter(|| {
+            let engine = LuaEngine::new().unwrap();
             let lua = engine.lua();
             black_box(lua.load("return 1 + 1").exec()).unwrap()
         });
@@ -31,7 +29,6 @@ fn bench_script_overhead(c: &mut Criterion) {
 
     // Complex calculation
     group.bench_function("complex", |b| {
-        let engine = LuaEngine::new().unwrap();
         let script = r#"
             local function fibonacci(n)
                 if n <= 1 then return n end
@@ -41,6 +38,7 @@ fn bench_script_overhead(c: &mut Criterion) {
         "#;
 
         b.iter(|| {
+            let engine = LuaEngine::new().unwrap();
             let lua = engine.lua();
             black_box(lua.load(script).exec()).unwrap()
         });
@@ -53,23 +51,29 @@ fn bench_script_overhead(c: &mut Criterion) {
 fn bench_data_transformation(c: &mut Criterion) {
     let mut group = c.benchmark_group("data_transformation");
 
-    for size in [64, 256, 1024].iter() {
+    for size in [64usize, 256, 1024].iter() {
         group.bench_with_input(BenchmarkId::new("hex_encode", size), size, |b, &size| {
-            let engine = LuaEngine::new().unwrap();
-            let _data = common::generate_random_data(size);
-            let script = r#"
-                local data = "test data for benchmarking"
-                local hex = ""
-                for i = 1, #data do
-                    local byte = string.byte(data, i)
-                    hex = hex .. string.format("%02X", byte)
-                end
-                return hex
-            "#;
-
             b.iter(|| {
+                let engine = LuaEngine::new().unwrap();
                 let lua = engine.lua();
-                black_box(lua.load(script).exec()).unwrap()
+
+                // Create simple data that's safe to pass to Lua
+                let data_str: String = (0..size).map(|i| {
+                    // Use only safe ASCII characters
+                    char::from_u32(((i % 26) + 65) as u32).unwrap()
+                }).collect();
+
+                let script = format!(r#"
+                    local data = "{}"
+                    local hex = ""
+                    for i = 1, #data do
+                        local byte = string.byte(data, i)
+                        hex = hex .. string.format("%02X", byte)
+                    end
+                    return hex
+                "#, data_str);
+
+                black_box(lua.load(&script).exec()).unwrap()
             });
         });
     }
@@ -83,7 +87,6 @@ fn bench_callback_overhead(c: &mut Criterion) {
 
     // Data callback
     group.bench_function("on_data", |b| {
-        let engine = LuaEngine::new().unwrap();
         let script = r#"
             function on_data(data)
                 -- Process incoming data
@@ -92,14 +95,16 @@ fn bench_callback_overhead(c: &mut Criterion) {
         "#;
 
         b.iter(|| {
+            let engine = LuaEngine::new().unwrap();
             let lua = engine.lua();
-            black_box(lua.load(script).exec()).unwrap()
+            lua.load(script).exec().unwrap();
+            // Actually call the callback
+            black_box(lua.load("return on_data('test data')").exec()).unwrap()
         });
     });
 
     // Error callback
     group.bench_function("on_error", |b| {
-        let engine = LuaEngine::new().unwrap();
         let script = r#"
             function on_error(err)
                 -- Handle error
@@ -108,8 +113,11 @@ fn bench_callback_overhead(c: &mut Criterion) {
         "#;
 
         b.iter(|| {
+            let engine = LuaEngine::new().unwrap();
             let lua = engine.lua();
-            black_box(lua.load(script).exec()).unwrap()
+            lua.load(script).exec().unwrap();
+            // Actually call the callback
+            black_box(lua.load("return on_error('test error')").exec()).unwrap()
         });
     });
 
