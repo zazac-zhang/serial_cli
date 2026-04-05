@@ -4,6 +4,7 @@
 
 use crate::error::{Result, SerialError};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Configuration structure
@@ -19,6 +20,9 @@ pub struct Config {
     pub task: TaskConfig,
     /// Output configuration
     pub output: OutputConfig,
+    /// Protocol configuration
+    #[serde(default)]
+    pub protocols: ProtocolsConfig,
 }
 
 /// Serial port configuration
@@ -124,6 +128,29 @@ impl Default for OutputConfig {
             show_timestamp: true,
         }
     }
+}
+
+/// Custom protocol configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomProtocolConfig {
+    /// Protocol name
+    pub name: String,
+    /// Path to Lua script file
+    pub path: PathBuf,
+    /// Protocol version
+    #[serde(default)]
+    pub version: u64,
+    /// Load timestamp
+    #[serde(default)]
+    pub loaded_at: Option<String>,
+}
+
+/// Protocol configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProtocolsConfig {
+    /// Custom protocols
+    #[serde(default)]
+    pub custom: HashMap<String, CustomProtocolConfig>,
 }
 
 /// Load configuration from a file
