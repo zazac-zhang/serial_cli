@@ -43,7 +43,7 @@ bytes = "1.5"
 notify = "6.1"
 
 # Configuration
-directories = "5.0"
+directories = "6.0"
 chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
