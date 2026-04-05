@@ -1,5 +1,4 @@
 /// I/O throughput benchmarks
-
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
@@ -56,18 +55,22 @@ fn bench_continuous_stream(c: &mut Criterion) {
     group.sample_size(50);
 
     for chunk_size in [1024, 4096].iter() {
-        group.bench_with_input(BenchmarkId::from_parameter(chunk_size), chunk_size, |b, &chunk_size| {
-            let data = generate_random_data(chunk_size);
+        group.bench_with_input(
+            BenchmarkId::from_parameter(chunk_size),
+            chunk_size,
+            |b, &chunk_size| {
+                let data = generate_random_data(chunk_size);
 
-            b.iter(|| {
-                // Simulate streaming multiple chunks
-                let mut total = 0;
-                for _ in 0..100 {
-                    total += black_box(&data).len();
-                }
-                total
-            });
-        });
+                b.iter(|| {
+                    // Simulate streaming multiple chunks
+                    let mut total = 0;
+                    for _ in 0..100 {
+                        total += black_box(&data).len();
+                    }
+                    total
+                });
+            },
+        );
     }
 
     group.finish();

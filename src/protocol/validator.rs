@@ -19,9 +19,10 @@ impl ProtocolValidator {
     pub fn validate_script(path: &Path) -> Result<ValidationResult> {
         // Check file exists
         if !path.exists() {
-            return Err(SerialError::Protocol(ProtocolError::InvalidFrame(
-                format!("File not found: {:?}", path),
-            )));
+            return Err(SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                "File not found: {:?}",
+                path
+            ))));
         }
 
         // Read file content
@@ -37,10 +38,7 @@ impl ProtocolValidator {
 
         // Validate syntax
         lua.load(&script).exec().map_err(|e| {
-            SerialError::Protocol(ProtocolError::InvalidFrame(format!(
-                "Syntax error: {}",
-                e
-            )))
+            SerialError::Protocol(ProtocolError::InvalidFrame(format!("Syntax error: {}", e)))
         })?;
 
         // Load the script again for validation checks
@@ -146,7 +144,10 @@ mod tests {
 
         let result = ProtocolValidator::validate_script(temp_file.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Missing required functions"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Missing required functions"));
     }
 
     #[test]
@@ -163,7 +164,10 @@ mod tests {
 
         let result = ProtocolValidator::validate_script(temp_file.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Missing required functions"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Missing required functions"));
     }
 
     #[test]

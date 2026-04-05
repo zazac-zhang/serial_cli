@@ -3,22 +3,22 @@
 //! This module provides protocol handling and parsing.
 
 pub mod built_in;
-pub mod lua_ext;
 pub mod loader;
+pub mod lua_ext;
 pub mod manager;
 pub mod registry;
 pub mod validator;
 pub mod watcher;
 
 pub use built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
+pub use loader::{LoadedProtocol, ProtocolLoader};
+pub use manager::{CustomProtocol, ProtocolManager};
 pub use registry::{ProtocolFactory, ProtocolInfo, ProtocolRegistry};
 pub use validator::{ProtocolValidator, ValidationResult};
-pub use loader::{ProtocolLoader, LoadedProtocol};
 pub use watcher::ProtocolWatcher;
-pub use manager::{ProtocolManager, CustomProtocol};
 
 // Export Lua protocol for external use
-pub use lua_ext::{LuaProtocol, create_lua_protocol};
+pub use lua_ext::{create_lua_protocol, LuaProtocol};
 
 /// Protocol trait for serial communication protocols
 pub trait Protocol: Send + Sync {

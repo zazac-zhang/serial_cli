@@ -26,7 +26,9 @@ impl ProtocolWatcher {
                     | notify::EventKind::Remove(_) => {
                         for path in event.paths {
                             // Only process .lua files
-                            if path.extension().and_then(|s: &std::ffi::OsStr| s.to_str()) == Some("lua") {
+                            if path.extension().and_then(|s: &std::ffi::OsStr| s.to_str())
+                                == Some("lua")
+                            {
                                 let _ = reload_tx.send(path);
                             }
                         }
@@ -35,13 +37,14 @@ impl ProtocolWatcher {
                 }
             }
         })
-        .map_err(|e| SerialError::Protocol(ProtocolError::InvalidFrame(
-            format!("Failed to create watcher: {}", e),
-        )))?;
+        .map_err(|e| {
+            SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                "Failed to create watcher: {}",
+                e
+            )))
+        })?;
 
-        Ok(Self {
-            _watcher: watcher,
-        })
+        Ok(Self { _watcher: watcher })
     }
 
     /// Watch a file for changes
@@ -51,9 +54,12 @@ impl ProtocolWatcher {
 
         self._watcher
             .watch(parent, RecursiveMode::NonRecursive)
-            .map_err(|e| SerialError::Protocol(ProtocolError::InvalidFrame(
-                format!("Failed to watch path: {}", e),
-            )))?;
+            .map_err(|e| {
+                SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                    "Failed to watch path: {}",
+                    e
+                )))
+            })?;
 
         Ok(())
     }

@@ -16,28 +16,31 @@ fn bench_multi_port_read(c: &mut Criterion) {
     let rt = Arc::new(Runtime::new().unwrap());
 
     for port_count in [1, 2, 4, 8].iter() {
-        group.bench_with_input(BenchmarkId::from_parameter(port_count), port_count, |b, &port_count| {
-            b.iter(|| {
-                let rt = rt.clone();
-                let data = generate_random_data(1024);
+        group.bench_with_input(
+            BenchmarkId::from_parameter(port_count),
+            port_count,
+            |b, &port_count| {
+                b.iter(|| {
+                    let rt = rt.clone();
+                    let data = generate_random_data(1024);
 
-                rt.block_on(async {
-                    let mut handles = vec![];
-                    for _ in 0..port_count {
-                        let data = data.clone();
-                        handles.push(tokio::spawn(async move {
-                            black_box(&data).len() as usize
-                        }));
-                    }
+                    rt.block_on(async {
+                        let mut handles = vec![];
+                        for _ in 0..port_count {
+                            let data = data.clone();
+                            handles
+                                .push(tokio::spawn(async move { black_box(&data).len() as usize }));
+                        }
 
-                    let mut total = 0usize;
-                    for handle in handles {
-                        total += handle.await.unwrap();
-                    }
-                    total
-                })
-            });
-        });
+                        let mut total = 0usize;
+                        for handle in handles {
+                            total += handle.await.unwrap();
+                        }
+                        total
+                    })
+                });
+            },
+        );
     }
 
     group.finish();
@@ -49,28 +52,31 @@ fn bench_multi_port_write(c: &mut Criterion) {
     let rt = Arc::new(Runtime::new().unwrap());
 
     for port_count in [1, 2, 4, 8].iter() {
-        group.bench_with_input(BenchmarkId::from_parameter(port_count), port_count, |b, &port_count| {
-            b.iter(|| {
-                let rt = rt.clone();
-                let data = generate_random_data(1024);
+        group.bench_with_input(
+            BenchmarkId::from_parameter(port_count),
+            port_count,
+            |b, &port_count| {
+                b.iter(|| {
+                    let rt = rt.clone();
+                    let data = generate_random_data(1024);
 
-                rt.block_on(async {
-                    let mut handles = vec![];
-                    for _ in 0..port_count {
-                        let data = data.clone();
-                        handles.push(tokio::spawn(async move {
-                            black_box(&data).len() as usize
-                        }));
-                    }
+                    rt.block_on(async {
+                        let mut handles = vec![];
+                        for _ in 0..port_count {
+                            let data = data.clone();
+                            handles
+                                .push(tokio::spawn(async move { black_box(&data).len() as usize }));
+                        }
 
-                    let mut total = 0usize;
-                    for handle in handles {
-                        total += handle.await.unwrap();
-                    }
-                    total
-                })
-            });
-        });
+                        let mut total = 0usize;
+                        for handle in handles {
+                            total += handle.await.unwrap();
+                        }
+                        total
+                    })
+                });
+            },
+        );
     }
 
     group.finish();
@@ -82,24 +88,26 @@ fn bench_event_dispatch(c: &mut Criterion) {
     let rt = Arc::new(Runtime::new().unwrap());
 
     for handler_count in [1, 5, 10, 20].iter() {
-        group.bench_with_input(BenchmarkId::new("handlers", handler_count), handler_count, |b, &handler_count| {
-            b.iter(|| {
-                let rt = rt.clone();
+        group.bench_with_input(
+            BenchmarkId::new("handlers", handler_count),
+            handler_count,
+            |b, &handler_count| {
+                b.iter(|| {
+                    let rt = rt.clone();
 
-                rt.block_on(async {
-                    let mut handles = vec![];
-                    for i in 0..handler_count {
-                        handles.push(tokio::spawn(async move {
-                            black_box(i)
-                        }));
-                    }
+                    rt.block_on(async {
+                        let mut handles = vec![];
+                        for i in 0..handler_count {
+                            handles.push(tokio::spawn(async move { black_box(i) }));
+                        }
 
-                    for handle in handles {
-                        handle.await.unwrap();
-                    }
-                })
-            });
-        });
+                        for handle in handles {
+                            handle.await.unwrap();
+                        }
+                    })
+                });
+            },
+        );
     }
 
     group.finish();

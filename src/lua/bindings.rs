@@ -165,16 +165,17 @@ impl LuaBindings {
             .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
             .clone();
 
-        let open = self
-            .lua
-            .create_function(move |_, (port_name, config_table): (String, mlua::Table)| {
+        let open = self.lua.create_function(
+            move |_, (port_name, config_table): (String, mlua::Table)| {
                 // Parse configuration table
                 let baudrate: u32 = config_table.get("baudrate").unwrap_or(115200);
                 let databits: u8 = config_table.get("data_bits").unwrap_or(8);
                 let stopbits: u8 = config_table.get("stop_bits").unwrap_or(1);
                 let parity_str: String = config_table.get("parity").unwrap_or("none".to_string());
                 let timeout: u64 = config_table.get("timeout").unwrap_or(1000);
-                let flow_control_str: String = config_table.get("flow_control").unwrap_or("none".to_string());
+                let flow_control_str: String = config_table
+                    .get("flow_control")
+                    .unwrap_or("none".to_string());
                 let dtr_enable: bool = config_table.get("dtr_enable").unwrap_or(true);
                 let rts_enable: bool = config_table.get("rts_enable").unwrap_or(true);
 
@@ -211,7 +212,8 @@ impl LuaBindings {
                     })?;
 
                 Ok(port_id)
-            })?;
+            },
+        )?;
 
         self.lua.globals().set("serial_open", open)?;
         Ok(())

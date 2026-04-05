@@ -2,10 +2,10 @@
 //!
 //! Manages loading, unloading, reloading, and persistence of custom protocols.
 
-use crate::error::{Result, SerialError, ProtocolError};
-use crate::protocol::{ProtocolInfo, ProtocolRegistry};
+use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::loader::ProtocolLoader;
 use crate::protocol::validator::ProtocolValidator;
+use crate::protocol::{ProtocolInfo, ProtocolRegistry};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -77,7 +77,9 @@ impl ProtocolManager {
     /// Reload a protocol
     pub async fn reload_protocol(&mut self, name: &str) -> Result<()> {
         // Get existing metadata
-        let script_path = self.custom_protocols.get(name)
+        let script_path = self
+            .custom_protocols
+            .get(name)
             .ok_or_else(|| SerialError::Protocol(ProtocolError::NotFound(name.to_string())))?
             .script_path
             .clone();

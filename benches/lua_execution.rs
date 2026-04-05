@@ -58,12 +58,15 @@ fn bench_data_transformation(c: &mut Criterion) {
                 let lua = engine.lua();
 
                 // Create simple data that's safe to pass to Lua
-                let data_str: String = (0..size).map(|i| {
-                    // Use only safe ASCII characters
-                    char::from_u32(((i % 26) + 65) as u32).unwrap()
-                }).collect();
+                let data_str: String = (0..size)
+                    .map(|i| {
+                        // Use only safe ASCII characters
+                        char::from_u32(((i % 26) + 65) as u32).unwrap()
+                    })
+                    .collect();
 
-                let script = format!(r#"
+                let script = format!(
+                    r#"
                     local data = "{}"
                     local hex = ""
                     for i = 1, #data do
@@ -71,7 +74,9 @@ fn bench_data_transformation(c: &mut Criterion) {
                         hex = hex .. string.format("%02X", byte)
                     end
                     return hex
-                "#, data_str);
+                "#,
+                    data_str
+                );
 
                 black_box(lua.load(&script).exec()).unwrap()
             });
@@ -156,7 +161,9 @@ fn bench_script_loading(c: &mut Criterion) {
 
     // Large script
     group.bench_function("large", |b| {
-        let script: String = (0..100).map(|i| format!("local func{} = function() return {} end\n", i, i)).collect();
+        let script: String = (0..100)
+            .map(|i| format!("local func{} = function() return {} end\n", i, i))
+            .collect();
 
         b.iter(|| {
             let engine = LuaEngine::new().unwrap();

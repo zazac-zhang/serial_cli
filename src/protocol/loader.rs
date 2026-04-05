@@ -3,9 +3,9 @@
 //! Loads and initializes Lua protocol scripts.
 
 use crate::error::{ProtocolError, Result, SerialError};
-use crate::protocol::{Protocol, ProtocolFactory};
 use crate::protocol::lua_ext::create_lua_protocol;
 use crate::protocol::validator::ProtocolValidator;
+use crate::protocol::{Protocol, ProtocolFactory};
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -115,7 +115,13 @@ mod tests {
         "#;
 
         let mut temp_file = NamedTempFile::new().unwrap();
-        let file_name = temp_file.path().file_stem().unwrap().to_str().unwrap().to_string();
+        let file_name = temp_file
+            .path()
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
         temp_file.write_all(script.as_bytes()).unwrap();
         temp_file.flush().unwrap();
 

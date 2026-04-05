@@ -39,7 +39,12 @@ pub fn generate_ascii_data(size: usize) -> Vec<u8> {
 ///   function_code: Modbus function (e.g., 0x03 for read holding registers)
 ///   start_addr: Starting register address
 ///   quantity: Number of registers to read
-pub fn generate_modbus_request(slave_id: u8, function_code: u8, start_addr: u16, quantity: u16) -> Vec<u8> {
+pub fn generate_modbus_request(
+    slave_id: u8,
+    function_code: u8,
+    start_addr: u16,
+    quantity: u16,
+) -> Vec<u8> {
     let mut frame = vec![slave_id, function_code];
     frame.extend_from_slice(&start_addr.to_be_bytes());
     frame.extend_from_slice(&quantity.to_be_bytes());

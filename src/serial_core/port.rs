@@ -39,8 +39,8 @@ pub struct SerialConfig {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FlowControl {
     None,
-    Software,   // XON/XOFF
-    Hardware,   // RTS/CTS
+    Software, // XON/XOFF
+    Hardware, // RTS/CTS
 }
 
 /// Parity setting
@@ -169,20 +169,26 @@ impl PortManager {
         let port = builder.open().map_err(|e| {
             // Map tokio-serial errors to our error types
             let error_msg = e.to_string();
-            if error_msg.contains("permission denied") || error_msg.contains("Permission denied")
-                || error_msg.contains("Access is denied") {
+            if error_msg.contains("permission denied")
+                || error_msg.contains("Permission denied")
+                || error_msg.contains("Access is denied")
+            {
                 SerialError::Serial(SerialPortError::permission_denied(
                     name,
-                    Some("Try running as Administrator or check port permissions")
+                    Some("Try running as Administrator or check port permissions"),
                 ))
-            } else if error_msg.contains("not found") || error_msg.contains("No such file")
-                || error_msg.contains("The system cannot find the file") {
+            } else if error_msg.contains("not found")
+                || error_msg.contains("No such file")
+                || error_msg.contains("The system cannot find the file")
+            {
                 SerialError::Serial(SerialPortError::PortNotFound(name.to_string()))
-            } else if error_msg.contains("busy") || error_msg.contains("Busy")
-                || error_msg.contains("used by another application") {
+            } else if error_msg.contains("busy")
+                || error_msg.contains("Busy")
+                || error_msg.contains("used by another application")
+            {
                 SerialError::Serial(SerialPortError::port_busy(
                     name,
-                    Some("Close other applications using this port or try a different port")
+                    Some("Close other applications using this port or try a different port"),
                 ))
             } else {
                 SerialError::Serial(SerialPortError::IoError(error_msg))
