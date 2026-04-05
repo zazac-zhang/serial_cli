@@ -918,3 +918,84 @@ For issues, questions, or contributions:
 ---
 
 **Serial CLI v0.1.0** - Universal Serial Port Tool Optimized for AI Interaction
+
+### Protocol Management
+
+#### `protocol load <path>`
+
+Load a custom protocol from a Lua script file.
+
+```bash
+serial-cli protocol load /path/to/custom.lua
+serial-cli protocol load --name my_proto /path/to/custom.lua
+```
+
+#### `protocol unload <name>`
+
+Unload a custom protocol.
+
+```bash
+serial-cli protocol unload my_proto
+```
+
+#### `protocol reload <name>`
+
+Reload a protocol from its file.
+
+```bash
+serial-cli protocol reload my_proto
+```
+
+#### `protocol list`
+
+List all available protocols.
+
+```bash
+serial-cli protocol list
+serial-cli protocol list --verbose
+```
+
+#### `protocol info <name>`
+
+Show detailed information about a protocol.
+
+```bash
+serial-cli protocol info my_proto
+```
+
+#### `protocol validate <path>`
+
+Validate a protocol script without loading it.
+
+```bash
+serial-cli protocol validate /path/to/custom.lua
+```
+
+### Lua Protocol API
+
+#### `protocol_load(path)`
+
+Load a protocol from a Lua script file.
+
+```lua
+local ok, err = protocol_load("/path/to/custom.lua")
+if not ok then
+    log_error("Failed to load protocol: " .. err)
+end
+```
+
+#### `protocol_unload(name)`
+
+Unload a protocol.
+
+```lua
+local ok, err = protocol_unload("my_proto")
+```
+
+#### `protocol_reload(name)`
+
+Reload a protocol.
+
+```lua
+local ok, err = protocol_reload("my_proto")
+```

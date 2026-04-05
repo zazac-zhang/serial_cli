@@ -83,8 +83,8 @@
 ## 🔨 待完成功能
 
 ### 协议扩展
-- [ ] Lua 自定义协议加载器 (`protocol/lua_ext.rs` - 文件存在但需实现)
-- [ ] 协议热重载
+- [x] Lua 自定义协议加载器 (`protocol/manager.rs`, `loader.rs`, `validator.rs`) 
+- [x] 协议热重载 (文件监控基础完成，需集成) 
 - [ ] 协议状态管理
 - [ ] 更多协议实现
   - [ ] CAN Bus
