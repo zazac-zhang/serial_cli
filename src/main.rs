@@ -53,9 +53,8 @@ async fn run_lua_script(path: PathBuf) -> Result<()> {
     // 1. Create Lua bindings
     let bindings = LuaBindings::new()?;
 
-    // 2. Register basic APIs (log and utility)
-    bindings.register_log_api()?;
-    bindings.register_utility_apis()?;
+    // 2. Register all available APIs (log, utility, serial, protocol)
+    bindings.register_all_apis()?;
 
     // 3. Register stdlib utilities manually to the same Lua instance
     register_stdlib_utils(&bindings)?;
