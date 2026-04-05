@@ -53,6 +53,7 @@ criterion = "0.5"
 rustyline = "18.0.0"
 rand = "0.8"
 libc = "0.2"
+tempfile = "3.8"
 
 [[bin]]
 name = "serial-cli"

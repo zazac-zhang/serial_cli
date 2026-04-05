@@ -5,9 +5,11 @@
 pub mod built_in;
 pub mod lua_ext;
 pub mod registry;
+pub mod validator;
 
 pub use built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
 pub use registry::{ProtocolFactory, ProtocolInfo, ProtocolRegistry};
+pub use validator::{ProtocolValidator, ValidationResult};
 
 // Export Lua protocol for external use
 pub use lua_ext::{LuaProtocol, create_lua_protocol};
