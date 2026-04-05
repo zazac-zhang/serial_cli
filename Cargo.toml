@@ -39,6 +39,9 @@ rustyline = "18.0"
 # Utilities
 bytes = "1.5"
 
+# File watching
+notify = "6.1"
+
 # Configuration
 directories = "5.0"
 chrono = { version = "0.4", features = ["serde"] }
