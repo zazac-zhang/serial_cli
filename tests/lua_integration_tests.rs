@@ -112,3 +112,20 @@ fn test_end_to_end_modbus_workflow() {
         Err(e) => panic!("Script execution failed: {:?}", e),
     }
 }
+
+#[test]
+fn test_protocol_load_validate() {
+    let mut engine = ScriptEngine::new().unwrap();
+    let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
+    engine.bindings.set_port_manager(port_manager);
+    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    engine.bindings.register_all_apis().unwrap();
+
+    // Test loading a valid protocol
+    let script = r#"
+        local ok, err = protocol_load("tests/fixtures/protocols/test_valid.lua")
+        assert(ok, err)
+    "#;
+
+    assert!(engine.bindings.execute_script(script).is_ok());
+}

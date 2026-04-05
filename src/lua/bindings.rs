@@ -106,6 +106,11 @@ impl LuaBindings {
         self.register_protocol_list()?;
         self.register_protocol_info()?;
 
+        // New protocol management APIs
+        self.register_protocol_load()?;
+        self.register_protocol_unload()?;
+        self.register_protocol_reload()?;
+
         Ok(())
     }
 
@@ -553,6 +558,50 @@ impl LuaBindings {
         })?;
 
         self.lua.globals().set("protocol_info", info)?;
+        Ok(())
+    }
+
+    /// Register protocol_load API
+    pub fn register_protocol_load(&self) -> Result<()> {
+        let load = self.lua.create_function(|_lua, path: String| {
+            use crate::protocol::ProtocolValidator;
+
+            // Validate the path exists
+            let path_obj = std::path::PathBuf::from(&path);
+            if !path_obj.exists() {
+                return Err(mlua::Error::RuntimeError(format!("File not found: {}", path)));
+            }
+
+            // Validate the script
+            ProtocolValidator::validate_script(&path_obj)
+                .map_err(|e| mlua::Error::RuntimeError(format!("Validation failed: {}", e)))?;
+
+            // Return success
+            Ok(true)
+        })?;
+        self.lua.globals().set("protocol_load", load)?;
+        Ok(())
+    }
+
+    /// Register protocol_unload API
+    pub fn register_protocol_unload(&self) -> Result<()> {
+        let unload = self.lua.create_function(|_, _name: String| {
+            // For now, just return success
+            // Full implementation will use ProtocolManager
+            Ok(true)
+        })?;
+        self.lua.globals().set("protocol_unload", unload)?;
+        Ok(())
+    }
+
+    /// Register protocol_reload API
+    pub fn register_protocol_reload(&self) -> Result<()> {
+        let reload = self.lua.create_function(|_, _name: String| {
+            // For now, just return success
+            // Full implementation will use ProtocolManager
+            Ok(true)
+        })?;
+        self.lua.globals().set("protocol_reload", reload)?;
         Ok(())
     }
 }
