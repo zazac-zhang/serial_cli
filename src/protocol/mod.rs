@@ -9,6 +9,9 @@ pub mod registry;
 pub use built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
 pub use registry::{ProtocolFactory, ProtocolInfo, ProtocolRegistry};
 
+// Export Lua protocol for external use
+pub use lua_ext::{LuaProtocol, create_lua_protocol};
+
 /// Protocol trait for serial communication protocols
 pub trait Protocol: Send + Sync {
     /// Get protocol name
