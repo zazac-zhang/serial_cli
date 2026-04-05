@@ -71,7 +71,8 @@ serial-cli run script.lua --port=/dev/ttyUSB0
 
 - **🔌 Serial Port Management** - List, open, configure, and manage serial ports
 - **📜 Lua Scripting** - Automate tasks with embedded LuaJIT (high-performance)
-- **📡 Protocol Support** - Built-in Modbus RTU/ASCII, AT Commands, line-based, and custom protocols
+- **📡 Protocol Support** - Built-in Modbus RTU/ASCII, AT Commands, line-based, and **custom Lua protocols**
+- **🎨 Custom Protocols** - Load custom protocols from Lua scripts with hot-reload support
 - **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
 - **🔄 Batch Processing** - Execute multiple scripts sequentially or in parallel
 - **🖥️ Interactive Shell** - Powerful REPL with command history and auto-completion
@@ -287,3 +288,74 @@ Dual-licensed under:
 [GitHub](https://github.com/zazac-zhang/serial_cli) • [Report Issues](https://github.com/zazac-zhang/serial_cli/issues) • [Releases](https://github.com/zazac-zhang/serial_cli/releases)
 
 </div>
+
+## 🎨 Custom Protocol Extension
+
+Serial CLI now supports loading custom protocols from Lua scripts! This enables you to implement proprietary or industry-specific protocols without modifying the core codebase.
+
+### Creating a Custom Protocol
+
+Create a Lua file with your protocol implementation:
+
+```lua
+-- Protocol: my_custom_protocol
+-- This implements a simple frame-based protocol
+
+function on_frame(data)
+    -- Process incoming data
+    -- Return parsed data or nil for invalid frames
+    return data
+end
+
+function on_encode(data)
+    -- Encode outgoing data
+    -- Return encoded data
+    return data
+end
+
+function on_reset()
+    -- Optional: Called when protocol state resets
+end
+```
+
+### Loading Custom Protocols
+
+**Via Lua Script:**
+```lua
+local ok, err = protocol_load("/path/to/my_protocol.lua")
+if ok then
+    local encoded = protocol_encode("my_custom_protocol", "data")
+    local decoded = protocol_decode("my_custom_protocol", encoded)
+end
+```
+
+**Via Validation API:**
+```lua
+local ok, err = protocol_validate("/path/to/my_protocol.lua")
+-- Validates syntax and required functions before loading
+```
+
+### Protocol Requirements
+
+Every custom protocol must implement:
+- `on_frame(data)` - Parse incoming data (return `data` for passthrough, `nil` for error)
+- `on_encode(data)` - Encode outgoing data
+- `on_reset()` (optional) - Reset protocol state
+
+### Example: Checksum Protocol
+
+See `examples/checksum_protocol.lua` for a complete example with frame validation and checksum calculation.
+
+### Protocol Management API
+
+- `protocol_load(path)` - Load protocol from file
+- `protocol_unload(name)` - Unload a protocol
+- `protocol_reload(name)` - Reload protocol from file
+- `protocol_list()` - List all protocols
+- `protocol_info(name)` - Get protocol information
+- `protocol_validate(path)` - Validate without loading
+
+For more examples, see:
+- `examples/protocol_extension_demo.lua` - Complete API demo
+- `examples/custom_protocol.lua` - Binary protocol with CRC
+
