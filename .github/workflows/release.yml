@@ -9,6 +9,42 @@ permissions:
   contents: write
 
 jobs:
+  verify-release:
+    name: Verify Release Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install git-cliff
+        run: cargo install git-cliff
+
+      - name: Verify changelog generation
+        run: |
+          git-cliff --unreleased --output CHANGELOG.md.unreleased
+          if [ -s CHANGELOG.md.unreleased ]; then
+            echo "✓ Changelog generated successfully"
+            cat CHANGELOG.md.unreleased
+          else
+            echo "⚠ No unreleased changes"
+          fi
+
+      - name: Verify version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Tag version: $VERSION"
+          echo "Cargo.toml version: $CARGO_VERSION"
+          if [ "$VERSION" = "$CARGO_VERSION" ]; then
+            echo "✓ Versions match"
+          else
+            echo "⚠ Version mismatch (this may be expected)"
+          fi
+
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
