@@ -141,6 +141,56 @@ release: clean-all build-all
     @echo "✓ Release builds complete"
 
 # =============================================================================
+# GUI 开发命令
+# =============================================================================
+
+# 安装 GUI 依赖
+gui-deps:
+    cd src-ui && npm install
+
+# 启动前端开发服务器
+gui-dev-frontend:
+    cd src-ui && npm run dev
+
+# 启动 GUI 应用（开发模式）
+gui-dev:
+    cd src-ui && npm run dev &
+    sleep 2
+    cargo tauri dev
+
+# 构建 GUI 应用
+gui-build:
+    cd src-ui && npm run build
+    cargo tauri build
+
+# 构建 GUI 前端
+gui-build-frontend:
+    cd src-ui && npm run build
+
+# 检查 GUI 前端类型
+gui-type-check:
+    cd src-ui && npm run type-check
+
+# 运行 GUI 测试
+gui-test:
+    cd src-ui && npm test
+
+# 清理 GUI 构建产物
+gui-clean:
+    rm -rf src-ui/dist
+    rm -rf src-ui/node_modules
+    rm -rf src-tauri/target
+
+# 检查 GUI Rust 代码
+gui-check:
+    cargo check --workspace
+
+# 格式化 GUI 代码
+gui-fmt:
+    cargo fmt
+    cd src-ui && npx prettier --write "src/**/*.{ts,tsx,css}"
+
+# =============================================================================
 # 安装命令
 # =============================================================================
 

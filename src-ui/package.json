@@ -1,0 +1,27 @@
+{
+  "name": "serial-cli-ui",
+  "version": "0.1.0",
+  "description": "Serial CLI GUI - Cyber-Industrial Command Center",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@monaco-editor/loader": "^1.7.0",
+    "@solidjs/router": "^0.10.9",
+    "@tauri-apps/api": "^2.0.2",
+    "@tauri-apps/plugin-shell": "^2.0.0",
+    "monaco-editor": "^0.55.1",
+    "solid-js": "^1.8.11"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.2",
+    "internal-ip": "^8.0.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12",
+    "vite-plugin-solid": "^2.8.2"
+  }
+}

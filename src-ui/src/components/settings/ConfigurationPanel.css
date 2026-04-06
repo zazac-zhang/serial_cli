@@ -1,0 +1,476 @@
+/* Copyright 2024 Serial CLI Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+ * http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+ * <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+ * option. This file may not be copied, modified, or distributed
+ * except according to those terms.
+ */
+
+.configuration-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+  overflow: hidden;
+}
+
+.panel-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--space-md);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(10px);
+}
+
+.toolbar-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.toolbar-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  font-family: var(--font-display);
+  color: var(--color-text);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.toolbar-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.toolbar-meta {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-xs);
+}
+
+.meta-item {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  padding: 0.25rem 0.5rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.meta-warning {
+  color: var(--color-warning);
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px solid var(--color-warning);
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0.5rem 1rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.action-button:hover:not(:disabled) {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-cyan);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-1px);
+}
+
+.action-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-button.action-primary {
+  background: linear-gradient(135deg, var(--color-cyan), var(--color-purple));
+  border-color: transparent;
+  color: var(--color-dark);
+  font-weight: 600;
+}
+
+.action-button.action-primary:hover:not(:disabled) {
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+}
+
+.action-button.action-warning {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.action-button.action-warning:hover:not(:disabled) {
+  background: rgba(255, 170, 0, 0.1);
+  border-color: var(--color-warning);
+  box-shadow: 0 0 15px rgba(255, 170, 0, 0.3);
+}
+
+.button-icon {
+  font-size: var(--font-size-md);
+}
+
+.button-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border);
+  margin: 0 var(--space-xs);
+}
+
+/* Validation Error */
+.validation-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: rgba(255, 51, 102, 0.1);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+}
+
+.error-icon {
+  font-size: var(--font-size-xl);
+  flex-shrink: 0;
+}
+
+.error-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.error-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-error);
+}
+
+.error-message {
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+}
+
+.error-close {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+}
+
+.error-close:hover {
+  background: rgba(255, 51, 102, 0.2);
+}
+
+/* Editor Container */
+.editor-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.config-editor {
+  flex: 1;
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--color-darker);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--font-size-md);
+  font-family: var(--font-mono);
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  transition: all var(--transition-base);
+}
+
+.config-editor:focus {
+  border-color: var(--color-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+}
+
+.config-editor::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.config-editor::selection {
+  background: rgba(0, 240, 255, 0.3);
+}
+
+/* Editor Footer */
+.editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.footer-hints {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.hint-item {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  padding: 0.25rem 0.5rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.footer-stats {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.stat-item {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  height: 100%;
+}
+
+.loading-spinner {
+  font-size: 2rem;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+
+/* Dialog */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-lg);
+}
+
+.dialog {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  max-width: 500px;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.dialog-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dialog-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.dialog-close:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-error);
+}
+
+.dialog-body {
+  padding: var(--space-lg);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.dialog-button {
+  padding: 0.6rem 1.5rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dialog-button:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-cyan);
+}
+
+.dialog-button.dialog-cancel {
+  border-color: var(--color-border);
+}
+
+.dialog-button.dialog-danger {
+  background: linear-gradient(135deg, var(--color-error), var(--color-warning));
+  border-color: transparent;
+  color: var(--color-dark);
+  font-weight: 600;
+}
+
+.dialog-button.dialog-danger:hover {
+  box-shadow: 0 0 15px rgba(255, 51, 102, 0.4);
+}
+
+/* Warning Message */
+.warning-message {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+}
+
+.warning-icon {
+  font-size: var(--font-size-xl);
+  flex-shrink: 0;
+}
+
+.warning-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.warning-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
+.warning-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+/* Scrollbar Styling */
+.configuration-panel ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.configuration-panel ::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.configuration-panel ::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.configuration-panel ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-cyan);
+}
