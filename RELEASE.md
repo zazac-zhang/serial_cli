@@ -118,3 +118,67 @@ git commit -m "feat(cli): add protocol list command"
 git commit -m "fix(protocol): handle empty response correctly"
 git commit -m "docs(readme): update installation instructions"
 ```
+
+## GUI 发布流程
+
+### 前提条件
+
+- 已安装 Node.js 20+
+- 已安装 Rust 和 Tauri CLI: `cargo install tauri-cli`
+- GUI 前端依赖已安装
+
+### 发布步骤
+
+#### 1. 准备 GUI 发布
+
+```bash
+# 基于 CLI 版本准备 GUI 发布
+./scripts/gui/prepare-release.sh v1.2.3 patch
+
+# 或手动指定 GUI 版本
+./scripts/gui/update-version.sh v1.2.3 minor
+```
+
+#### 2. 构建 GUI
+
+```bash
+# 构建所有平台
+./scripts/gui/build.sh
+
+# 或指定目标平台
+./scripts/gui/build.sh x86_64-unknown-linux-gnu
+```
+
+#### 3. 运行测试
+
+```bash
+# 测试安装包
+./scripts/gui/test-install.sh src-tauri/target/release/bundle
+```
+
+#### 4. 创建 Release
+
+使用 GitHub Actions:
+
+```bash
+# 触发 GUI 发布工作流
+gh workflow run gui-release.yml \
+  -f cli_version=v1.2.3 \
+  -f gui_increment=patch
+```
+
+或在 GitHub UI 中手动触发 `GUI Release` workflow。
+
+### GUI 版本号规则
+
+```
+CLI 版本：v1.2.3
+GUI 版本：v1.2.3-gui.N
+```
+
+- GUI 跟随 CLI 的主版本号和次版本号
+- GUI 有自己的修订号（独立迭代）
+- 示例：
+  - CLI v1.2.0 → GUI v1.2.0-gui.0（初始版本）
+  - GUI bug 修复 → GUI v1.2.0-gui.1
+  - CLI v1.3.0 → GUI v1.3.0-gui.0（新版本）
