@@ -44,7 +44,7 @@ rustyline = "18.0"
 bytes = "1.5"
 
 # File watching
-notify = "6.1"
+notify = "8.2"
 
 # Configuration
 directories = "5.0"
