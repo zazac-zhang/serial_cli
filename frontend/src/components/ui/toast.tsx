@@ -2,6 +2,7 @@ import { useToast } from '@/contexts/ToastContext'
 import type { Toast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
 import { useEffect } from 'react'
+import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from 'lucide-react'
 
 export function Toaster() {
   const { toasts, removeToast } = useToast()
@@ -23,27 +24,64 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
     }
   }, [toast.duration, onRemove])
 
-  const typeStyles: Record<Toast['type'], string> = {
-    success: 'border-signal/30 bg-signal/5 text-signal',
-    error: 'border-alert/30 bg-alert/5 text-alert',
-    warning: 'border-amber/30 bg-amber/5 text-amber',
-    info: 'border-info/30 bg-info/5 text-info',
+  const typeConfig: Record<Toast['type'], { icon: React.ElementType; colorClass: string; bgColor: string }> = {
+    success: {
+      icon: CheckCircle,
+      colorClass: 'text-signal',
+      bgColor: 'bg-signal/10',
+    },
+    error: {
+      icon: AlertCircle,
+      colorClass: 'text-alert',
+      bgColor: 'bg-alert/10',
+    },
+    warning: {
+      icon: AlertTriangle,
+      colorClass: 'text-amber',
+      bgColor: 'bg-amber/10',
+    },
+    info: {
+      icon: Info,
+      colorClass: 'text-info',
+      bgColor: 'bg-info/10',
+    },
   }
+
+  const { icon: Icon, colorClass, bgColor } = typeConfig[toast.type]
 
   return (
     <div
       className={cn(
-        'pointer-events-auto max-w-sm rounded-lg border p-4 shadow-lg animate-slide-up',
-        typeStyles[toast.type]
+        'pointer-events-auto w-80 rounded-lg border shadow-lg animate-slide-up backdrop-blur-sm',
+        'border-border/50 bg-bg-deep/95',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium">{toast.message}</p>
+      <div className="flex items-start gap-3 p-4">
+        {/* Left accent bar */}
+        <div className={cn(
+          'w-1 h-full min-h-[4rem] rounded-full -ml-4 mr-1',
+          colorClass.replace('text-', 'bg-'),
+          'opacity-80'
+        )} />
+
+        {/* Icon */}
+        <div className={cn('flex-shrink-0 mt-0.5', colorClass)}>
+          <Icon size={20} strokeWidth={1.5} />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-text-primary break-words">
+            {toast.message}
+          </p>
+        </div>
+
+        {/* Close button */}
         <button
           onClick={onRemove}
-          className="text-current/60 hover:text-current transition-colors"
+          className="flex-shrink-0 text-text-tertiary hover:text-text-primary transition-colors -mr-1 -mt-1"
         >
-          ×
+          <X size={16} strokeWidth={1.5} />
         </button>
       </div>
     </div>
