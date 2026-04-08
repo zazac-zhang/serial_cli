@@ -1,0 +1,330 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  verify-release:
+    name: Verify Release Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install git-cliff
+        run: cargo install git-cliff
+
+      - name: Verify changelog generation
+        run: |
+          git-cliff --unreleased --output CHANGELOG.md.unreleased
+          if [ -s CHANGELOG.md.unreleased ]; then
+            echo "✓ Changelog generated successfully"
+            cat CHANGELOG.md.unreleased
+          else
+            echo "⚠ No unreleased changes"
+          fi
+
+      - name: Verify version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Tag version: $VERSION"
+          echo "Cargo.toml version: $CARGO_VERSION"
+          if [ "$VERSION" = "$CARGO_VERSION" ]; then
+            echo "✓ Versions match"
+          else
+            echo "⚠ Version mismatch (this may be expected)"
+          fi
+
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: serial-cli-linux-x86_64
+            binary_name: serial-cli
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: serial-cli-linux-aarch64
+            binary_name: serial-cli
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: serial-cli-macos-x86_64
+            binary_name: serial-cli
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: serial-cli-macos-arm64
+            binary_name: serial-cli
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: serial-cli-windows-x86_64.exe
+            binary_name: serial-cli.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build release binary
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Linux and macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            aarch64-linux-gnu-strip target/${{ matrix.target }}/release/serial-cli
+          else
+            strip target/${{ matrix.target }}/release/serial-cli
+          fi
+
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp serial-cli.exe ${{ matrix.artifact_name }}
+          else
+            cp serial-cli ${{ matrix.artifact_name }}
+          fi
+          chmod +x ${{ matrix.artifact_name }} || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R ./artifacts
+
+      - name: Create checksums
+        run: |
+          cd artifacts
+          for dir in */; do
+            cd "$dir"
+            for file in *; do
+              if [ -f "$file" ]; then
+                sha256sum "$file" > "$file.sha256"
+              fi
+            done
+            cd ..
+          done
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./artifacts/*/serial-cli*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Serial CLI ${{ github.ref_name }}
+
+            📦 **安装方式**
+
+            ### Linux
+            ```bash
+            # 下载并安装
+            wget https://github.com/zazac-zhang/serial_cli/releases/latest/download/serial-cli-linux-x86_64
+            chmod +x serial-cli-linux-x86_64
+            sudo mv serial-cli-linux-x86_64 /usr/local/bin/serial-cli
+
+            # 验证校验和
+            sha256sum -c serial-cli-linux-x86_64.sha256
+            ```
+
+            ### macOS
+            ```bash
+            # 下载并安装
+            curl -L https://github.com/zazac-zhang/serial_cli/releases/latest/download/serial-cli-macos-arm64 -o serial-cli
+            chmod +x serial-cli
+            sudo mv serial-cli /usr/local/bin/
+
+            # 验证校验和
+            shasum -a 256 -c serial-cli-macos-arm64.sha256
+            ```
+
+            ### Windows
+            ```powershell
+            # 下载
+            # https://github.com/zazac-zhang/serial_cli/releases/latest/download/serial-cli-windows-x86_64.exe
+
+            # 验证校验和
+            certutil -hashfile serial-cli-windows-x86_64.exe SHA256
+            ```
+
+            ### Cargo
+            ```bash
+            cargo install serial-cli
+            ```
+
+            📚 **文档**: [USAGE.md](https://github.com/zazac-zhang/serial_cli/blob/master/USAGE.md)
+
+            🐛 **Bug报告**: [Issues](https://github.com/zazac-zhang/serial_cli/issues)
+
+            💬 **讨论**: [Discussions](https://github.com/zazac-zhang/serial_cli/discussions)
+
+            ---
+            **完整变更日志**: https://github.com/zazac-zhang/serial_cli/compare/${{ github.event.release.previous_tag_name }}...${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crate:
+    name: Publish to crates.io
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish
+
+  homebrew-release:
+    name: Update Homebrew Tap
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get release info
+        id: release
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          curl -L "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64" \
+            -o serial-cli-linux
+          SHA256=$(sha256sum serial-cli-linux | awk '{print $1}')
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          scripts/package/update_homebrew.sh "${{ steps.release.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
+
+  scoop-release:
+    name: Update Scoop Bucket
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get release info
+        id: release
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          curl -L "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-windows-x86_64.exe" \
+            -o serial-cli.exe
+          SHA256=$(sha256sum serial-cli.exe | awk '{print $1}')
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Update Scoop manifest
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          scripts/package/update_scoop.sh "${{ steps.release.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
+
+  aur-prepare:
+    name: Prepare AUR Files
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get release info
+        id: release
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          curl -L "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64.tar.gz" \
+            -o serial-cli.tar.gz || true
+          SHA256=$(sha256sum serial-cli.tar.gz 2>/dev/null || echo "manual")
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Generate AUR files
+        run: |
+          scripts/package/generate_aur.sh "${{ steps.release.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
+
+      - name: Upload AUR files
+        uses: actions/upload-artifact@v4
+        with:
+          name: aur-files
+          path: aur/
