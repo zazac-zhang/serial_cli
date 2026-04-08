@@ -6,7 +6,7 @@ import { useState } from 'react'
 export function NotificationSettings() {
   const { settings, updateSettings, requestNotificationPermission } = useNotification()
   const [isRequesting, setIsRequesting] = useState(false)
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unsupported'>(
     'Notification' in window ? Notification.permission : 'unsupported'
   )
 
@@ -15,6 +15,13 @@ export function NotificationSettings() {
     const granted = await requestNotificationPermission()
     setPermissionStatus(granted ? 'granted' : 'denied')
     setIsRequesting(false)
+  }
+
+  const getPermissionStatus = (): 'granted' | 'denied' | 'default' | 'unsupported' => {
+    if (permissionStatus === 'unsupported') return 'unsupported'
+    if (permissionStatus === 'granted') return 'granted'
+    if (permissionStatus === 'denied') return 'denied'
+    return 'default'
   }
 
   return (
@@ -29,21 +36,21 @@ export function NotificationSettings() {
               </label>
               <div className={cn(
                 'text-xs px-2 py-1 rounded font-medium',
-                permissionStatus === 'granted' && 'bg-signal/10 text-signal',
-                permissionStatus === 'denied' && 'bg-alert/10 text-alert',
-                permissionStatus === 'default' && 'bg-amber/10 text-amber',
-                permissionStatus === 'unsupported' && 'bg-bg-elevated text-text-tertiary'
+                getPermissionStatus() === 'granted' && 'bg-signal/10 text-signal',
+                getPermissionStatus() === 'denied' && 'bg-alert/10 text-alert',
+                getPermissionStatus() === 'default' && 'bg-amber/10 text-amber',
+                getPermissionStatus() === 'unsupported' && 'bg-bg-elevated text-text-tertiary'
               )}>
-                {permissionStatus === 'granted' && '✓ Enabled'}
-                {permissionStatus === 'denied' && '✕ Blocked'}
-                {permissionStatus === 'default' && 'Request Permission'}
-                {permissionStatus === 'unsupported' && 'Not Supported'}
+                {getPermissionStatus() === 'granted' && '✓ Enabled'}
+                {getPermissionStatus() === 'denied' && '✕ Blocked'}
+                {getPermissionStatus() === 'default' && 'Request Permission'}
+                {getPermissionStatus() === 'unsupported' && 'Not Supported'}
               </div>
             </div>
             <p className="text-xs text-text-tertiary mb-3">
               Enable system notifications to stay informed about important events even when the app is in the background.
             </p>
-            {permissionStatus === 'default' && (
+            {getPermissionStatus() === 'default' && (
               <button
                 onClick={handleRequestPermission}
                 disabled={isRequesting}
@@ -52,7 +59,7 @@ export function NotificationSettings() {
                 {isRequesting ? 'Requesting...' : 'Enable Notifications'}
               </button>
             )}
-            {permissionStatus === 'denied' && (
+            {getPermissionStatus() === 'denied' && (
               <p className="text-xs text-alert">
                 Notifications are blocked. Enable them in your browser/system settings.
               </p>
