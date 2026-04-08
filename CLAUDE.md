@@ -6,37 +6,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Serial CLI is a Rust-based serial port communication tool with embedded LuaJIT scripting, optimized for AI/automation workflows. It supports multiple protocols (Modbus RTU/ASCII, AT Commands, line-based, and custom Lua protocols) with structured JSON output.
 
+Includes a Tauri-based GUI application (`src-tauri/` + `frontend/`).
+
 ## Build & Development Commands
 
 ```bash
 # Development build
-just dev          # or: cargo build
+just dev          # cargo build
 
 # Release build
-just build        # or: cargo build --release
+just build        # cargo build --release
 
 # Run tests
-just test         # or: cargo test
+just test         # cargo test
 just test-verbose # cargo test -- --nocapture
-just test <name>  # cargo test <name>
 
 # Code quality
 just check        # fmt-check + lint + test (all checks)
 just fmt          # cargo fmt
-just fmt-check    # cargo fmt -- --check
 just lint         # cargo clippy -- -D warnings
 
 # Run application
-just run <args>   # or: cargo run -- <args>
+just run <args>   # cargo run -- <args>
 
 # Cross-compilation
 just build-all    # Linux + macOS + Windows
-just build-linux  # x86_64 + aarch64 (requires cross)
-just build-macos  # x86_64 + arm64 (macOS only)
-just build-windows # x86_64 (requires cross)
+just build-linux  # x86_64 + aarch64
+just build-macos  # x86_64 + arm64
 ```
 
-**Requirements:** Rust 1.75+, just task runner, cross (for cross-compilation)
+**Requirements:** Rust 1.75+, just task runner
 
 ## Architecture Overview
 
@@ -56,57 +55,54 @@ src/
 │   ├── registry.rs      # ProtocolRegistry, ProtocolFactory
 │   ├── built_in/        # Modbus, AT Command, Line protocols
 │   ├── lua_ext.rs       # Custom Lua protocol support
-│   ├── loader.rs        # ProtocolLoader for .lua protocols
 │   └── validator.rs     # ProtocolValidator
 │
 ├── lua/                 # LuaJIT integration
 │   ├── bindings.rs      # LuaBindings - Rust→Lua API
 │   ├── engine.rs        # LuaEngine runtime
-│   ├── executor.rs      # ScriptEngine execution
-│   └── stdlib.rs        # Standard library functions
+│   └── executor.rs      # Script execution
 │
 ├── task/                # Task scheduling
 │   ├── queue.rs         # TaskQueue
-│   ├── executor.rs      # TaskExecutor
-│   └── monitor.rs       # TaskMonitor
+│   └── executor.rs      # TaskExecutor
 │
 └── cli/                 # CLI interface
     ├── interactive.rs   # REPL shell
-    ├── commands.rs      # Single commands (list-ports, send)
-    ├── batch.rs         # Batch script execution
-    └── json.rs          # JSON output formatting
+    ├── commands.rs      # Single commands
+    └── batch.rs         # Batch script execution
 ```
 
 ### Key Design Patterns
 
-1. **Protocol Trait** (`src/protocol/mod.rs:24`): All protocols implement `parse()`, `encode()`, `reset()`
-2. **PortManager** (`src/serial_core/port.rs`): Centralized port lifecycle management with UUID-based handles
-3. **LuaBindings** (`src/lua/bindings.rs`): Registers Rust APIs to Lua (`serial.open`, `protocol_encode`, etc.)
+1. **Protocol Trait** (`src/protocol/mod.rs`): All protocols implement `parse()`, `encode()`, `reset()`
+2. **PortManager** (`src/serial_core/port.rs`): Centralized port management with UUID-based handles
+3. **LuaBindings** (`src/lua/bindings.rs`): Registers Rust APIs to Lua
 4. **Error Handling**: Centralized in `error.rs` using `thiserror`; all functions return `Result<T>`
 
-### Module Dependencies
+## Key Conventions
+
+- **Error handling**: Use `Result<T>` from `error.rs`
+- **Async**: All I/O uses `tokio`
+- **Lua integration**: Scripts executed via LuaEngine
+- **Configuration**: TOML-based with fallback defaults
+
+## GUI Subproject
+
+Tauri-based GUI in `src-tauri/` (workspace member) with React frontend in `frontend/`:
+
+```bash
+just gui-deps           # Install frontend dependencies
+just gui-dev            # Start Tauri dev server
+just gui-build          # Build GUI application
+just gui-check          # cargo check --workspace
+just gui-type-check     # TypeScript type check
+just gui-fmt            # Format all code
+```
+
+## Module Dependencies
 
 ```
 main.rs → cli/* → serial_core → protocol/*
                     ↓
                  lua/* → protocol/* (for custom protocols)
-```
-
-## Key Conventions
-
-- **Error handling**: Use `Result<T>` from `error.rs`; `SerialError::Io` wraps `std::io::Error`
-- **Async**: All I/O uses `tokio`; main entry uses `#[tokio::main]`
-- **Lua integration**: Scripts executed via `LuaBindings::register_all_apis()` + `execute_script()`
-- **Protocol loading**: Custom protocols loaded via `protocol_load(path)` in Lua scripts
-- **Configuration**: TOML-based config with fallback defaults (`config.rs`)
-
-## GUI Subproject
-
-A Tauri-based GUI exists in `src-tauri/` (workspace member). GUI-specific commands:
-
-```bash
-just gui-dev          # Start Tauri dev server
-just gui-build        # Build GUI application
-just gui-check        # cargo check --workspace
-just gui-deps         # cd src-ui && npm install
 ```

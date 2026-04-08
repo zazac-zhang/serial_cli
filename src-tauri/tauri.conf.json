@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.serial-cli.gui",
   "build": {
-    "beforeDevCommand": "cd src-ui && npm run dev",
-    "beforeBuildCommand": "cd src-ui && npm run build",
+    "beforeDevCommand": "cd ../frontend && npm run dev",
+    "beforeBuildCommand": "cd ../frontend && npm run build",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "/Users/pony/codehub/rust/serial_cli/src-ui/dist"
+    "frontendDist": "../frontend/dist"
   },
   "app": {
     "windows": [
@@ -26,11 +26,7 @@
     "security": {
       "csp": null
     },
-    "withGlobalTauri": true,
-    "trayIcon": {
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": true
-    }
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,

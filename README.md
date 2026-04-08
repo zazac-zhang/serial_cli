@@ -1,7 +1,6 @@
 <div align="center">
 
   ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.1.0-blue?style=for-the-badge&logo=rust)
-  [![Build Status](https://img.shields.io/github/actions/workflow/status/zazac-zhang/serial_cli/ci.yml?branch=master&style=for-the-badge&logo=github)](https://github.com/zazac-zhang/serial_cli/actions)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
 
@@ -9,7 +8,7 @@
 
   **A Universal Serial Port CLI Tool Optimized for AI Interaction**
 
-  [Quick Start](#-quick-start) • [Features](#-features) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Docs](#-documentation)
+  [Quick Start](#-quick-start) • [Features](#-features) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
 
 </div>
 
@@ -29,7 +28,7 @@ Serial CLI is a powerful, cross-platform serial communication tool built with Ru
 
 ```bash
 # Install from source
-cargo install serial-cli
+cargo install --path .
 
 # Or download pre-built binaries
 # Visit: https://github.com/zazac-zhang/serial_cli/releases
@@ -61,9 +60,9 @@ serial-cli run script.lua --port=/dev/ttyUSB0
 |:---:|:---:|:---:|:---:|
 | Works with any serial device | Structured JSON output | Embedded LuaJIT runtime | Linux • macOS • Windows |
 
-| 📡 **Protocols** | 🔄 **Batch Mode** | 🛠️ **Interactive** | 🧪 **Well-Tested** |
+| 📡 **Protocols** | 🔄 **Batch Mode** | 🖥️ **GUI Available** | 🧪 **Well-Tested** |
 |:---:|:---:|:---:|:---:|
-| Modbus • AT Commands • Custom | Sequential & Parallel execution | REPL shell | 58 passing tests |
+| Modbus • AT Commands • Custom | Sequential & Parallel execution | Tauri-based GUI | 58 passing tests |
 
 </div>
 
@@ -75,7 +74,8 @@ serial-cli run script.lua --port=/dev/ttyUSB0
 - **🎨 Custom Protocols** - Load custom protocols from Lua scripts with hot-reload support
 - **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
 - **🔄 Batch Processing** - Execute multiple scripts sequentially or in parallel
-- **🖥️ Interactive Shell** - Powerful REPL with command history and auto-completion
+- **🖥️ Interactive Shell** - Powerful REPL shell with command history and auto-completion
+- **🎛️ GUI Application** - Tauri-based cross-platform GUI (optional)
 
 ---
 
@@ -220,7 +220,230 @@ local hex = bytes_to_hex(data)
 local bytes = hex_to_bytes("48656c6c6f")
 ```
 
-📚 **Complete Lua API:** [USAGE.md](USAGE.md#lua-scripting)
+### Custom Protocol Extension
+
+Serial CLI supports loading custom protocols from Lua scripts:
+
+```lua
+-- Load custom protocol
+local ok, err = protocol_load("/path/to/my_protocol.lua")
+if ok then
+    local encoded = protocol_encode("my_custom_protocol", "data")
+    local decoded = protocol_decode("my_custom_protocol", encoded)
+end
+```
+
+**Protocol Requirements:**
+- `on_frame(data)` - Parse incoming data
+- `on_encode(data)` - Encode outgoing data
+- `on_reset()` - Reset protocol state (optional)
+
+See `examples/` directory for complete protocol examples.
+
+---
+
+## 🛠️ Development
+
+### Prerequisites
+
+```bash
+# Rust 1.75+
+rustup update stable
+
+# Just task runner (recommended)
+cargo install just
+
+# Platform dependencies
+# Linux:
+sudo apt-get install build-essential libudev-dev
+
+# macOS:
+xcode-select --install
+```
+
+### Build Commands
+
+```bash
+# Development build
+just dev          # cargo build
+
+# Release build
+just build        # cargo build --release
+
+# Run application
+just run <args>   # cargo run -- <args>
+
+# Run all checks (fmt + lint + test)
+just check
+```
+
+### Testing
+
+```bash
+# Run all tests
+just test
+
+# Run specific test
+just test <test_name>
+
+# Run tests with output
+just test-verbose
+```
+
+### Code Quality
+
+```bash
+# Format code
+just fmt
+
+# Check formatting
+just fmt-check
+
+# Run linter
+just lint
+
+# Cross-compilation
+just build-all    # All platforms
+just build-linux  # Linux (x86_64 + aarch64)
+just build-macos  # macOS (x86_64 + arm64)
+just build-windows # Windows (requires cross)
+```
+
+### GUI Development
+
+```bash
+# Install GUI dependencies
+just gui-deps
+
+# Start GUI development
+just gui-dev
+
+# Build GUI application
+just gui-build
+
+# Type check frontend
+just gui-type-check
+```
+
+### Project Structure
+
+```
+serial_cli/
+├── src/                    # Rust library (core functionality)
+│   ├── main.rs             # CLI entry point
+│   ├── lib.rs              # Library root
+│   ├── error.rs            # Error types
+│   ├── config.rs           # Configuration
+│   ├── serial_core/        # Serial port I/O
+│   ├── protocol/           # Protocol engine
+│   ├── lua/                # LuaJIT integration
+│   ├── task/               # Task scheduling
+│   └── cli/                # CLI interface
+├── src-tauri/              # Tauri application (GUI backend)
+│   ├── src/                # Tauri-specific code
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   └── build.rs
+├── frontend/               # React frontend (GUI)
+│   ├── src/                # React source
+│   ├── components/
+│   ├── index.html
+│   └── package.json
+├── examples/               # Lua script examples
+├── tests/                  # Integration tests
+├── docs/                   # Documentation
+├── justfile                # Build commands
+├── Cargo.toml              # Package config
+└── README.md               # This file
+```
+
+---
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### 1. Permission Denied
+
+**Error:** `Permission denied for port '/dev/ttyUSB0'`
+
+**Solution (Linux):**
+```bash
+# Add user to dialout group
+sudo usermod -a -G dialout $USER
+# Re-login or execute
+newgrp dialout
+```
+
+**Solution (Windows):**
+- Run as Administrator
+- Close other applications using the port
+
+#### 2. Port Not Found
+
+**Error:** `Port '/dev/ttyUSB0' not found`
+
+**Solution:**
+- Use `serial-cli list-ports` to verify available ports
+- Check USB connection and cables
+- Windows: Check COM port in Device Manager
+
+#### 3. Timeout Error
+
+**Error:** `Operation timeout`
+
+**Solution:**
+- Increase timeout: `timeout = 5000`
+- Verify baudrate matches device
+- Check device is responding
+
+#### 4. Port In Use
+
+**Error:** `Port 'COM1' is already in use`
+
+**Solution:**
+- Close PuTTY, Tera Term, Arduino IDE, etc.
+- Disable/enable port in Device Manager
+
+#### 5. Lua Script Error
+
+**Error:** `Runtime error in script.lua`
+
+**Solution:**
+- Use `--verbose` for detailed error
+- Verify Lua syntax
+- Check API calls
+
+### Debug Mode
+
+```bash
+# Enable verbose logging
+serial-cli --verbose list-ports
+serial-cli --verbose run script.lua
+
+# Set log level
+RUST_LOG=debug serial-cli list-ports
+RUST_LOG=trace serial-cli list-ports
+```
+
+### Platform-Specific
+
+**Linux:**
+```bash
+# Install dependencies
+sudo apt-get install build-essential libudev-dev
+```
+
+**macOS:**
+```bash
+# Install Xcode tools
+xcode-select --install
+```
+
+**Windows:**
+- Install drivers for FTDI, CP210x, CH340 USB-to-serial adapters
+- Arduino IDE includes common drivers
+- Install Visual Studio Build Tools for development
 
 ---
 
@@ -228,39 +451,8 @@ local bytes = hex_to_bytes("48656c6c6f")
 
 | Document | Description |
 |:---|:---|
-| **[USAGE.md](USAGE.md)** | 命令参考和 Lua API |
-| **[DEVELOPMENT.md](DEVELOPMENT.md)** | 开发指南和贡献流程 |
-| **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** | 故障排除 |
-
----
-
-## 🛠️ Development
-
-```bash
-# Build the project
-just build
-
-# Run tests
-just test
-
-# Run all checks (tests, lint, fmt)
-just check
-
-# List all available commands
-just --list
-```
-
-**Requirements:** Rust 1.75+, just task runner
-
----
-
-## 📊 Project Status
-
-<div align="center">
-
-✅ **Core functionality complete** • ✅ **All 58 tests passing** • ✅ **Cross-platform support** • ✅ **CI/CD configured**
-
-</div>
+| **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development guide and contribution flow |
+| **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** | Detailed troubleshooting |
 
 ---
 
@@ -286,74 +478,3 @@ Dual-licensed under:
 [GitHub](https://github.com/zazac-zhang/serial_cli) • [Report Issues](https://github.com/zazac-zhang/serial_cli/issues) • [Releases](https://github.com/zazac-zhang/serial_cli/releases)
 
 </div>
-
-## 🎨 Custom Protocol Extension
-
-Serial CLI now supports loading custom protocols from Lua scripts! This enables you to implement proprietary or industry-specific protocols without modifying the core codebase.
-
-### Creating a Custom Protocol
-
-Create a Lua file with your protocol implementation:
-
-```lua
--- Protocol: my_custom_protocol
--- This implements a simple frame-based protocol
-
-function on_frame(data)
-    -- Process incoming data
-    -- Return parsed data or nil for invalid frames
-    return data
-end
-
-function on_encode(data)
-    -- Encode outgoing data
-    -- Return encoded data
-    return data
-end
-
-function on_reset()
-    -- Optional: Called when protocol state resets
-end
-```
-
-### Loading Custom Protocols
-
-**Via Lua Script:**
-```lua
-local ok, err = protocol_load("/path/to/my_protocol.lua")
-if ok then
-    local encoded = protocol_encode("my_custom_protocol", "data")
-    local decoded = protocol_decode("my_custom_protocol", encoded)
-end
-```
-
-**Via Validation API:**
-```lua
-local ok, err = protocol_validate("/path/to/my_protocol.lua")
--- Validates syntax and required functions before loading
-```
-
-### Protocol Requirements
-
-Every custom protocol must implement:
-- `on_frame(data)` - Parse incoming data (return `data` for passthrough, `nil` for error)
-- `on_encode(data)` - Encode outgoing data
-- `on_reset()` (optional) - Reset protocol state
-
-### Example: Checksum Protocol
-
-See `examples/checksum_protocol.lua` for a complete example with frame validation and checksum calculation.
-
-### Protocol Management API
-
-- `protocol_load(path)` - Load protocol from file
-- `protocol_unload(name)` - Unload a protocol
-- `protocol_reload(name)` - Reload protocol from file
-- `protocol_list()` - List all protocols
-- `protocol_info(name)` - Get protocol information
-- `protocol_validate(path)` - Validate without loading
-
-For more examples, see:
-- `examples/protocol_extension_demo.lua` - Complete API demo
-- `examples/custom_protocol.lua` - Binary protocol with CRC
-

@@ -50,19 +50,19 @@ function AppContent() {
 function App() {
   return (
     <React.StrictMode>
-      <NotificationProvider>
-        <ShortcutProvider>
-          <NavigationProvider>
-            <PortProvider>
-              <DataProvider>
-                <ToastProvider>
+      <ToastProvider>
+        <NotificationProvider>
+          <ShortcutProvider>
+            <NavigationProvider>
+              <PortProvider>
+                <DataProvider>
                   <AppContent />
-                </ToastProvider>
-              </DataProvider>
-            </PortProvider>
-          </NavigationProvider>
-        </ShortcutProvider>
-      </NotificationProvider>
+                </DataProvider>
+              </PortProvider>
+            </NavigationProvider>
+          </ShortcutProvider>
+        </NotificationProvider>
+      </ToastProvider>
     </React.StrictMode>
   )
 }

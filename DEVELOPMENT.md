@@ -1,33 +1,52 @@
-# Serial CLI - 开发指南
+# Serial CLI - Development Guide
 
-开发者贡献文档。
+Developer documentation for contributing to Serial CLI.
 
-## 目录
+## Table of Contents
 
-- [开发环境](#开发环境)
-- [构建](#构建)
-- [测试](#测试)
-- [代码质量](#代码质量)
-- [交叉编译](#交叉编译)
-- [贡献](#贡献)
-- [项目结构](#项目结构)
+- [Development Setup](#development-setup)
+- [Build Commands](#build-commands)
+- [Testing](#testing)
+- [Code Quality](#code-quality)
+- [Cross-Compilation](#cross-compilation)
+- [Contributing](#contributing)
+- [Project Structure](#project-structure)
 
-## 开发环境
+---
 
-### 前置条件
+## Development Setup
+
+### Prerequisites
 
 ```bash
-# Rust 1.70+
+# Rust 1.75+
 rustup update stable
 rustup component add rustfmt clippy
 
-# Just 任务运行器（推荐）
+# Just task runner (recommended)
 cargo install just
 ```
 
-### IDE 设置
+### Platform Dependencies
 
-**VS Code 推荐扩展:**
+**Linux:**
+```bash
+sudo apt-get install build-essential libudev-dev
+sudo usermod -a -G dialout $USER  # Serial port access
+```
+
+**macOS:**
+```bash
+xcode-select --install
+```
+
+**Windows:**
+- Install Visual Studio Build Tools with C++ tools
+- Install USB-to-serial drivers (FTDI, CP210x, CH340)
+
+### IDE Setup
+
+**VS Code Recommended Extensions:**
 - rust-analyzer
 - CodeLLDB
 - Even Better TOML
@@ -42,182 +61,254 @@ cargo install just
 }
 ```
 
-## 构建
+---
+
+## Build Commands
 
 ```bash
-# 开发构建
+# Development build
 just dev        # cargo build
 
-# Release 构建
+# Release build
 just build      # cargo build --release
 
-# 运行
+# Run application
 just run <args> # cargo run -- <args>
+
+# Clean build artifacts
+just clean
 ```
 
-## 测试
+---
+
+## Testing
 
 ```bash
-# 所有测试
+# Run all tests
 just test
 
-# 详细输出
+# Run tests with output
 just test-verbose
 
-# 特定测试
+# Run specific test
 just test <test_name>
+
+# Watch mode (run tests on file changes)
+just test-watch
 ```
 
-**测试状态:** 58/58 passing ✅
+**Test Status:** 58/58 passing
 
-## 代码质量
+---
+
+## Code Quality
 
 ```bash
-# 格式化
+# Format code
 just fmt         # cargo fmt
+
+# Check formatting
 just fmt-check   # cargo fmt -- --check
 
-# Lint
+# Run linter
 just lint        # cargo clippy -- -D warnings
 
-# 全部检查
-just check       # fmt-check + lint + test
+# Run all checks (format + lint + test)
+just check
 ```
 
-提交前必须通过所有检查。
+**All checks must pass before committing.**
 
-## 交叉编译
+---
 
-### 前置条件
+## Cross-Compilation
+
+### Prerequisites
 
 ```bash
-# 安装 cross
+# Install cross for cross-compilation
 cargo install cross
 
-# Docker (cross 需要)
+# Docker required (cross uses containers)
 ```
 
-### 构建命令
+### Build Commands
 
 ```bash
-# 所有平台
+# All platforms
 just build-all
 
-# 特定平台
+# Specific platforms
 just build-linux    # x86_64 + aarch64
-just build-macos    # x86_64 + arm64 (仅 macOS)
-just build-windows  # x86_64 (需要 cross)
+just build-macos    # x86_64 + arm64 (macOS only)
+just build-windows  # x86_64 (requires cross)
+
+# Full release build (clean + all platforms)
+just release
 ```
 
-### 平台说明
+---
 
-**Linux:**
+## GUI Development
+
+### Prerequisites
+
 ```bash
-sudo apt-get install build-essential libudev-dev
-sudo usermod -a -G dialout $USER
+# Node.js 20+
+# Rust + Tauri CLI
+cargo install tauri-cli
 ```
 
-**macOS:**
+### Commands
+
 ```bash
-xcode-select --install
+# Install frontend dependencies
+just gui-deps
+
+# Start development server
+just gui-dev
+
+# Build GUI application
+just gui-build
+
+# Type check frontend
+just gui-type-check
+
+# Check Rust code
+just gui-check
+
+# Format all code
+just gui-fmt
+
+# Clean build artifacts
+just gui-clean
 ```
 
-**Windows:**
-- 安装 Visual Studio Build Tools（C++ 工具）
+---
 
-## 贡献
+## Contributing
 
-### 贡献类型
+### Contribution Types
 
-- 🐛 Bug 修复
-- ✨ 新功能
-- 🧪 测试
-- 📚 文档
-- 🔧 性能优化
+- 🐛 Bug fixes
+- ✨ New features
+- 🧪 Tests
+- 📚 Documentation
+- 🔧 Performance improvements
 
-### 流程
+### Pull Request Process
 
 ```bash
-# 1. 创建分支
+# 1. Create a branch
 git checkout -b feature/your-feature-name
 
-# 2. 运行检查
+# 2. Run all checks
 just check
 
-# 3. 提交
+# 3. Commit your changes
 git commit -m "Add: Your feature description"
 
-# 4. 创建 PR
+# 4. Create PR
 ```
 
-### Commit 规范
+### Commit Message Format
 
 ```
-<类型>: <简短描述>
+<type>: <short description>
 ```
 
-**类型:** `Add:`, `Fix:`, `Update:`, `Refactor:`, `Docs:`, `Test:`, `Chore:`, `Perf:`
+**Types:** `Add:`, `Fix:`, `Update:`, `Refactor:`, `Docs:`, `Test:`, `Chore:`, `Perf:`
 
-### 代码风格
+**Examples:**
+```bash
+git commit -m "Add: Modbus RTU protocol support"
+git commit -m "Fix: Handle empty response in AT protocol"
+git commit -m "Docs: Update installation instructions"
+```
 
-- 使用 `cargo fmt` 格式化
-- 修复所有 `clippy` 警告
-- 新功能需要单元测试
-- 复杂逻辑需要注释
+### Code Style
 
-## 项目结构
+- Use `cargo fmt` for formatting
+- Fix all `clippy` warnings
+- Write unit tests for new features
+- Add comments for complex logic
+
+---
+
+## Project Structure
 
 ```
-serial-cli/
+serial_cli/
 ├── src/
-│   ├── main.rs              # CLI 入口
-│   ├── lib.rs               # 库入口
-│   ├── error.rs             # 错误类型
-│   ├── config.rs            # 配置管理
-│   ├── serial_core/         # 串口核心
-│   │   ├── port.rs          # 端口管理
-│   │   ├── io_loop.rs       # 异步 I/O
-│   │   └── sniffer.rs       # 数据包捕获
-│   ├── protocol/            # 协议引擎
-│   │   ├── registry.rs      # 协议注册表
-│   │   ├── built_in/        # 内置协议 (Modbus, AT, Line)
-│   │   └── lua_ext.rs       # Lua 协议扩展
-│   ├── lua/                 # LuaJIT 运行时
-│   │   ├── engine.rs        # Lua 引擎
-│   │   ├── bindings.rs      # API 绑定
-│   │   └── executor.rs      # 脚本执行器
-│   ├── task/                # 任务调度
-│   └── cli/                 # CLI 接口
-│       ├── interactive.rs   # REPL
-│       ├── commands.rs      # 单命令
-│       └── batch.rs         # 批量处理
-├── examples/                # Lua 脚本示例
-├── tests/                   # 集成测试
-├── docs/                    # 文档
-├── justfile                 # Just 命令
-├── Cargo.toml               # 包配置
-├── README.md                # 快速开始
-├── USAGE.md                 # 使用指南
-└── DEVELOPMENT.md           # 本文档
+│   ├── main.rs              # CLI entry point
+│   ├── lib.rs               # Library root (re-exports Result, SerialError)
+│   ├── error.rs             # Error types (SerialError, Result<T>)
+│   ├── config.rs            # Configuration management
+│   ├── serial_core/         # Serial port I/O
+│   │   ├── port.rs          # PortManager, SerialConfig, PortHandle
+│   │   ├── io_loop.rs       # Async I/O event loop
+│   │   └── sniffer.rs       # Packet capture/monitoring
+│   ├── protocol/            # Protocol engine
+│   │   ├── registry.rs      # ProtocolRegistry, ProtocolFactory
+│   │   ├── built_in/        # Modbus, AT Command, Line protocols
+│   │   ├── lua_ext.rs       # Custom Lua protocol support
+│   │   ├── loader.rs        # ProtocolLoader for .lua protocols
+│   │   └── validator.rs     # ProtocolValidator
+│   ├── lua/                 # LuaJIT integration
+│   │   ├── bindings.rs      # LuaBindings - Rust→Lua API
+│   │   ├── engine.rs        # LuaEngine runtime
+│   │   ├── executor.rs      # ScriptEngine execution
+│   │   └── stdlib.rs        # Standard library functions
+│   ├── task/                # Task scheduling
+│   │   ├── queue.rs         # TaskQueue
+│   │   ├── executor.rs      # TaskExecutor
+│   │   └── monitor.rs       # TaskMonitor
+│   └── cli/                 # CLI interface
+│       ├── interactive.rs   # REPL shell
+│       ├── commands.rs      # Single commands (list-ports, send)
+│       ├── batch.rs         # Batch script execution
+│       └── json.rs          # JSON output formatting
+├── src-tauri/               # Tauri application (GUI backend)
+│   ├── src/                 # Tauri-specific code
+│   ├── Cargo.toml
+│   ├── tauri.conf.json      # Tauri configuration
+│   └── build.rs
+├── frontend/                # React frontend (GUI)
+│   ├── src/                 # React source
+│   ├── components/          # UI components
+│   ├── contexts/            # React contexts
+│   ├── hooks/               # Custom hooks
+│   ├── index.html
+│   └── package.json
+├── examples/                # Lua script examples
+├── tests/                   # Integration tests
+├── docs/                    # Documentation
+│   └── TROUBLESHOOTING.md   # Detailed troubleshooting
+├── justfile                 # Just commands
+├── Cargo.toml               # Package configuration
+└── README.md                # Quick start guide
 ```
 
-### 核心模块
+### Core Modules
 
-| 模块 | 描述 |
-|------|------|
-| `serial_core` | 串口 I/O，端口管理 |
-| `protocol` | Modbus, AT 命令，自定义协议 |
-| `lua` | LuaJIT 集成，脚本执行 |
-| `cli` | 命令行界面，交互模式 |
+| Module | Description |
+|--------|-------------|
+| `serial_core` | Serial port I/O, port management |
+| `protocol` | Modbus, AT Commands, custom protocols |
+| `lua` | LuaJIT integration, script execution |
+| `cli` | CLI interface, interactive mode |
+| `task` | Task scheduling and execution |
 
-## 调试
+---
+
+## Debugging
 
 ```bash
-# 调试日志
+# Debug logging
 RUST_LOG=debug cargo run -- list-ports
 RUST_LOG=trace cargo run -- list-ports
 
-# 性能分析
+# Profiling
 cargo install flamegraph
 cargo flamegraph --bin serial-cli -- list-ports
 
@@ -225,9 +316,38 @@ cargo flamegraph --bin serial-cli -- list-ports
 cargo bench
 ```
 
-## 更多资源
+---
 
-- [Rust 指南](https://rust-lang.github.io/api-guidelines/)
-- [API 文档](https://docs.rs/serial-cli/)
-- [USAGE.md](USAGE.md) - 使用文档
+## Architecture Overview
+
+### Module Dependencies
+
+```
+main.rs → cli/* → serial_core → protocol/*
+                    ↓
+                 lua/* → protocol/* (for custom protocols)
+```
+
+### Key Design Patterns
+
+1. **Protocol Trait** (`src/protocol/mod.rs:24`): All protocols implement `parse()`, `encode()`, `reset()`
+2. **PortManager** (`src/serial_core/port.rs`): Centralized port lifecycle management with UUID-based handles
+3. **LuaBindings** (`src/lua/bindings.rs`): Registers Rust APIs to Lua (`serial.open`, `protocol_encode`, etc.)
+4. **Error Handling**: Centralized in `error.rs` using `thiserror`; all functions return `Result<T>`
+
+### Key Conventions
+
+- **Error handling**: Use `Result<T>` from `error.rs`; `SerialError::Io` wraps `std::io::Error`
+- **Async**: All I/O uses `tokio`; main entry uses `#[tokio::main]`
+- **Lua integration**: Scripts executed via `LuaBindings::register_all_apis()` + `execute_script()`
+- **Protocol loading**: Custom protocols loaded via `protocol_load(path)` in Lua scripts
+- **Configuration**: TOML-based config with fallback defaults (`config.rs`)
+
+---
+
+## Resources
+
+- [Rust Guidelines](https://rust-lang.github.io/api-guidelines/)
+- [API Documentation](https://docs.rs/serial-cli/)
+- [README.md](README.md) - Quick start
 - [GitHub Issues](https://github.com/zazac-zhang/serial_cli/issues)

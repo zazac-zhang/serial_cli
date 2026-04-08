@@ -1,102 +1,98 @@
-# Serial CLI - Just 命令配置
+# Serial CLI - Just Command Configuration
 # https://github.com/casey/just
 
-# 默认列表（运行 `just` 时显示）
+# Default list (run `just` to show)
 default:
     @just --list
 
 # =============================================================================
-# 开发命令
+# Development Commands
 # =============================================================================
 
-# 开发构建（未优化）
+# Development build (unoptimized)
 dev:
     cargo build
 
-# Release 构建（优化）
+# Release build (optimized)
 build:
     cargo build --release
 
-# 运行项目（开发模式）
+# Run application (development mode)
 run *args:
     cargo run -- {{args}}
 
 # =============================================================================
-# 测试命令
+# Testing Commands
 # =============================================================================
 
-# 运行所有测试
+# Run all tests
 test:
     cargo test
 
-# 运行测试（详细输出）
+# Run tests with verbose output
 test-verbose:
     cargo test -- --nocapture
 
-# 运行测试并显示输出
+# Run tests on file changes
 test-watch:
     cargo watch -x test
 
-# 运行特定测试
+# Run specific test
 test-test name *args:
     cargo test {{name}} -- {{args}}
 
 # =============================================================================
-# 代码质量
+# Code Quality
 # =============================================================================
 
-# 运行 Clippy 检查
+# Run Clippy linter
 lint:
     cargo clippy -- -D warnings
 
-# 格式化代码
+# Format code
 fmt:
     cargo fmt
 
-# 检查代码格式
+# Check code formatting
 fmt-check:
     cargo fmt -- --check
 
-# 运行所有检查（格式 + lint + 测试）
+# Run all checks (format + lint + test)
 check: fmt-check lint test
 
 # =============================================================================
-# 清理命令
+# Clean Commands
 # =============================================================================
 
-# 清理构建产物
+# Clean build artifacts
 clean:
     cargo clean
 
-# 清理所有（包括 target/）
+# Clean all (including target/)
 clean-all:
     rm -rf target/
 
 # =============================================================================
-# 文档命令
+# Documentation Commands
 # =============================================================================
 
-# 生成并打开文档
+# Generate and open documentation
 docs:
     cargo doc --open
 
-# 生成文档（不打开）
+# Generate documentation
 docs-build:
     cargo doc
 
-# 检查文档链接
-docs-check:
-    cargo doc --document-private-items
-
 # =============================================================================
-# 交叉编译
+# Cross-Compilation
 # =============================================================================
 
-# 构建所有平台
+# Build for all platforms
 build-all: build-linux build-macos build-windows
     @echo "✓ All platforms built successfully"
 
-# 构建 Linux 平台（x86_64 + aarch64）
+# Build for Linux (x86_64 + aarch64)
 build-linux:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -110,7 +106,7 @@ build-linux:
         echo "Skipping aarch64 build"
     fi
 
-# 构建 macOS 平台（仅限 macOS）
+# Build for macOS (x86_64 + arm64)
 build-macos:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -124,7 +120,7 @@ build-macos:
         echo "Skipping macOS build"
     fi
 
-# 构建 Windows 平台（使用 cross）
+# Build for Windows (requires cross)
 build-windows:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -136,68 +132,66 @@ build-windows:
         echo "Skipping Windows build"
     fi
 
-# 构建所有平台的 Release 版本
+# Full release build (clean + all platforms)
 release: clean-all build-all
     @echo "✓ Release builds complete"
 
 # =============================================================================
-# GUI 开发命令
+# GUI Commands
 # =============================================================================
 
-# 安装 GUI 依赖
+# Install GUI dependencies
 gui-deps:
-    cd src-ui && npm install
+    cd frontend && npm install
 
-# 启动前端开发服务器
+# Start frontend development server
 gui-dev-frontend:
-    cd src-ui && npm run dev
+    cd frontend && npm run dev
 
-# 启动 GUI 应用（开发模式）
+# Start Tauri GUI development
 gui-dev:
-    cd src-ui && npm run dev &
-    sleep 2
     cargo tauri dev
 
-# 构建 GUI 应用
+# Build GUI application
 gui-build:
-    cd src-ui && npm run build
+    cd frontend && npm run build
     cargo tauri build
 
-# 构建 GUI 前端
+# Build frontend only
 gui-build-frontend:
-    cd src-ui && npm run build
+    cd frontend && npm run build
 
-# 检查 GUI 前端类型
+# Type check frontend
 gui-type-check:
-    cd src-ui && npm run type-check
+    cd frontend && npm run type-check
 
-# 运行 GUI 测试
+# Run frontend tests
 gui-test:
-    cd src-ui && npm test
+    cd frontend && npm test
 
-# 清理 GUI 构建产物
+# Clean GUI artifacts
 gui-clean:
-    rm -rf src-ui/dist
-    rm -rf src-ui/node_modules
+    rm -rf frontend/dist
+    rm -rf frontend/node_modules
     rm -rf src-tauri/target
 
-# 检查 GUI Rust 代码
+# Check GUI Rust code
 gui-check:
     cargo check --workspace
 
-# 格式化 GUI 代码
+# Format GUI code
 gui-fmt:
     cargo fmt
-    cd src-ui && npx prettier --write "src/**/*.{ts,tsx,css}"
+    cd frontend && npx prettier --write "src/**/*.{ts,tsx,css}"
 
 # =============================================================================
-# 安装命令
+# Installation
 # =============================================================================
 
-# 本地安装（开发版本）
+# Install locally (development version)
 install:
     cargo install --path .
 
-# 本地安装（Release 版本）
+# Install locally (Release version)
 install-release: build
     cargo install --path .
