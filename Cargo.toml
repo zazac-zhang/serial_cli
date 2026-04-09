@@ -16,6 +16,7 @@ readme = "README.md"
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }
 tokio-serial = "5.4"
+serialport = "4.3"
 
 # UUID generation
 uuid = { version = "1.6", features = ["v4", "serde"] }

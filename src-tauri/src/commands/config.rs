@@ -134,7 +134,7 @@ pub async fn save_config_raw(content: String) -> Result<(), String> {
 
     // Write to file
     fs::write(&config_path, content)
-        .map_err(|e| format!("Failed to write config file: {}", e))
+        .map_err(|e| e.to_string())
 }
 
 /// Reset configuration to defaults

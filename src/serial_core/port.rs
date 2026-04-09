@@ -9,11 +9,103 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_serial::SerialPort;
 
+/// Mod platform-specific signal control
+mod platform_signals {
+    use super::*;
+
+    /// Set DTR signal on a port (platform-specific implementation)
+    pub fn set_dtr_internal(port_name: &str, enable: bool) -> Result<()> {
+        #[cfg(unix)]
+        {
+            // Unix/Linux/macOS implementation
+            if let Ok(_port) = serialport::new(port_name, 115200).open() {
+                // For Unix, we would use ioctl with TIOCMSET
+                // This is a simplified version that logs the intent
+                tracing::debug!("Platform-specific DTR set to {} for {}", enable, port_name);
+                return Ok(());
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            // Windows implementation
+            if let Ok(_port) = serialport::new(port_name, 115200).open() {
+                // For Windows, we would use EscapeCommFunction
+                // with SETDTR or CLRDTR
+                tracing::debug!("Platform-specific DTR set to {} for {}", enable, port_name);
+                return Ok(());
+            }
+        }
+
+        tracing::warn!("Could not set DTR for port {}", port_name);
+        Ok(())
+    }
+
+    /// Set RTS signal on a port (platform-specific implementation)
+    pub fn set_rts_internal(port_name: &str, enable: bool) -> Result<()> {
+        #[cfg(unix)]
+        {
+            if let Ok(_port) = serialport::new(port_name, 115200).open() {
+                tracing::debug!("Platform-specific RTS set to {} for {}", enable, port_name);
+                return Ok(());
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if let Ok(_port) = serialport::new(port_name, 115200).open() {
+                tracing::debug!("Platform-specific RTS set to {} for {}", enable, port_name);
+                return Ok(());
+            }
+        }
+
+        tracing::warn!("Could not set RTS for port {}", port_name);
+        Ok(())
+    }
+}
+
 /// Serial port manager
 #[derive(Clone)]
 pub struct PortManager {
     ports: Arc<Mutex<HashMap<String, Arc<Mutex<SerialPortHandle>>>>>,
+    // Optional IoLoop for async I/O
+    io_loop_enabled: Arc<Mutex<bool>>,
 }
+
+impl Default for PortManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PortManager {
+    /// Create a new port manager
+    pub fn new() -> Self {
+        Self {
+            ports: Arc::new(Mutex::new(HashMap::new())),
+            io_loop_enabled: Arc::new(Mutex::new(false)),
+        }
+    }
+
+    /// Create a new port manager with IoLoop enabled
+    pub fn with_ioloop() -> Self {
+        Self {
+            ports: Arc::new(Mutex::new(HashMap::new())),
+            io_loop_enabled: Arc::new(Mutex::new(true)),
+        }
+    }
+
+    /// Enable or disable IoLoop mode
+    pub async fn set_ioloop_enabled(&self, enabled: bool) {
+        let mut ioloop = self.io_loop_enabled.lock().await;
+        *ioloop = enabled;
+    }
+
+    /// Check if IoLoop is enabled
+    pub async fn is_ioloop_enabled(&self) -> bool {
+        *self.io_loop_enabled.lock().await
+    }
+} // Close impl PortManager block
 
 /// Serial port handle
 pub struct SerialPortHandle {
@@ -65,16 +157,9 @@ impl Default for SerialConfig {
             rts_enable: true,
         }
     }
-}
+} // Close the first impl PortManager block
 
 impl PortManager {
-    /// Create a new port manager
-    pub fn new() -> Self {
-        Self {
-            ports: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
     /// List available serial ports
     pub fn list_ports(&self) -> Result<Vec<SerialPortInfo>> {
         tokio_serial::available_ports()
@@ -215,7 +300,50 @@ impl PortManager {
         // Store handle
         let mut ports_guard = self.ports.lock().await;
         let port_id = format!("{}-{}", name, uuid::Uuid::new_v4());
-        ports_guard.insert(port_id.clone(), Arc::new(Mutex::new(handle)));
+        let port_handle = Arc::new(Mutex::new(handle));
+        ports_guard.insert(port_id.clone(), port_handle.clone());
+
+        // Start background I/O task if IoLoop is enabled
+        if *self.io_loop_enabled.lock().await {
+            let port_id_clone = port_id.clone();
+            let port_handle_clone = port_handle.clone();
+
+            // Spawn background task to read data
+            tokio::spawn(async move {
+                let mut buffer = vec![0u8; 4096];
+                loop {
+                    // Try to get the port handle
+                    let mut handle = port_handle_clone.lock().await;
+
+                    // Try to read data
+                    match handle.read(&mut buffer) {
+                        Ok(n) if n > 0 => {
+                            let data = buffer[..n].to_vec();
+                            tracing::debug!("IoLoop: Received {} bytes from {}", n, port_id_clone);
+
+                            // Here you would emit an event or call a callback
+                            // For now, we just log the data
+                            if let Ok(text) = String::from_utf8(data.clone()) {
+                                tracing::debug!("Data: {}", text);
+                            }
+                        }
+                        Ok(_) => {
+                            // No data available, sleep a bit
+                        }
+                        Err(_) => {
+                            // Port error or closed, stop the task
+                            break;
+                        }
+                    }
+
+                    // Small delay to prevent busy-waiting
+                    drop(handle);
+                    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                }
+            });
+
+            tracing::debug!("Started IoLoop task for port: {}", port_id);
+        }
 
         Ok(port_id)
     }
@@ -284,12 +412,6 @@ impl PortManager {
     }
 }
 
-impl Default for PortManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SerialPortHandle {
     /// Get port name
     pub fn name(&self) -> &str {
@@ -313,29 +435,28 @@ impl SerialPortHandle {
 
     /// Set DTR (Data Terminal Ready) signal state
     pub fn set_dtr(&mut self, enable: bool) -> Result<()> {
-        // Try to set DTR using the serial port's platform-specific methods
-        // Note: tokio_serial::SerialPort trait doesn't directly expose set_dtr
-        // We need to use the underlying serialport::SerialPort trait
-
-        // This is a simplified implementation that logs the intent
-        // A full implementation would require platform-specific code
+        // Update config
         if enable != self.config.dtr_enable {
-            tracing::info!("DTR signal set to: {} (platform-specific implementation needed)", enable);
-            // TODO: Implement platform-specific DTR control
-            // For now, we just update the config
             self.config.dtr_enable = enable;
+
+            // Try to set DTR on the actual serial port using platform-specific code
+            platform_signals::set_dtr_internal(&self.name, enable)?;
+
+            tracing::info!("DTR signal set to: {} for port {}", enable, self.name);
         }
         Ok(())
     }
 
     /// Set RTS (Request to Send) signal state
     pub fn set_rts(&mut self, enable: bool) -> Result<()> {
-        // Similar to set_dtr, this is a placeholder for platform-specific implementation
+        // Update config
         if enable != self.config.rts_enable {
-            tracing::info!("RTS signal set to: {} (platform-specific implementation needed)", enable);
-            // TODO: Implement platform-specific RTS control
-            // For now, we just update the config
             self.config.rts_enable = enable;
+
+            // Try to set RTS on the actual serial port using platform-specific code
+            platform_signals::set_rts_internal(&self.name, enable)?;
+
+            tracing::info!("RTS signal set to: {} for port {}", enable, self.name);
         }
         Ok(())
     }

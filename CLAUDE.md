@@ -85,6 +85,7 @@ src/
 - **Async**: All I/O uses `tokio`
 - **Lua integration**: Scripts executed via LuaEngine
 - **Configuration**: TOML-based with fallback defaults
+- **Documentation**: Avoid creating .md files unless explicitly necessary
 
 ## GUI Subproject
 

@@ -44,6 +44,10 @@ enum Commands {
     Run {
         /// Script file to run
         script: String,
+
+        /// Arguments to pass to the script
+        #[arg(value_name = "ARGS", trailing_var_arg = true)]
+        args: Vec<String>,
     },
 
     /// Protocol management commands
@@ -169,23 +173,29 @@ enum ConfigCommand {
     Reset,
 }
 
-async fn run_lua_script(path: PathBuf) -> Result<()> {
-    use serial_cli::lua::bindings::LuaBindings;
+async fn run_lua_script(path: PathBuf, args: Vec<String>) -> Result<()> {
+    use serial_cli::lua::executor::ScriptEngine;
 
-    // 1. Create Lua bindings
-    let bindings = LuaBindings::new()?;
+    // 1. Create script engine
+    let engine = ScriptEngine::new()?;
 
-    // 2. Register all available APIs (log, utility, serial, protocol)
-    bindings.register_all_apis()?;
+    // 2. Register all available APIs
+    engine.bindings.register_all_apis()?;
 
-    // 3. Register stdlib utilities manually to the same Lua instance
-    register_stdlib_utils(&bindings)?;
+    // 3. Register stdlib utilities
+    register_stdlib_utils(&engine.bindings)?;
 
-    // 4. Read and execute script file
+    // 4. Read script file
     let script_content =
         std::fs::read_to_string(&path).map_err(serial_cli::error::SerialError::Io)?;
 
-    bindings.execute_script(&script_content)?;
+    // 5. Execute script with arguments
+    if args.is_empty() {
+        engine.execute_file(&path)?;
+    } else {
+        println!("Executing script with arguments: {:?}", args);
+        engine.execute_with_args(&script_content, args)?;
+    }
 
     Ok(())
 }
@@ -360,7 +370,13 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(log_level).init();
 
     // Load configuration
-    let _config = serial_cli::config::load_config_with_fallback();
+    let config_manager = serial_cli::config::ConfigManager::load_with_fallback();
+    let config = config_manager.get();
+
+    // Validate configuration
+    if let Err(e) = config_manager.validate() {
+        eprintln!("Warning: Configuration validation failed: {}", e);
+    }
 
     // Execute command
     match cli.command {
@@ -374,8 +390,8 @@ async fn main() -> Result<()> {
             let mut shell = InteractiveShell::new();
             shell.run().await?;
         }
-        Commands::Run { script } => {
-            run_lua_script(PathBuf::from(script)).await?;
+        Commands::Run { script, args } => {
+            run_lua_script(PathBuf::from(script), args).await?;
         }
         Commands::Protocol { protocol_command } => {
             handle_protocol_command(protocol_command)?;
@@ -446,24 +462,79 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
 
 /// Handle sniff commands
 async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
+    use serial_cli::serial_core::{SerialSniffer, SnifferConfig};
+
     match cmd {
-        SniffCommand::Start { port, output, max_packets } => {
+        SniffCommand::Start {
+            port,
+            output,
+            max_packets,
+        } => {
             println!("Starting sniff on port: {}", port);
             println!("Max packets: {}", max_packets);
-            if let Some(out_path) = output {
+            if let Some(ref out_path) = output {
                 println!("Output file: {}", out_path.display());
             }
             println!();
-            println!("Note: Sniff functionality requires full implementation");
-            println!("The IoLoop and Sniffer modules are implemented but need integration");
+
+            // Create sniffer configuration
+            let mut sniffer_config = SnifferConfig::default();
+            sniffer_config.max_packets = max_packets;
+
+            if output.is_some() {
+                sniffer_config.save_to_file = true;
+                if let Some(ref out_path) = output {
+                    if let Some(parent) = out_path.parent() {
+                        sniffer_config.output_dir = parent.to_path_buf();
+                    }
+                }
+            }
+
+            // Create sniffer
+            let sniffer = SerialSniffer::new(sniffer_config.clone());
+
+            // Start sniffing
+            match sniffer.start_sniffing(&port).await {
+                Ok(_session) => {
+                    println!("✓ Sniffing started successfully on port: {}", port);
+                    println!("Press Ctrl+C to stop sniffing");
+
+                    // Keep sniffing until interrupted
+                    tokio::signal::ctrl_c()
+                        .await
+                        .map_err(|e| serial_cli::error::SerialError::Io(e))?;
+
+                    println!("\nStopping sniff...");
+
+                    // Get packet statistics
+                    let packet_count = sniffer.packet_count().await;
+                    println!("Captured {} packets", packet_count);
+
+                    // Save to file if requested
+                    if let Some(out_path) = output {
+                        println!("Saving to: {}", out_path.display());
+                        if let Err(e) = sniffer.save_to_file(&out_path).await {
+                            println!("Warning: Failed to save: {}", e);
+                        } else {
+                            println!("✓ Saved successfully");
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("✗ Failed to start sniffing: {}", e);
+                    return Err(e);
+                }
+            }
         }
         SniffCommand::Stats => {
             println!("Sniff statistics:");
             println!("No active sniff session");
+            println!("Note: Statistics tracking requires an active sniffing session");
         }
         SniffCommand::Save { path } => {
             println!("Saving captured packets to: {}", path.display());
-            println!("Note: Save functionality requires full implementation");
+            println!("Note: This command requires an active sniffing session");
+            println!("Use 'sniff start' to begin a sniffing session first");
         }
     }
     Ok(())
@@ -471,18 +542,119 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
 
 /// Handle batch commands
 async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
+    use serial_cli::cli::batch::{BatchConfig, BatchRunner};
+
     match cmd {
         BatchCommand::Run { script, concurrent } => {
             println!("Running batch script: {}", script.display());
             println!("Max concurrent tasks: {}", concurrent);
             println!();
-            println!("Note: Batch functionality is partially implemented");
-            println!("The BatchRunner module exists but needs CLI integration");
+
+            // Check if script exists
+            if !script.exists() {
+                println!("✗ Batch script not found: {}", script.display());
+                return Err(serial_cli::error::SerialError::Io(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Batch script not found",
+                )));
+            }
+
+            // Create batch configuration
+            let config = BatchConfig {
+                max_concurrent: concurrent,
+                timeout_secs: 300, // 5 minutes default
+                continue_on_error: false,
+            };
+
+            // Create batch runner
+            let runner = BatchRunner::new(config)?;
+
+            // Check if it's a single script or a batch file
+            if script.extension().map_or(false, |e| e == "lua") {
+                // Single Lua script
+                println!("Executing single script...");
+
+                match runner.run_script(&script).await {
+                    Ok(_) => {
+                        println!("✓ Script executed successfully");
+                    }
+                    Err(e) => {
+                        println!("✗ Script execution failed: {}", e);
+                        return Err(e);
+                    }
+                }
+            } else {
+                // Assume it's a batch file containing list of scripts
+                println!("Executing batch script file...");
+
+                let content = std::fs::read_to_string(&script)
+                    .map_err(serial_cli::error::SerialError::Io)?;
+
+                let script_paths: Vec<&std::path::Path> = content
+                    .lines()
+                    .filter(|line| !line.trim().is_empty() && !line.trim().starts_with('#'))
+                    .map(|line| std::path::Path::new(line.trim()))
+                    .collect();
+
+                if script_paths.is_empty() {
+                    println!("⚠ No scripts found in batch file");
+                    return Ok(());
+                }
+
+                println!("Found {} scripts to execute", script_paths.len());
+
+                // Run scripts in sequence
+                match runner.run_scripts(script_paths).await {
+                    Ok(result) => {
+                        println!();
+                        println!("Batch execution completed:");
+                        println!("  Total scripts: {}", result.results.len());
+
+                        let successful = result.results.iter().filter(|r| r.success).count();
+                        let failed = result.results.len() - successful;
+
+                        println!("  Successful: {}", successful);
+                        println!("  Failed: {}", failed);
+
+                        if failed > 0 {
+                            println!();
+                            println!("Failed scripts:");
+                            for result in result.results.iter().filter(|r| !r.success) {
+                                println!("  - {}", result.script);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("✗ Batch execution failed: {}", e);
+                        return Err(e);
+                    }
+                }
+            }
         }
         BatchCommand::List => {
             println!("Batch scripts:");
-            println!("No batch scripts found");
-            println!("Note: Batch script management needs implementation");
+            println!("Looking for batch scripts in current directory...");
+
+            // List common batch script locations
+            let batch_files = vec!["batch.txt", "scripts.txt", "batch.lua", "scripts.batch"];
+
+            let mut found = false;
+            for batch_file in batch_files {
+                if std::path::Path::new(batch_file).exists() {
+                    println!("  ✓ {}", batch_file);
+                    found = true;
+                }
+            }
+
+            if !found {
+                println!("  No batch scripts found");
+                println!();
+                println!("Create a batch script file with one Lua script per line:");
+                println!("  # Comments start with #");
+                println!("  script1.lua");
+                println!("  script2.lua");
+                println!("  script3.lua");
+            }
         }
     }
     Ok(())
@@ -490,9 +662,13 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
 
 /// Handle config commands
 fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
+    use serial_cli::config::ConfigManager;
+
+    let config_manager = ConfigManager::load_with_fallback();
+
     match cmd {
         ConfigCommand::Show { json } => {
-            let config = serial_cli::config::Config::default();
+            let config = config_manager.get();
             if json {
                 println!("{}", serde_json::to_string_pretty(&config).unwrap());
             } else {
@@ -508,27 +684,97 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 println!("[logging]");
                 println!("  level = \"{}\"", config.logging.level);
                 println!("  format = \"{}\"", config.logging.format);
+                println!("  file = \"{}\"", config.logging.file);
                 println!();
-                println!("Note: Use 'config set <key> <value>' to modify configuration");
+                println!("[lua]");
+                println!("  memory_limit_mb = {}", config.lua.memory_limit_mb);
+                println!("  timeout_seconds = {}", config.lua.timeout_seconds);
+                println!("  enable_sandbox = {}", config.lua.enable_sandbox);
+                println!();
+                println!("[task]");
+                println!("  max_concurrent = {}", config.task.max_concurrent);
+                println!("  default_timeout_seconds = {}", config.task.default_timeout_seconds);
+                println!();
+                println!("[output]");
+                println!("  json_pretty = {}", config.output.json_pretty);
+                println!("  show_timestamp = {}", config.output.show_timestamp);
+                println!();
+                println!("Use 'config set <key> <value>' to modify configuration");
+                println!("Use 'config save [path]' to save configuration to file");
+                println!("Use 'config reset' to reset to defaults");
             }
         }
         ConfigCommand::Set { key, value } => {
-            println!("Setting configuration:");
-            println!("  {} = {}", key, value);
-            println!();
-            println!("Note: Configuration setting needs implementation");
-            println!("The config module supports loading, but runtime setting is not complete");
+            println!("Setting configuration: {} = {}", key, value);
+
+            match config_manager.set(&key, &value) {
+                Ok(_) => {
+                    println!("✓ Configuration updated successfully");
+
+                    // Validate after setting
+                    if let Err(e) = config_manager.validate() {
+                        println!("⚠ Warning: Configuration may be invalid: {}", e);
+                    }
+
+                    println!("Note: Use 'config save' to persist changes");
+                }
+                Err(e) => {
+                    println!("✗ Failed to set configuration: {}", e);
+                    println!();
+                    println!("Valid configuration keys:");
+                    println!("  serial.baudrate              - Baud rate (e.g., 115200)");
+                    println!("  serial.databits              - Data bits (5-8)");
+                    println!("  serial.stopbits              - Stop bits (1-2)");
+                    println!("  serial.parity                - Parity (none/odd/even)");
+                    println!("  serial.timeout_ms            - Timeout in milliseconds");
+                    println!("  logging.level                - Log level (error/warn/info/debug/trace)");
+                    println!("  logging.format               - Log format (text/json)");
+                    println!("  logging.file                 - Log file path");
+                    println!("  lua.memory_limit_mb          - Lua memory limit");
+                    println!("  lua.timeout_seconds          - Lua timeout");
+                    println!("  lua.enable_sandbox           - Enable Lua sandbox");
+                    println!("  task.max_concurrent          - Max concurrent tasks");
+                    println!("  task.default_timeout_seconds - Default task timeout");
+                    println!("  output.json_pretty           - Pretty print JSON");
+                    println!("  output.show_timestamp        - Show timestamps");
+                    return Err(e);
+                }
+            }
         }
         ConfigCommand::Save { path } => {
-            let output_path = path.unwrap_or_else(|| std::path::PathBuf::from(".serial-cli.toml"));
+            let output_path = path.unwrap_or_else(|| {
+                if let Some(global_path) = serial_cli::config::get_global_config_path() {
+                    global_path
+                } else {
+                    std::path::PathBuf::from(".serial-cli.toml")
+                }
+            });
+
             println!("Saving configuration to: {}", output_path.display());
-            println!();
-            println!("Note: Configuration saving needs implementation");
+
+            match config_manager.save(Some(&output_path)) {
+                Ok(_) => {
+                    println!("✓ Configuration saved successfully");
+                }
+                Err(e) => {
+                    println!("✗ Failed to save configuration: {}", e);
+                    return Err(e);
+                }
+            }
         }
         ConfigCommand::Reset => {
-            println!("Resetting configuration to defaults");
-            println!();
-            println!("Note: Configuration reset needs implementation");
+            println!("Resetting configuration to defaults...");
+
+            match config_manager.reset() {
+                Ok(_) => {
+                    println!("✓ Configuration reset to defaults");
+                    println!("Note: Use 'config save' to persist changes");
+                }
+                Err(e) => {
+                    println!("✗ Failed to reset configuration: {}", e);
+                    return Err(e);
+                }
+            }
         }
     }
     Ok(())
