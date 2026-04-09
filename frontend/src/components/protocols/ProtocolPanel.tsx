@@ -1,7 +1,9 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Plus, FileCode, Settings, Play, Trash2, Upload } from 'lucide-react'
+import { Plus, FileCode, Settings, Play, Trash2, Upload, Check, AlertCircle } from 'lucide-react'
 import { useState, useRef } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { protocolsStorage } from '@/lib/storage'
 
 interface Protocol {
   id: string
@@ -51,7 +53,18 @@ export function ProtocolPanel() {
   const [protocols, setProtocols] = useState<Protocol[]>(BUILTIN_PROTOCOLS)
   const [activeProtocolId, setActiveProtocolId] = useState<string>('line-based')
   const [customProtocols, setCustomProtocols] = useState<Protocol[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [validationStatus, setValidationStatus] = useState<Map<string, 'valid' | 'invalid'>>(new Map())
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Load custom protocols from storage on mount
+  useState(() => {
+    const saved = protocolsStorage.get()
+    if (saved.length > 0) {
+      setCustomProtocols(saved)
+    }
+  })
 
   const activeProtocol = [...protocols, ...customProtocols].find(p => p.id === activeProtocolId)
 
@@ -63,27 +76,62 @@ export function ProtocolPanel() {
   }
 
   const deleteCustomProtocol = (id: string) => {
-    setCustomProtocols(prev => prev.filter(p => p.id !== id))
+    const updated = customProtocols.filter(p => p.id !== id)
+    setCustomProtocols(updated)
+    protocolsStorage.set(updated.map(p => ({
+      ...p,
+      lastModified: Date.now(),
+    })))
+
     if (activeProtocolId === id) {
       setActiveProtocolId('line-based')
     }
   }
 
-  const loadCustomProtocol = (file: File) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const content = e.target?.result as string
+  const loadCustomProtocol = async (file: File) => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // Read file content
+      const content = await file.text()
+
+      // Validate protocol syntax
+      try {
+        await invoke('validate_protocol', { path: file.name })
+        setValidationStatus(prev => new Map(prev).set(file.name, 'valid'))
+      } catch (err) {
+        setValidationStatus(prev => new Map(prev).set(file.name, 'invalid'))
+        throw err
+      }
+
+      // Load protocol via Tauri
+      const protocolInfo = await invoke<any>('load_protocol', { path: file.name })
+
       const newProtocol: Protocol = {
         id: `custom-${Date.now()}`,
         name: file.name.replace('.lua', ''),
         version: '1.0',
-        description: 'Custom Lua protocol',
+        description: protocolInfo.description || 'Custom Lua protocol',
         type: 'custom',
         status: 'inactive',
       }
-      setCustomProtocols(prev => [...prev, newProtocol])
+
+      const updated = [...customProtocols, newProtocol]
+      setCustomProtocols(updated)
+      protocolsStorage.set(updated.map(p => ({
+        ...p,
+        lastModified: Date.now(),
+      })))
+      setActiveProtocolId(newProtocol.id)
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      setError(errorMsg)
+      setValidationStatus(prev => new Map(prev).set(file.name, 'invalid'))
+    } finally {
+      setIsLoading(false)
     }
-    reader.readAsText(file)
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,6 +143,17 @@ export function ProtocolPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Error Display */}
+      {error && (
+        <div className="p-3 rounded-md bg-alert/10 border border-alert/30">
+          <div className="flex items-center gap-2 text-alert text-sm">
+            <AlertCircle size={16} strokeWidth={1.5} />
+            <span className="font-medium">Protocol Error</span>
+          </div>
+          <p className="text-xs text-alert mt-1 font-mono">{error}</p>
+        </div>
+      )}
+
       {/* Protocol Grid */}
       <div className="grid grid-cols-2 gap-6 max-w-6xl">
         {/* Built-in Protocols */}

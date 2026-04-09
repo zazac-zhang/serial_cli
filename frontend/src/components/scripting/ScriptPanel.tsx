@@ -1,9 +1,11 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload } from 'lucide-react'
+import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import { useScriptActions } from '@/contexts/ScriptActionContext'
+import { invoke } from '@tauri-apps/api/core'
+import { scriptsStorage } from '@/lib/storage'
 
 const DEFAULT_SCRIPT = `-- Lua Script for Serial CLI
 -- Use the serial API to communicate with devices
@@ -51,9 +53,18 @@ export function ScriptPanel() {
   const [isRunning, setIsRunning] = useState(false)
   const [output, setOutput] = useState<string[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeScript = scripts.find(s => s.id === activeScriptId)
+
+  // Load scripts from storage on mount
+  useEffect(() => {
+    const savedScripts = scriptsStorage.get()
+    if (savedScripts.length > 0) {
+      setScripts(savedScripts)
+    }
+  }, [])
 
   const createNewScript = () => {
     const newScript: ScriptFile = {
@@ -62,20 +73,29 @@ export function ScriptPanel() {
       content: DEFAULT_SCRIPT,
       lastModified: Date.now(),
     }
-    setScripts(prev => [...prev, newScript])
+    const updatedScripts = [...scripts, newScript]
+    setScripts(updatedScripts)
+    scriptsStorage.set(updatedScripts)
     setActiveScriptId(newScript.id)
     setScriptContent(newScript.content)
   }
 
-  const runScript = () => {
+  const runScript = async () => {
     setIsRunning(true)
-    setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Starting script...`])
+    setError(null)
+    setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Starting script execution...`])
 
-    // Simulate script execution
-    setTimeout(() => {
-      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script execution complete`])
+    try {
+      const result = await invoke<string>('execute_script', { script: scriptContent })
+      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✓ ${result}`])
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      setError(errorMsg)
+      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Script execution failed`])
+      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Error: ${errorMsg}`])
+    } finally {
       setIsRunning(false)
-    }, 1500)
+    }
   }
 
   // Register callbacks for global shortcuts
@@ -88,10 +108,26 @@ export function ScriptPanel() {
   }, [registerCallbacks])
 
   const deleteScript = (id: string) => {
-    setScripts(prev => prev.filter(s => s.id !== id))
+    const updatedScripts = scripts.filter(s => s.id !== id)
+    setScripts(updatedScripts)
+    scriptsStorage.set(updatedScripts)
+
     if (activeScriptId === id) {
       setActiveScriptId(null)
       setScriptContent(DEFAULT_SCRIPT)
+    }
+  }
+
+  const saveScript = () => {
+    if (activeScriptId) {
+      const updatedScripts = scripts.map(s =>
+        s.id === activeScriptId
+          ? { ...s, content: scriptContent, lastModified: Date.now() }
+          : s
+      )
+      setScripts(updatedScripts)
+      scriptsStorage.set(updatedScripts)
+      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script saved: ${activeScript?.name}`])
     }
   }
 
@@ -105,7 +141,9 @@ export function ScriptPanel() {
         content,
         lastModified: Date.now(),
       }
-      setScripts(prev => [...prev, newScript])
+      const updatedScripts = [...scripts, newScript]
+      setScripts(updatedScripts)
+      scriptsStorage.set(updatedScripts)
       setActiveScriptId(newScript.id)
       setScriptContent(content)
       setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Loaded: ${file.name}`])
@@ -130,17 +168,6 @@ export function ScriptPanel() {
       a.click()
       URL.revokeObjectURL(url)
       setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Exported: ${activeScript.name}`])
-    }
-  }
-
-  const saveScript = () => {
-    if (activeScriptId) {
-      setScripts(prev => prev.map(s =>
-        s.id === activeScriptId
-          ? { ...s, content: scriptContent, lastModified: Date.now() }
-          : s
-      ))
-      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script saved`])
     }
   }
 
@@ -252,7 +279,11 @@ export function ScriptPanel() {
                 disabled={isRunning}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Play size={12} strokeWidth={1.5} className={isRunning ? 'animate-spin' : ''} />
+                {isRunning ? (
+                  <Loader2 size={12} strokeWidth={1.5} className="animate-spin" />
+                ) : (
+                  <Play size={12} strokeWidth={1.5} />
+                )}
                 {isRunning ? 'Running...' : 'Run'}
               </button>
             </>
@@ -280,12 +311,26 @@ export function ScriptPanel() {
 
       {/* Output Console */}
       <Panel title="Output" variant="default" className="max-w-7xl">
+        {error && (
+          <div className="mb-3 p-3 rounded-md bg-alert/10 border border-alert/30">
+            <p className="text-sm text-alert font-medium">Execution Error</p>
+            <p className="text-xs text-alert mt-1 font-mono">{error}</p>
+          </div>
+        )}
         <div className="h-32 overflow-y-auto font-mono text-xs bg-bg-deepest rounded-md p-3 border border-border/50">
           {output.length === 0 ? (
             <p className="text-text-tertiary">Script output will appear here...</p>
           ) : (
             output.map((line, i) => (
-              <div key={i} className="text-text-secondary py-0.5">
+              <div
+                key={i}
+                className={cn(
+                  'py-0.5',
+                  line.includes('✓') && 'text-signal',
+                  line.includes('✗') && 'text-alert',
+                  line.includes('Error:') && 'text-alert'
+                )}
+              >
                 {line}
               </div>
             ))

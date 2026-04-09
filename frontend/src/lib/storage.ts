@@ -187,6 +187,41 @@ export const scriptsStorage = {
 }
 
 /**
+ * Protocols persistence
+ */
+export interface StoredProtocol {
+  id: string
+  name: string
+  version: string
+  description: string
+  type: 'built-in' | 'custom'
+  status: 'active' | 'inactive'
+  lastModified: number
+}
+
+export const protocolsStorage = {
+  get: (): StoredProtocol[] => {
+    return storage.get<StoredProtocol[]>(STORAGE_KEYS.PROTOCOLS, [])
+  },
+
+  set: (protocols: StoredProtocol[]): boolean => {
+    return storage.set(STORAGE_KEYS.PROTOCOLS, protocols)
+  },
+
+  add: (protocol: StoredProtocol): boolean => {
+    const protocols = protocolsStorage.get()
+    protocols.push(protocol)
+    return protocolsStorage.set(protocols)
+  },
+
+  remove: (id: string): boolean => {
+    const protocols = protocolsStorage.get()
+    const filtered = protocols.filter(p => p.id !== id)
+    return protocolsStorage.set(filtered)
+  },
+}
+
+/**
  * Recent ports configuration
  */
 export interface RecentPortConfig {

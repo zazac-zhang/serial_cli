@@ -4,9 +4,15 @@ import { cn } from '@/lib/utils'
 import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { useState } from 'react'
 
+type ExportFormat = 'txt' | 'csv' | 'json'
+type ExportOption = 'all' | 'rx-only' | 'tx-only'
+
 export function DataViewer() {
   const { packets, clearPackets, displayOptions, setDisplayOptions } = useData()
   const [autoScroll, setAutoScroll] = useState(true)
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('txt')
+  const [exportOption, setExportOption] = useState<ExportOption>('all')
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const formatData = (data: number[], format: 'hex' | 'ascii') => {
     if (format === 'hex') {
@@ -31,17 +37,56 @@ export function DataViewer() {
   }
 
   const exportData = () => {
-    const content = packets.map(p => {
-      const dir = p.direction === 'rx' ? 'RX' : 'TX'
-      const data = formatData(p.data, displayOptions.format)
-      return `[${formatTimestamp(p.timestamp)}] ${dir}: ${data}`
-    }).join('\n')
+    const filteredPackets = packets.filter(p => {
+      if (exportOption === 'rx-only') return p.direction === 'rx'
+      if (exportOption === 'tx-only') return p.direction === 'tx'
+      return true
+    })
 
-    const blob = new Blob([content], { type: 'text/plain' })
+    let content: string
+    let filename: string
+    let mimeType: string
+
+    if (exportFormat === 'csv') {
+      const headers = ['Timestamp', 'Direction', 'Port', 'Data (Hex)', 'Data (ASCII)', 'Bytes']
+      const rows = filteredPackets.map(p => [
+        formatTimestamp(p.timestamp),
+        p.direction.toUpperCase(),
+        p.port_id,
+        formatData(p.data, 'hex'),
+        formatData(p.data, 'ascii'),
+        p.data.length.toString(),
+      ])
+      content = [headers, ...rows].map(row => row.join(',')).join('\n')
+      filename = `serial-data-${Date.now()}.csv`
+      mimeType = 'text/csv'
+    } else if (exportFormat === 'json') {
+      content = JSON.stringify(filteredPackets.map(p => ({
+        timestamp: p.timestamp,
+        timestamp_formatted: formatTimestamp(p.timestamp),
+        direction: p.direction,
+        port_id: p.port_id,
+        data_hex: formatData(p.data, 'hex'),
+        data_ascii: formatData(p.data, 'ascii'),
+        bytes: p.data.length,
+      })), null, 2)
+      filename = `serial-data-${Date.now()}.json`
+      mimeType = 'application/json'
+    } else {
+      content = filteredPackets.map(p => {
+        const dir = p.direction === 'rx' ? 'RX' : 'TX'
+        const data = formatData(p.data, displayOptions.format)
+        return `[${formatTimestamp(p.timestamp)}] ${dir}: ${data}`
+      }).join('\n')
+      filename = `serial-data-${Date.now()}.txt`
+      mimeType = 'text/plain'
+    }
+
+    const blob = new Blob([content], { type: mimeType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `serial-data-${Date.now()}.txt`
+    a.download = filename
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -103,13 +148,76 @@ export function DataViewer() {
             >
               {displayOptions.format.toUpperCase()}
             </button>
-            <button
-              onClick={exportData}
-              className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
-              title="Export data"
-            >
-              <Download size={14} strokeWidth={1.5} />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
+                title="Export data"
+              >
+                <Download size={14} strokeWidth={1.5} />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-bg-floating border border-border rounded-lg shadow-xl z-10 p-3">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
+                        Format
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {(['txt', 'csv', 'json'] as ExportFormat[]).map((fmt) => (
+                          <button
+                            key={fmt}
+                            onClick={() => setExportFormat(fmt)}
+                            className={cn(
+                              'flex-1 px-2 py-1 text-xs rounded-md border transition-colors',
+                              exportFormat === fmt
+                                ? 'bg-info/10 text-info border-info/30'
+                                : 'bg-bg-elevated text-text-tertiary border-border hover:text-text-primary'
+                            )}
+                          >
+                            {fmt.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
+                        Filter
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {(['all', 'rx-only', 'tx-only'] as ExportOption[]).map((opt) => (
+                          <button
+                            key={opt}
+                            onClick={() => setExportOption(opt)}
+                            className={cn(
+                              'flex-1 px-2 py-1 text-xs rounded-md border transition-colors',
+                              exportOption === opt
+                                ? 'bg-info/10 text-info border-info/30'
+                                : 'bg-bg-elevated text-text-tertiary border-border hover:text-text-primary'
+                            )}
+                          >
+                            {opt === 'all' ? 'All' : opt === 'rx-only' ? 'RX' : 'TX'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        exportData()
+                        setShowExportMenu(false)
+                      }}
+                      className="w-full px-3 py-2 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors"
+                    >
+                      Export {packets.filter(p => {
+                        if (exportOption === 'rx-only') return p.direction === 'rx'
+                        if (exportOption === 'tx-only') return p.direction === 'tx'
+                        return true
+                      }).length} packets
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={clearPackets}
               className="p-1.5 rounded hover:bg-alert/20 text-text-tertiary hover:text-alert transition-colors"

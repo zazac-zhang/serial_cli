@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { useToast as useToastUI } from './ToastContext'
 import type { ToastType } from './ToastContext'
+import { isTauri } from '@/lib/utils'
 
 export interface SystemNotificationOptions {
   title: string
@@ -75,38 +76,74 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const sendSystemNotification = useCallback(async (options: SystemNotificationOptions) => {
     if (!settings.enabled) return
 
-    // Request permission if not granted
-    if (permission !== 'granted') {
-      const granted = await requestNotificationPermission()
-      if (!granted) return
-    }
+    // Try Tauri notification first (desktop app)
+    if (isTauri()) {
+      try {
+        // For Tauri, we'll use the browser notification API which works in desktop apps too
+        // In production, you might want to use Tauri's notification plugin
+        if ('Notification' in window) {
+          if (Notification.permission !== 'granted') {
+            const granted = await requestNotificationPermission()
+            if (!granted) return
+          }
 
-    // Play sound if enabled
-    if (settings.sound && options.sound !== false) {
-      playNotificationSound(options.type || 'info')
-    }
+          // Play sound if enabled
+          if (settings.sound && options.sound !== false) {
+            playNotificationSound(options.type || 'info')
+          }
 
-    // Show browser notification
-    if ('Notification' in window && permission === 'granted') {
-      const notification = new Notification(options.title, {
-        body: options.body,
-        icon: '/icons/32x32.png',
-        tag: 'serial-cli-notification',
-        requireInteraction: options.type === 'error',
-      })
+          const notification = new Notification(options.title, {
+            body: options.body,
+            icon: '/icons/32x32.png',
+            tag: 'serial-cli-notification',
+            requireInteraction: options.type === 'error',
+          })
 
-      // Auto-close after duration (except for errors)
-      if (options.type !== 'error') {
-        setTimeout(() => notification.close(), options.duration || settings.duration)
+          if (options.type !== 'error') {
+            setTimeout(() => notification.close(), options.duration || settings.duration)
+          }
+
+          notification.onclick = () => {
+            window.focus()
+            notification.close()
+          }
+        }
+      } catch (e) {
+        console.warn('Tauri notification failed, falling back to in-app:', e)
+      }
+    } else {
+      // Browser-based notification
+      if (permission !== 'granted') {
+        const granted = await requestNotificationPermission()
+        if (!granted) return
       }
 
-      notification.onclick = () => {
-        window.focus()
-        notification.close()
+      // Play sound if enabled
+      if (settings.sound && options.sound !== false) {
+        playNotificationSound(options.type || 'info')
+      }
+
+      // Show browser notification
+      if ('Notification' in window && permission === 'granted') {
+        const notification = new Notification(options.title, {
+          body: options.body,
+          icon: '/icons/32x32.png',
+          tag: 'serial-cli-notification',
+          requireInteraction: options.type === 'error',
+        })
+
+        if (options.type !== 'error') {
+          setTimeout(() => notification.close(), options.duration || settings.duration)
+        }
+
+        notification.onclick = () => {
+          window.focus()
+          notification.close()
+        }
       }
     }
 
-    // Also show in-app toast
+    // Also show in-app toast for all platforms
     const toastFn = toast.toast[options.type || 'info']
     toastFn(`${options.title}: ${options.body}`)
   }, [settings, permission, requestNotificationPermission, toast])
