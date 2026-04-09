@@ -3,40 +3,43 @@ import { usePorts } from '@/contexts/PortContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft, Send, Play, AlertCircle } from 'lucide-react'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo } from 'react'
+import React from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import type { DataPacket } from '@/types/tauri'
 
 // Maximum packets constant (should match DataContext)
 const MAX_PACKETS = 10000
 const WARNING_THRESHOLD = 8000
+
+// Utility functions for data formatting
+export function formatData(data: number[], format: 'hex' | 'ascii'): string {
+  if (format === 'hex') {
+    return data.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
+  }
+  return data.map(b => {
+    if (b >= 32 && b <= 126) {
+      return String.fromCharCode(b)
+    }
+    return '·'
+  }).join('')
+}
+
+export function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
 
 // Memoized data packet row component
 const DataPacketRow = React.memo(({ packet, displayFormat }: {
   packet: DataPacket
   displayFormat: 'hex' | 'ascii'
 }) => {
-  const formatData = (data: number[], format: 'hex' | 'ascii') => {
-    if (format === 'hex') {
-      return data.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
-    }
-    return data.map(b => {
-      if (b >= 32 && b <= 126) {
-        return String.fromCharCode(b)
-      }
-      return '·'
-    }).join('')
-  }
-
-  const formatTimestamp = (timestamp: number) => {
-    const date = new Date(timestamp)
-    return date.toLocaleTimeString('en-US', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  }
-
   return (
     <div
       className={cn(
@@ -110,50 +113,6 @@ export const DataViewer = React.memo(function DataViewer() {
     tx: packets.filter(p => p.direction === 'tx').length,
     memoryUsagePercent: (packets.length / MAX_PACKETS) * 100,
   }), [packets.length])
-
-  const formatData = useCallback((data: number[], format: 'hex' | 'ascii') => {
-    if (format === 'hex') {
-      return data.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
-    }
-    return data.map(b => {
-      if (b >= 32 && b <= 126) {
-        return String.fromCharCode(b)
-      }
-      return '·'
-    }).join('')
-  }, [])
-
-  const formatTimestamp = useCallback((timestamp: number) => {
-    const date = new Date(timestamp)
-    return date.toLocaleTimeString('en-US', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  }, [])
-
-  const formatData = (data: number[], format: 'hex' | 'ascii') => {
-    if (format === 'hex') {
-      return data.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
-    }
-    return data.map(b => {
-      if (b >= 32 && b <= 126) {
-        return String.fromCharCode(b)
-      }
-      return '·'
-    }).join('')
-  }
-
-  const formatTimestamp = (timestamp: number) => {
-    const date = new Date(timestamp)
-    return date.toLocaleTimeString('en-US', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  }
 
   const exportData = () => {
     const filteredPackets = packets.filter(p => {
@@ -252,9 +211,6 @@ export const DataViewer = React.memo(function DataViewer() {
       setIsSending(false)
     }
   }
-
-  const rxCount = packets.filter(p => p.direction === 'rx').length
-  const txCount = packets.filter(p => p.direction === 'tx').length
 
   return (
     <div className="space-y-6">
@@ -597,4 +553,6 @@ export const DataViewer = React.memo(function DataViewer() {
       </Panel>
     </div>
   )
-}
+})
+
+DataViewer.displayName = 'DataViewer'
