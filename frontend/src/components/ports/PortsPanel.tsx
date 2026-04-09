@@ -2,7 +2,8 @@ import { usePorts } from '@/contexts/PortContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import React from 'react'
 import { RefreshCw, Plug, Settings, Play, Circle, Unplug, AlertCircle, Info } from 'lucide-react'
 import type { PortConfig } from '@/types/tauri'
 import { recentPortsStorage } from '@/lib/storage'
@@ -46,27 +47,27 @@ export function PortsPanel() {
   const [errorDetails, setErrorDetails] = useState<ReturnType<typeof getErrorSolution> | null>(null)
 
   // Load default config from settings
-  const getDefaultConfig = (): PortConfig => ({
+  const getDefaultConfig = useMemo(() => ({
     baudrate: settings.serial.baudRate,
     databits: settings.serial.dataBits,
     stopbits: settings.serial.stopBits,
     parity: settings.serial.parity,
     timeout_ms: 100,
     flow_control: settings.serial.flowControl,
-  })
+  }), [settings.serial.baudRate, settings.serial.dataBits, settings.serial.stopBits, settings.serial.parity, settings.serial.flowControl])
 
-  const handleOpenPort = async (portName: string) => {
+  const handleOpenPort = useCallback(async (portName: string) => {
     // Check for recent config
     const recentPorts = recentPortsStorage.get()
     const recentConfig = recentPorts.find(p => p.portName === portName)
 
     setConfiguringPort({
       portName,
-      config: recentConfig?.config || getDefaultConfig(),
+      config: recentConfig?.config || getDefaultConfig,
     })
-  }
+  }, [getDefaultConfig])
 
-  const handleConfirmOpen = async () => {
+  const handleConfirmOpen = useCallback(async () => {
     if (!configuringPort) return
 
     setOpeningPort(configuringPort.portName)
@@ -88,9 +89,9 @@ export function PortsPanel() {
     } finally {
       setOpeningPort(null)
     }
-  }
+  }, [configuringPort, openPort])
 
-  const handleClosePort = async (portId: string) => {
+  const handleClosePort = useCallback(async (portId: string) => {
     setClosingPort(portId)
     try {
       await closePort(portId)
@@ -99,16 +100,16 @@ export function PortsPanel() {
     } finally {
       setClosingPort(null)
     }
-  }
+  }, [closePort])
 
-  const getPortStatus = (portName: string) => {
+  const getPortStatus = useCallback((portName: string) => {
     for (const [_, status] of activePorts) {
       if (status.port_name === portName) {
         return status
       }
     }
     return null
-  }
+  }, [activePorts])
 
   return (
     <div className="space-y-6">
@@ -308,7 +309,7 @@ interface PortConfigFormProps {
   isProcessing: boolean
 }
 
-function PortConfigForm({
+const PortConfigForm = React.memo(function PortConfigForm({
   config,
   onChange,
   onConfirm,
@@ -434,4 +435,6 @@ function PortConfigForm({
       </div>
     </div>
   )
-}
+})
+
+PortConfigForm.displayName = 'PortConfigForm'

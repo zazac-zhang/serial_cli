@@ -1,7 +1,7 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2, StopCircle, AlertCircle } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import Editor from '@monaco-editor/react'
 import { invoke } from '@tauri-apps/api/core'
 import { scriptsStorage } from '@/lib/storage'
@@ -58,6 +58,9 @@ export function ScriptPanel() {
 
   const activeScript = scripts.find(s => s.id === activeScriptId)
 
+  // Limit output lines to prevent memory issues
+  const MAX_OUTPUT_LINES = 1000
+
   // Load scripts from storage on mount
   useEffect(() => {
     const savedScripts = scriptsStorage.get()
@@ -105,7 +108,11 @@ export function ScriptPanel() {
   const runScript = async () => {
     setIsRunning(true)
     setError(null)
-    setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Starting script execution...`])
+    setOutput(prev => {
+      const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] Starting script execution...`]
+      // Limit output lines
+      return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
+    })
 
     try {
       // Capture console output
@@ -125,11 +132,17 @@ export function ScriptPanel() {
 
       try {
         const result = await invoke<string>('execute_script', { script: scriptContent })
-        setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✓ ${result}`])
+        setOutput(prev => {
+          const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] ✓ ${result}`]
+          return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
+        })
 
         // Add any captured logs
         if (logs.length > 0) {
-          setOutput(prev => [...prev, ...logs.map(log => `[${new Date().toLocaleTimeString()}] ${log}`)])
+          setOutput(prev => {
+            const newOutput = [...prev, ...logs.map(log => `[${new Date().toLocaleTimeString()}] ${log}`)]
+            return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
+          })
         }
       } finally {
         // Restore console functions
@@ -140,8 +153,10 @@ export function ScriptPanel() {
       const errorMsg = err instanceof Error ? err.message : String(err)
       setError(errorMsg)
       setErrorDetails(getErrorSolution(err instanceof Error ? err : new Error(errorMsg)))
-      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Script execution failed`])
-      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Error: ${errorMsg}`])
+      setOutput(prev => {
+        const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] ✗ Script execution failed`, `[${new Date().toLocaleTimeString()}] Error: ${errorMsg}`]
+        return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
+      })
     } finally {
       setIsRunning(false)
     }
