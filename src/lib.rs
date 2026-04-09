@@ -7,6 +7,7 @@ pub mod cli;
 pub mod config;
 pub mod error;
 pub mod error_handling;
+pub mod logging;
 pub mod lua;
 pub mod monitoring;
 pub mod protocol;

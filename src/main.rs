@@ -373,9 +373,12 @@ fn register_stdlib_utils(bindings: &LuaBindings) -> Result<()> {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging
-    let log_level = if cli.verbose { "debug" } else { "info" };
-    tracing_subscriber::fmt().with_env_filter(log_level).init();
+    // Initialize logging - supports RUST_LOG, LOG_FORMAT, LOG_FILE env vars
+    if cli.json {
+        serial_cli::logging::init_json(cli.verbose);
+    } else {
+        serial_cli::logging::init_cli(cli.verbose);
+    }
 
     // Load configuration
     let config_manager = serial_cli::config::ConfigManager::load_with_fallback();
