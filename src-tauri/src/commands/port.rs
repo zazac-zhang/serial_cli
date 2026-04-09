@@ -150,13 +150,7 @@ pub async fn get_port_status(
             timeout_ms: handle.config().timeout_ms,
             flow_control: format!("{:?}", handle.config().flow_control),
         }),
-        stats: Some(PortStats {
-            bytes_sent: 0,
-            bytes_received: 0,
-            packets_sent: 0,
-            packets_received: 0,
-            last_activity: None,
-        }),
+        stats: PortStats::default(),
     })
 }
 
@@ -168,7 +162,7 @@ pub async fn get_all_ports_status(state: State<'_, AppState>) -> Result<Vec<Port
     let manager: MutexGuard<PortManager> = state.port_manager.lock().await;
     let ports = manager
         .list_ports()
-        .map_err(|e: e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
     let mut statuses = Vec::new();
 
@@ -180,7 +174,7 @@ pub async fn get_all_ports_status(state: State<'_, AppState>) -> Result<Vec<Port
             port_name: port.port_name.clone(),
             is_open: false, // We'll update this if we can get the handle
             config: None,
-            stats: None,
+            stats: PortStats::default(),
         });
     }
 
@@ -202,12 +196,6 @@ pub async fn check_port_health(
         Ok(_) => Ok(true),  // Port is still accessible
         Err(_) => Ok(false), // Port is closed or error
     }
-}
-            timeout_ms: handle.config().timeout_ms,
-            flow_control: format!("{:?}", handle.config().flow_control),
-        }),
-        stats: PortStats::default(),
-    })
 }
 
 /// Port information

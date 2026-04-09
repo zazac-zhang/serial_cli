@@ -1,8 +1,9 @@
 import { NotificationSettings } from './NotificationSettings'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
-import { Save, RotateCcw, Check } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Save, RotateCcw, Check, Download, Upload } from 'lucide-react'
+import { exportSettings, importSettings } from '@/lib/storage'
 
 type Tab = 'general' | 'serial' | 'data' | 'notifications'
 
@@ -24,6 +25,8 @@ interface DataConfig {
 export function SettingsPanel() {
   const [activeTab, setActiveTab] = useState<Tab>('general')
   const [hasChanges, setHasChanges] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Serial port defaults
   const [serialConfig, setSerialConfig] = useState<SerialConfig>({
@@ -71,6 +74,35 @@ export function SettingsPanel() {
     setHasChanges(true)
   }
 
+  const handleExport = () => {
+    const success = exportSettings()
+    if (success) {
+      alert('Settings exported successfully!')
+    } else {
+      alert('Failed to export settings')
+    }
+  }
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsImporting(true)
+    try {
+      await importSettings(file)
+      alert('Settings imported successfully! Page will reload.')
+      window.location.reload()
+    } catch (error) {
+      alert('Failed to import settings: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setIsImporting(false)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
   return (
     <div className="space-y-6 w-full">
       {/* Settings Header */}
@@ -80,6 +112,30 @@ export function SettingsPanel() {
           <p className="text-sm text-text-tertiary mt-0.5">Configure application preferences</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors"
+            title="Export all settings"
+          >
+            <Download size={14} strokeWidth={1.5} />
+            Export
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors disabled:opacity-50"
+            title="Import settings from file"
+          >
+            <Upload size={14} strokeWidth={1.5} />
+            {isImporting ? 'Importing...' : 'Import'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
           <button
             onClick={resetToDefaults}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors"

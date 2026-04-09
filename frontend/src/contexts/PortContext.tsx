@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { SerialPort, PortConfig, PortStatus } from '../types/tauri'
 
@@ -10,6 +10,7 @@ interface PortContextType {
   listPorts: () => Promise<void>
   openPort: (portName: string, config: PortConfig) => Promise<string>
   closePort: (portId: string) => Promise<void>
+  refreshPortStatus: () => Promise<void>
 }
 
 const PortContext = createContext<PortContextType | undefined>(undefined)
@@ -19,6 +20,9 @@ export function PortProvider({ children }: { children: React.ReactNode }) {
   const [activePorts, setActivePorts] = useState<Map<string, PortStatus>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Use ref to track heartbeat interval
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const listPorts = useCallback(async () => {
     setIsLoading(true)
@@ -34,6 +38,37 @@ export function PortProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false)
     }
   }, [])
+
+  const refreshPortStatus = useCallback(async () => {
+    try {
+      // Check health of each active port
+      const portsToRemove: string[] = []
+
+      for (const [portId, portStatus] of activePorts.entries()) {
+        try {
+          const isHealthy = await invoke<boolean>('check_port_health', { portId })
+          if (!isHealthy) {
+            console.log(`Port ${portId} is no longer healthy, removing...`)
+            portsToRemove.push(portId)
+          }
+        } catch (e) {
+          console.error(`Failed to check health of port ${portId}:`, e)
+          portsToRemove.push(portId)
+        }
+      }
+
+      // Remove unhealthy ports
+      if (portsToRemove.length > 0) {
+        setActivePorts(prev => {
+          const next = new Map(prev)
+          portsToRemove.forEach(id => next.delete(id))
+          return next
+        })
+      }
+    } catch (e) {
+      console.error('Failed to refresh port status:', e)
+    }
+  }, [activePorts])
 
   const openPort = useCallback(async (portName: string, config: PortConfig) => {
     try {
@@ -97,6 +132,31 @@ export function PortProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Setup heartbeat monitoring
+  useEffect(() => {
+    // Clear any existing interval
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current)
+    }
+
+    // Start heartbeat if there are active ports
+    if (activePorts.size > 0) {
+      heartbeatIntervalRef.current = setInterval(() => {
+        refreshPortStatus()
+      }, 5000) // Check every 5 seconds
+
+      console.log('Started heartbeat monitoring')
+    }
+
+    // Cleanup function
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current)
+        heartbeatIntervalRef.current = null
+      }
+    }
+  }, [activePorts.size, refreshPortStatus])
+
   // Auto-list ports on mount
   useEffect(() => {
     listPorts()
@@ -111,6 +171,7 @@ export function PortProvider({ children }: { children: React.ReactNode }) {
       listPorts,
       openPort,
       closePort,
+      refreshPortStatus,
     }}>
       {children}
     </PortContext.Provider>

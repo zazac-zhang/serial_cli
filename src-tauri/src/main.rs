@@ -35,6 +35,8 @@ async fn main() {
             commands::port::open_port,
             commands::port::close_port,
             commands::port::get_port_status,
+            commands::port::get_all_ports_status,
+            commands::port::check_port_health,
             // Serial commands
             commands::serial::send_data,
             commands::serial::read_data,

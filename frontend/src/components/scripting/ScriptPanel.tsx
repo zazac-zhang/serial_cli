@@ -1,9 +1,8 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2 } from 'lucide-react'
+import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2, StopCircle } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
-import { useScriptActions } from '@/contexts/ScriptActionContext'
 import { invoke } from '@tauri-apps/api/core'
 import { scriptsStorage } from '@/lib/storage'
 
@@ -46,7 +45,6 @@ interface ScriptFile {
 }
 
 export function ScriptPanel() {
-  const { registerCallbacks } = useScriptActions()
   const [scripts, setScripts] = useState<ScriptFile[]>([])
   const [activeScriptId, setActiveScriptId] = useState<string | null>(null)
   const [scriptContent, setScriptContent] = useState(DEFAULT_SCRIPT)
@@ -86,8 +84,34 @@ export function ScriptPanel() {
     setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Starting script execution...`])
 
     try {
-      const result = await invoke<string>('execute_script', { script: scriptContent })
-      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✓ ${result}`])
+      // Capture console output
+      const originalLog = console.log
+      const originalError = console.error
+      const logs: string[] = []
+
+      console.log = (...args) => {
+        logs.push(args.join(' '))
+        originalLog.apply(console, args)
+      }
+
+      console.error = (...args) => {
+        logs.push(`ERROR: ${args.join(' ')}`)
+        originalError.apply(console, args)
+      }
+
+      try {
+        const result = await invoke<string>('execute_script', { script: scriptContent })
+        setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✓ ${result}`])
+
+        // Add any captured logs
+        if (logs.length > 0) {
+          setOutput(prev => [...prev, ...logs.map(log => `[${new Date().toLocaleTimeString()}] ${log}`)])
+        }
+      } finally {
+        // Restore console functions
+        console.log = originalLog
+        console.error = originalError
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       setError(errorMsg)
@@ -99,13 +123,14 @@ export function ScriptPanel() {
   }
 
   // Register callbacks for global shortcuts
-  useEffect(() => {
-    const unregister = registerCallbacks({
-      createNewScript,
-      runCurrentScript: runScript,
-    })
-    return unregister
-  }, [registerCallbacks])
+  // Note: We'll implement global shortcuts later
+  // useEffect(() => {
+  //   const unregister = registerCallbacks({
+  //     createNewScript,
+  //     runCurrentScript: runScript,
+  //   })
+  //   return unregister
+  // }, [registerCallbacks])
 
   const deleteScript = (id: string) => {
     const updatedScripts = scripts.filter(s => s.id !== id)

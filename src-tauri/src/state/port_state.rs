@@ -36,7 +36,7 @@ pub struct SerialConfig {
 }
 
 /// Port statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PortStats {
     /// Bytes sent
     pub bytes_sent: u64,
@@ -48,18 +48,6 @@ pub struct PortStats {
     pub packets_received: u64,
     /// Last activity timestamp
     pub last_activity: Option<u64>,
-}
-
-impl Default for PortStats {
-    fn default() -> Self {
-        Self {
-            bytes_sent: 0,
-            bytes_received: 0,
-            packets_sent: 0,
-            packets_received: 0,
-            last_activity: None,
-        }
-    }
 }
 
 /// Port state manager

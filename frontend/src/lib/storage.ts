@@ -304,3 +304,89 @@ function deepMerge<T>(target: T, source: Partial<T>): T {
 
   return result
 }
+
+/**
+ * Export all settings to JSON file
+ */
+export const exportSettings = () => {
+  try {
+    const settings = settingsStorage.get()
+    const scripts = scriptsStorage.get()
+    const recentPorts = recentPortsStorage.get()
+    const protocols = protocolsStorage.get()
+
+    const exportData = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      settings,
+      scripts,
+      recentPorts,
+      protocols,
+    }
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `serial-cli-settings-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    return true
+  } catch (error) {
+    console.error('Error exporting settings:', error)
+    return false
+  }
+}
+
+/**
+ * Import settings from JSON file
+ */
+export const importSettings = (file: File): Promise<boolean> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const data = JSON.parse(content)
+
+        // Validate data structure
+        if (!data.version || !data.settings) {
+          throw new Error('Invalid settings file format')
+        }
+
+        // Import settings
+        if (data.settings) {
+          settingsStorage.set(data.settings)
+        }
+
+        // Import scripts
+        if (data.scripts && Array.isArray(data.scripts)) {
+          scriptsStorage.set(data.scripts)
+        }
+
+        // Import recent ports
+        if (data.recentPorts && Array.isArray(data.recentPorts)) {
+          recentPortsStorage.set(data.recentPorts)
+        }
+
+        // Import protocols
+        if (data.protocols && Array.isArray(data.protocols)) {
+          protocolsStorage.set(data.protocols)
+        }
+
+        resolve(true)
+      } catch (error) {
+        console.error('Error importing settings:', error)
+        reject(error)
+      }
+    }
+
+    reader.onerror = () => {
+      reject(new Error('Failed to read file'))
+    }
+
+    reader.readAsText(file)
+  })
+}
