@@ -114,6 +114,14 @@ enum SniffCommand {
         /// Maximum packets to capture
         #[arg(short, long, default_value = "1000")]
         max_packets: usize,
+
+        /// Enable real-time display
+        #[arg(long, default_value = "true")]
+        display: bool,
+
+        /// Display format (hex/raw)
+        #[arg(long, default_value = "hex")]
+        format: String,
     },
 
     /// Show sniffing statistics
@@ -469,9 +477,13 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             port,
             output,
             max_packets,
+            display,
+            format: display_format,
         } => {
             println!("Starting sniff on port: {}", port);
             println!("Max packets: {}", max_packets);
+            println!("Real-time display: {}", if display { "enabled" } else { "disabled" });
+            println!("Display format: {}", display_format);
             if let Some(ref out_path) = output {
                 println!("Output file: {}", out_path.display());
             }
@@ -480,6 +492,7 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             // Create sniffer configuration
             let mut sniffer_config = SnifferConfig::default();
             sniffer_config.max_packets = max_packets;
+            sniffer_config.hex_display = display_format == "hex";
 
             if output.is_some() {
                 sniffer_config.save_to_file = true;
@@ -497,7 +510,12 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             match sniffer.start_sniffing(&port).await {
                 Ok(_session) => {
                     println!("✓ Sniffing started successfully on port: {}", port);
-                    println!("Press Ctrl+C to stop sniffing");
+                    if display {
+                        println!("Real-time display enabled - Press Ctrl+C to stop");
+                        println!();
+                    } else {
+                        println!("Press Ctrl+C to stop sniffing");
+                    }
 
                     // Keep sniffing until interrupted
                     tokio::signal::ctrl_c()
@@ -564,6 +582,8 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                 max_concurrent: concurrent,
                 timeout_secs: 300, // 5 minutes default
                 continue_on_error: false,
+                show_progress: true,
+                verbose: false,
             };
 
             // Create batch runner

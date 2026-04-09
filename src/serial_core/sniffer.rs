@@ -4,7 +4,8 @@
 
 use crate::error::{Result, SerialError};
 use crate::serial_core::{PortManager, SerialConfig};
-use std::io::Write;
+use crate::utils::DataFormat;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -97,13 +98,14 @@ impl SerialSniffer {
             .open_port(port_name, SerialConfig::default())
             .await?;
 
-        Ok(SnifferSession {
+        Ok(SnifferSession::new(
             port_id,
-            port_name: port_name.to_string(),
-            packets: self.packets.clone(),
-            config: self.config.clone(),
-            running: Arc::new(Mutex::new(true)),
-        })
+            port_name.to_string(),
+            self.packets.clone(),
+            self.config.clone(),
+            Arc::new(Mutex::new(true)),
+            true, // Enable real-time display by default
+        ))
     }
 
     /// Get all captured packets
@@ -209,9 +211,30 @@ pub struct SnifferSession {
     packets: Arc<Mutex<Vec<CapturedPacket>>>,
     config: SnifferConfig,
     running: Arc<Mutex<bool>>,
+    /// Real-time display enabled
+    display_enabled: bool,
 }
 
 impl SnifferSession {
+    /// Create a new sniffer session
+    pub fn new(
+        port_id: String,
+        port_name: String,
+        packets: Arc<Mutex<Vec<CapturedPacket>>>,
+        config: SnifferConfig,
+        running: Arc<Mutex<bool>>,
+        display_enabled: bool,
+    ) -> Self {
+        Self {
+            port_id,
+            port_name,
+            packets,
+            config,
+            running,
+            display_enabled,
+        }
+    }
+
     /// Capture a transmitted packet
     pub async fn capture_tx(&self, data: &[u8]) -> Result<()> {
         self.capture_packet(data, PacketDirection::Tx).await
@@ -220,6 +243,47 @@ impl SnifferSession {
     /// Capture a received packet
     pub async fn capture_rx(&self, data: &[u8]) -> Result<()> {
         self.capture_packet(data, PacketDirection::Rx).await
+    }
+
+    /// Display packet in real-time
+    fn display_packet(&self, packet: &CapturedPacket) {
+        if !self.display_enabled {
+            return;
+        }
+
+        let direction = match packet.direction {
+            PacketDirection::Tx => "TX",
+            PacketDirection::Rx => "RX",
+        };
+
+        // Format timestamp
+        let time_str = chrono::DateTime::from_timestamp(packet.timestamp as i64, 0)
+            .map(|dt| dt.format("%H:%M:%S").to_string())
+            .unwrap_or_else(|| format!("{}s", packet.timestamp));
+
+        // Color coding (using ANSI escape codes)
+        let color = match packet.direction {
+            PacketDirection::Tx => "\x1b[32m", // Green for TX
+            PacketDirection::Rx => "\x1b[36m", // Cyan for RX
+        };
+        let reset = "\x1b[0m";
+
+        // Display packet info
+        println!("{}[{}] {} ({} bytes){}", color, time_str, direction, packet.length, reset);
+
+        // Display data
+        if self.config.hex_display {
+            // Hex dump format
+            let hex = DataFormat::bytes_to_hex(&packet.data, " ");
+            println!("  {}", hex);
+        } else {
+            // Escaped string format
+            let escaped = DataFormat::escape_bytes(&packet.data);
+            println!("  {}", escaped);
+        }
+
+        // Flush stdout
+        let _ = io::stdout().flush();
     }
 
     /// Capture a packet
@@ -327,13 +391,14 @@ mod tests {
 
         // Create a session without actually opening a port
         // (just for testing the capture functionality)
-        let session = SnifferSession {
-            port_id: "test-id".to_string(),
-            port_name: "/dev/ttyUSB0".to_string(),
-            packets: sniffer.packets.clone(),
-            config: sniffer.config.clone(),
-            running: Arc::new(Mutex::new(true)),
-        };
+        let session = SnifferSession::new(
+            "test-id".to_string(),
+            "/dev/ttyUSB0".to_string(),
+            sniffer.packets.clone(),
+            sniffer.config.clone(),
+            Arc::new(Mutex::new(true)),
+            false, // Disable display for tests
+        );
 
         // Simulate capturing some packets
         session.capture_tx(&[0x01, 0x02, 0x03]).await.unwrap();
@@ -355,13 +420,14 @@ mod tests {
         let sniffer = SerialSniffer::new(config);
 
         // Create a test session
-        let session = SnifferSession {
-            port_id: "test-id".to_string(),
-            port_name: "/dev/ttyUSB0".to_string(),
-            packets: sniffer.packets.clone(),
-            config: sniffer.config.clone(),
-            running: Arc::new(Mutex::new(true)),
-        };
+        let session = SnifferSession::new(
+            "test-id".to_string(),
+            "/dev/ttyUSB0".to_string(),
+            sniffer.packets.clone(),
+            sniffer.config.clone(),
+            Arc::new(Mutex::new(true)),
+            false, // Disable display for tests
+        );
 
         // Capture more than max_packets
         session.capture_tx(&[0x01]).await.unwrap();
@@ -377,13 +443,14 @@ mod tests {
         let sniffer = SerialSniffer::new(SnifferConfig::default());
 
         // Create a test session
-        let session = SnifferSession {
-            port_id: "test-id".to_string(),
-            port_name: "/dev/ttyUSB0".to_string(),
-            packets: sniffer.packets.clone(),
-            config: sniffer.config.clone(),
-            running: Arc::new(Mutex::new(true)),
-        };
+        let session = SnifferSession::new(
+            "test-id".to_string(),
+            "/dev/ttyUSB0".to_string(),
+            sniffer.packets.clone(),
+            sniffer.config.clone(),
+            Arc::new(Mutex::new(true)),
+            false, // Disable display for tests
+        );
 
         session.capture_tx(&[0x01]).await.unwrap();
         assert_eq!(sniffer.packet_count().await, 1);
@@ -397,13 +464,14 @@ mod tests {
         let sniffer = SerialSniffer::new(SnifferConfig::default());
 
         // Create a test session
-        let session = SnifferSession {
-            port_id: "test-id".to_string(),
-            port_name: "/dev/ttyUSB0".to_string(),
-            packets: sniffer.packets.clone(),
-            config: sniffer.config.clone(),
-            running: Arc::new(Mutex::new(true)),
-        };
+        let session = SnifferSession::new(
+            "test-id".to_string(),
+            "/dev/ttyUSB0".to_string(),
+            sniffer.packets.clone(),
+            sniffer.config.clone(),
+            Arc::new(Mutex::new(true)),
+            false, // Disable display for tests
+        );
 
         session.capture_tx(&[0x01, 0x02, 0x03]).await.unwrap();
         session.capture_rx(&[0x04, 0x05]).await.unwrap();
