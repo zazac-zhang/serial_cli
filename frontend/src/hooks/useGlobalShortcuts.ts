@@ -53,7 +53,21 @@ export function useGlobalShortcuts() {
   useHotkeys('mod+n', (e) => {
     e.preventDefault()
     setCurrentView('scripts')
-    // Note: createNewScript functionality needs to be implemented in ScriptPanel
+    // Call the globally exposed function
+    if ((window as any).createNewScript) {
+      (window as any).createNewScript()
+    }
+  })
+
+  // Scripts: Cmd/Ctrl + Enter (only in scripts view)
+  useHotkeys('mod+enter', (e) => {
+    e.preventDefault()
+    if (currentView === 'scripts') {
+      // Call the globally exposed function
+      if ((window as any).runCurrentScript) {
+        (window as any).runCurrentScript()
+      }
+    }
   })
 
   // Data: Cmd/Ctrl + Shift + C

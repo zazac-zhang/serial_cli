@@ -2,14 +2,94 @@ import { useData } from '@/contexts/DataContext'
 import { usePorts } from '@/contexts/PortContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft, Send, Play } from 'lucide-react'
-import { useState } from 'react'
+import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft, Send, Play, AlertCircle } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+
+// Maximum packets constant (should match DataContext)
+const MAX_PACKETS = 10000
+const WARNING_THRESHOLD = 8000
+
+// Memoized data packet row component
+const DataPacketRow = React.memo(({ packet, displayFormat }: {
+  packet: DataPacket
+  displayFormat: 'hex' | 'ascii'
+}) => {
+  const formatData = (data: number[], format: 'hex' | 'ascii') => {
+    if (format === 'hex') {
+      return data.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
+    }
+    return data.map(b => {
+      if (b >= 32 && b <= 126) {
+        return String.fromCharCode(b)
+      }
+      return '·'
+    }).join('')
+  }
+
+  const formatTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
+  return (
+    <div
+      className={cn(
+        'group flex items-center gap-3 px-3 py-2 rounded-md font-mono text-xs transition-colors',
+        packet.direction === 'rx'
+          ? 'bg-signal/5 hover:bg-signal/10'
+          : 'bg-amber/5 hover:bg-amber/10',
+      )}
+    >
+      {/* Timestamp */}
+      {true && (
+        <span className="text-text-tertiary w-24 flex-shrink-0">
+          {formatTimestamp(packet.timestamp)}
+        </span>
+      )}
+
+      {/* Direction badge */}
+      <span className={cn(
+        'px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider w-12 text-center flex-shrink-0',
+        packet.direction === 'rx'
+          ? 'bg-signal/20 text-signal'
+          : 'bg-amber/20 text-amber',
+      )}>
+        {packet.direction === 'rx' ? 'RX' : 'TX'}
+      </span>
+
+      {/* Port ID */}
+      <span className="text-text-tertiary w-20 flex-shrink-0 truncate">
+        {packet.port_id}
+      </span>
+
+      {/* Data */}
+      <span className={cn(
+        'flex-1 break-all',
+        packet.direction === 'rx' ? 'text-text-primary' : 'text-text-secondary',
+      )}>
+        {formatData(packet.data, displayFormat)}
+      </span>
+
+      {/* Byte count */}
+      <span className="text-text-tertiary text-[10px] w-8 text-right flex-shrink-0">
+        {packet.data.length}B
+      </span>
+    </div>
+  )
+})
+
+DataPacketRow.displayName = 'DataPacketRow'
 
 type ExportFormat = 'txt' | 'csv' | 'json'
 type ExportOption = 'all' | 'rx-only' | 'tx-only'
 
-export function DataViewer() {
+export const DataViewer = React.memo(function DataViewer() {
   const { packets, clearPackets, displayOptions, setDisplayOptions } = useData()
   const { activePorts } = usePorts()
   const [autoScroll, setAutoScroll] = useState(true)
@@ -22,6 +102,36 @@ export function DataViewer() {
   const [sendFormat, setSendFormat] = useState<'hex' | 'ascii'>('hex')
   const [selectedPort, setSelectedPort] = useState<string>('')
   const [isSending, setIsSending] = useState(false)
+
+  // Memoized calculations
+  const packetStats = useMemo(() => ({
+    total: packets.length,
+    rx: packets.filter(p => p.direction === 'rx').length,
+    tx: packets.filter(p => p.direction === 'tx').length,
+    memoryUsagePercent: (packets.length / MAX_PACKETS) * 100,
+  }), [packets.length])
+
+  const formatData = useCallback((data: number[], format: 'hex' | 'ascii') => {
+    if (format === 'hex') {
+      return data.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
+    }
+    return data.map(b => {
+      if (b >= 32 && b <= 126) {
+        return String.fromCharCode(b)
+      }
+      return '·'
+    }).join('')
+  }, [])
+
+  const formatTimestamp = useCallback((timestamp: number) => {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }, [])
 
   const formatData = (data: number[], format: 'hex' | 'ascii') => {
     if (format === 'hex') {
@@ -149,12 +259,12 @@ export function DataViewer() {
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full">
         <Panel variant="info">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-text-tertiary uppercase tracking-wider">Total Packets</p>
-              <p className="text-2xl font-mono font-semibold text-text-primary mt-1">{packets.length}</p>
+              <p className="text-2xl font-mono font-semibold text-text-primary mt-1">{packetStats.total}</p>
             </div>
             <div className="p-2 rounded-lg bg-info/10">
               <ArrowUpRight size={20} className="text-info" strokeWidth={1.5} />
@@ -166,7 +276,7 @@ export function DataViewer() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-text-tertiary uppercase tracking-wider">Received (RX)</p>
-              <p className="text-2xl font-mono font-semibold text-text-primary mt-1">{rxCount}</p>
+              <p className="text-2xl font-mono font-semibold text-text-primary mt-1">{packetStats.rx}</p>
             </div>
             <div className="p-2 rounded-lg bg-signal/10">
               <ArrowDownLeft size={20} className="text-signal" strokeWidth={1.5} />
@@ -178,12 +288,53 @@ export function DataViewer() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-text-tertiary uppercase tracking-wider">Transmitted (TX)</p>
-              <p className="text-2xl font-mono font-semibold text-text-primary mt-1">{txCount}</p>
+              <p className="text-2xl font-mono font-semibold text-text-primary mt-1">{packetStats.tx}</p>
             </div>
             <div className="p-2 rounded-lg bg-amber/10">
               <ArrowUpRight size={20} className="text-amber" strokeWidth={1.5} />
             </div>
           </div>
+        </Panel>
+
+        {/* Memory Usage Indicator */}
+        <Panel
+          variant={packetStats.memoryUsagePercent > 80 ? "alert" : "default"}
+          className="relative"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-xs text-text-tertiary uppercase tracking-wider">Memory Usage</p>
+              <p className="text-lg font-mono font-semibold text-text-primary mt-1">
+                {packetStats.total}/{MAX_PACKETS}
+              </p>
+            </div>
+            {packetStats.memoryUsagePercent > 80 && (
+              <div className="p-2 rounded-lg bg-alert/10">
+                <AlertCircle size={16} className="text-alert" strokeWidth={1.5} />
+              </div>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full bg-bg-deep rounded-full h-1.5 overflow-hidden">
+            <div
+              className={cn(
+                "h-full transition-all duration-300",
+                packetStats.memoryUsagePercent > 80
+                  ? "bg-alert animate-pulse"
+                  : packetStats.memoryUsagePercent > 70
+                  ? "bg-amber"
+                  : "bg-signal"
+              )}
+              style={{ width: `${Math.min(packetStats.memoryUsagePercent, 100)}%` }}
+            />
+          </div>
+
+          {packetStats.memoryUsagePercent > 80 && (
+            <p className="text-xs text-alert mt-1.5">
+              Auto-cleanup will trigger soon
+            </p>
+          )}
         </Panel>
       </div>
 
@@ -435,50 +586,11 @@ export function DataViewer() {
             </div>
           ) : (
             packets.map((packet, index) => (
-              <div
+              <DataPacketRow
                 key={`${packet.timestamp}-${index}`}
-                className={cn(
-                  'group flex items-center gap-3 px-3 py-2 rounded-md font-mono text-xs transition-colors',
-                  packet.direction === 'rx'
-                    ? 'bg-signal/5 hover:bg-signal/10'
-                    : 'bg-amber/5 hover:bg-amber/10',
-                )}
-              >
-                {/* Timestamp */}
-                {displayOptions.showTimestamp && (
-                  <span className="text-text-tertiary w-24 flex-shrink-0">
-                    {formatTimestamp(packet.timestamp)}
-                  </span>
-                )}
-
-                {/* Direction badge */}
-                <span className={cn(
-                  'px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider w-12 text-center flex-shrink-0',
-                  packet.direction === 'rx'
-                    ? 'bg-signal/20 text-signal'
-                    : 'bg-amber/20 text-amber',
-                )}>
-                  {packet.direction === 'rx' ? 'RX' : 'TX'}
-                </span>
-
-                {/* Port ID */}
-                <span className="text-text-tertiary w-20 flex-shrink-0 truncate">
-                  {packet.port_id}
-                </span>
-
-                {/* Data */}
-                <span className={cn(
-                  'flex-1 break-all',
-                  packet.direction === 'rx' ? 'text-text-primary' : 'text-text-secondary',
-                )}>
-                  {formatData(packet.data, displayOptions.format)}
-                </span>
-
-                {/* Byte count */}
-                <span className="text-text-tertiary text-[10px] w-8 text-right flex-shrink-0">
-                  {packet.data.length}B
-                </span>
-              </div>
+                packet={packet}
+                displayFormat={displayOptions.format}
+              />
             ))
           )}
         </div>

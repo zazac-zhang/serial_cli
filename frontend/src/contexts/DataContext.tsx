@@ -15,6 +15,12 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
+// Maximum number of packets to keep in memory
+const MAX_PACKETS = 10000
+
+// Auto-cleanup threshold (when to start removing old packets)
+const CLEANUP_THRESHOLD = 12000
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [packets, setPackets] = useState<DataPacket[]>([])
   const [displayOptions, setDisplayOptions] = useState<{
@@ -26,11 +32,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   })
 
   const addPacket = useCallback((packet: DataPacket) => {
-    setPackets(prev => [...prev, packet])
+    setPackets(prev => {
+      const newPackets = [...prev, packet]
+
+      // Auto-cleanup when approaching limit
+      if (newPackets.length > CLEANUP_THRESHOLD) {
+        // Keep only the most recent MAX_PACKETS
+        return newPackets.slice(-MAX_PACKETS)
+      }
+
+      return newPackets
+    })
   }, [])
 
   const clearPackets = useCallback(() => {
     setPackets([])
+  }, [])
+
+  // Periodic cleanup to prevent memory buildup
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      setPackets(prev => {
+        if (prev.length > MAX_PACKETS) {
+          console.log(`Auto-cleanup: removing ${prev.length - MAX_PACKETS} old packets`)
+          return prev.slice(-MAX_PACKETS)
+        }
+        return prev
+      })
+    }, 30000) // Check every 30 seconds
+
+    return () => clearInterval(cleanupInterval)
   }, [])
 
   // Listen for data-received events

@@ -3,9 +3,10 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
-import { RefreshCw, Plug, Settings, Play, Circle, Unplug } from 'lucide-react'
+import { RefreshCw, Plug, Settings, Play, Circle, Unplug, AlertCircle, Info } from 'lucide-react'
 import type { PortConfig } from '@/types/tauri'
 import { recentPortsStorage } from '@/lib/storage'
+import { getErrorSolution, formatError } from '@/lib/errors'
 
 interface ConfiguringPort {
   portName: string
@@ -42,6 +43,7 @@ export function PortsPanel() {
   const [configuringPort, setConfiguringPort] = useState<ConfiguringPort | null>(null)
   const [openingPort, setOpeningPort] = useState<string | null>(null)
   const [closingPort, setClosingPort] = useState<string | null>(null)
+  const [errorDetails, setErrorDetails] = useState<ReturnType<typeof getErrorSolution> | null>(null)
 
   // Load default config from settings
   const getDefaultConfig = (): PortConfig => ({
@@ -81,6 +83,8 @@ export function PortsPanel() {
       setConfiguringPort(null)
     } catch (err) {
       console.error('Failed to open port:', err)
+      // Set detailed error information
+      setErrorDetails(getErrorSolution(err as Error))
     } finally {
       setOpeningPort(null)
     }
@@ -125,9 +129,27 @@ export function PortsPanel() {
         }
       >
         <div className="space-y-4">
-          {error && (
-            <div className="p-3 rounded-md bg-alert/10 border border-alert/30 text-alert text-sm">
-              {error}
+          {(error || errorDetails) && (
+            <div className="p-4 rounded-md bg-alert/10 border border-alert/30 text-alert text-sm">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={16} strokeWidth={1.5} className="mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  {errorDetails ? (
+                    <>
+                      <p className="font-medium mb-2">{errorDetails.title}</p>
+                      <p className="text-alert/80 mb-3">{errorDetails.description}</p>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-alert/90">解决方案：</p>
+                        {errorDetails.steps.map((step, i) => (
+                          <p key={i} className="text-xs text-alert/70">{step}</p>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p>{error}</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

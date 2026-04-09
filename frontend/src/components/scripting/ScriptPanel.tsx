@@ -1,10 +1,11 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2, StopCircle } from 'lucide-react'
+import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2, StopCircle, AlertCircle } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import { invoke } from '@tauri-apps/api/core'
 import { scriptsStorage } from '@/lib/storage'
+import { getErrorSolution } from '@/lib/errors'
 
 const DEFAULT_SCRIPT = `-- Lua Script for Serial CLI
 -- Use the serial API to communicate with devices
@@ -52,6 +53,7 @@ export function ScriptPanel() {
   const [output, setOutput] = useState<string[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [errorDetails, setErrorDetails] = useState<ReturnType<typeof getErrorSolution> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeScript = scripts.find(s => s.id === activeScriptId)
@@ -76,7 +78,29 @@ export function ScriptPanel() {
     scriptsStorage.set(updatedScripts)
     setActiveScriptId(newScript.id)
     setScriptContent(newScript.content)
+    setError(null) // Clear any previous errors
+    setErrorDetails(null)
   }
+
+  const runCurrentScript = async () => {
+    if (!scriptContent.trim()) {
+      setError('Script content is empty')
+      return
+    }
+    await runScript()
+  }
+
+  // Expose functions for global shortcuts
+  useEffect(() => {
+    // Make functions available globally for shortcuts
+    ;(window as any).createNewScript = createNewScript
+    ;(window as any).runCurrentScript = runCurrentScript
+
+    return () => {
+      delete (window as any).createNewScript
+      delete (window as any).runCurrentScript
+    }
+  }, [createNewScript, runCurrentScript, scriptContent])
 
   const runScript = async () => {
     setIsRunning(true)
@@ -115,6 +139,7 @@ export function ScriptPanel() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       setError(errorMsg)
+      setErrorDetails(getErrorSolution(err instanceof Error ? err : new Error(errorMsg)))
       setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Script execution failed`])
       setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Error: ${errorMsg}`])
     } finally {
@@ -336,10 +361,29 @@ export function ScriptPanel() {
 
       {/* Output Console */}
       <Panel title="Output" variant="default" className="w-full">
-        {error && (
+        {(error || errorDetails) && (
           <div className="mb-3 p-3 rounded-md bg-alert/10 border border-alert/30">
-            <p className="text-sm text-alert font-medium">Execution Error</p>
-            <p className="text-xs text-alert mt-1 font-mono">{error}</p>
+            <div className="flex items-start gap-2">
+              <AlertCircle size={16} strokeWidth={1.5} className="mt-0.5 flex-shrink-0 text-alert" />
+              <div className="flex-1">
+                {errorDetails ? (
+                  <>
+                    <p className="text-sm text-alert font-medium">{errorDetails.title}</p>
+                    <p className="text-xs text-alert/80 mt-1">{errorDetails.description}</p>
+                    <div className="mt-2 space-y-1">
+                      {errorDetails.steps.map((step, i) => (
+                        <p key={i} className="text-xs text-alert/70">{step}</p>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-alert font-medium">Execution Error</p>
+                    <p className="text-xs text-alert mt-1 font-mono">{error}</p>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
         <div className="h-32 overflow-y-auto font-mono text-xs bg-bg-deepest rounded-md p-3 border border-border/50">
