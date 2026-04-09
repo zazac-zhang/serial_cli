@@ -1,6 +1,5 @@
 import { usePorts } from '@/contexts/PortContext'
 import { useData } from '@/contexts/DataContext'
-import { minimizeWindow, hideWindow } from '@/hooks/useWindow'
 import { Activity, Radio } from 'lucide-react'
 
 export function TopBar() {
@@ -49,29 +48,6 @@ export function TopBar() {
             <div className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse-slow"></div>
             <span className="text-signal font-medium tracking-wide">SYSTEM READY</span>
           </div>
-        </div>
-
-        {/* Window controls */}
-        <div className="flex items-center gap-1.5 ml-4 pl-4 border-l border-border/50">
-          <button
-            onClick={minimizeWindow}
-            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-all duration-200 hover:shadow-sm"
-            title="Minimize"
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <rect x="2" y="6" width="10" height="2" fill="currentColor"/>
-            </svg>
-          </button>
-          <button
-            onClick={hideWindow}
-            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-all duration-200 hover:shadow-sm"
-            title="Hide to tray"
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <rect x="3" y="3" width="8" height="8" fill="currentColor" opacity="0.3"/>
-              <path d="M3 3h8v8H3z" stroke="currentColor" strokeWidth="1.2"/>
-            </svg>
-          </button>
         </div>
       </div>
     </header>

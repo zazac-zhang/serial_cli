@@ -97,7 +97,7 @@ export function DataViewer() {
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
-      <div className="grid grid-cols-3 gap-4 max-w-4xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
         <Panel variant="info">
           <div className="flex items-center justify-between">
             <div>
@@ -139,7 +139,7 @@ export function DataViewer() {
       <Panel
         title="Data Monitor"
         variant="default"
-        className="max-w-6xl"
+        className="w-full"
         actions={
           <>
             <button
@@ -260,7 +260,7 @@ export function DataViewer() {
         </div>
 
         {/* Data table */}
-        <div className="space-y-1 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
+        <div className="space-y-1 flex-1 overflow-y-auto pr-2 scrollbar-thin" style={{ maxHeight: 'calc(100vh - 400px)' }}>
           {packets.length === 0 ? (
             <div className="py-16 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-bg-elevated mb-4">

@@ -180,7 +180,7 @@ export function ScriptPanel() {
   return (
     <div className="space-y-6">
       {/* Scripts List & Editor */}
-      <div className="grid grid-cols-4 gap-6 max-w-7xl">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 w-full">
         {/* Sidebar - Script Files */}
         <Panel title="Scripts" variant="amber" className="col-span-1">
           <div className="space-y-2">
@@ -289,7 +289,7 @@ export function ScriptPanel() {
             </>
           }
         >
-          <div className="h-[500px] rounded-md overflow-hidden border border-border/50">
+          <div className="rounded-md overflow-hidden border border-border/50" style={{ height: '500px', minHeight: '300px' }}>
             <Editor
               height="100%"
               defaultLanguage="lua"
@@ -310,7 +310,7 @@ export function ScriptPanel() {
       </div>
 
       {/* Output Console */}
-      <Panel title="Output" variant="default" className="max-w-7xl">
+      <Panel title="Output" variant="default" className="w-full">
         {error && (
           <div className="mb-3 p-3 rounded-md bg-alert/10 border border-alert/30">
             <p className="text-sm text-alert font-medium">Execution Error</p>

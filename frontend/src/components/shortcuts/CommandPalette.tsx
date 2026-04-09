@@ -184,7 +184,7 @@ export function CommandPalette() {
         </div>
 
         {/* Command List */}
-        <div className="max-h-96 overflow-y-auto py-2">
+        <div className="overflow-y-auto py-2" style={{ maxHeight: 'calc(100vh - 300px)' }}>
           {filteredCommands.length === 0 ? (
             <div className="px-4 py-8 text-center text-text-tertiary">
               No commands found

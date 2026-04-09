@@ -112,7 +112,7 @@ export function PortsPanel() {
       <Panel
         title="Serial Ports"
         variant="signal"
-        className="max-w-4xl"
+        className="w-full"
         actions={
           <button
             onClick={listPorts}
@@ -239,7 +239,7 @@ export function PortsPanel() {
 
       {/* Active Ports Status */}
       {activePorts.size > 0 && (
-        <Panel title="Active Connections" variant="info" className="max-w-4xl">
+        <Panel title="Active Connections" variant="info" className="w-full">
           <div className="space-y-3">
             {Array.from(activePorts.values()).map((status) => (
               <div

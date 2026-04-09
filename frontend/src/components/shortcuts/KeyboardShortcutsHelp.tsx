@@ -38,7 +38,7 @@ export function KeyboardShortcutsHelp() {
         </div>
 
         {/* Content */}
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
+        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
           <div className="grid gap-6">
             {categories.map(category => {
               const categoryShortcuts = shortcuts.filter(s => s.category === category)

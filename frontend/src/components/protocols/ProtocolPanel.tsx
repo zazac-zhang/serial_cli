@@ -155,7 +155,7 @@ export function ProtocolPanel() {
       )}
 
       {/* Protocol Grid */}
-      <div className="grid grid-cols-2 gap-6 max-w-6xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
         {/* Built-in Protocols */}
         <Panel title="Built-in Protocols" variant="signal" actions={
           <span className="text-xs text-text-tertiary font-mono">{protocols.length} protocols</span>
@@ -301,7 +301,7 @@ export function ProtocolPanel() {
 
       {/* Protocol Details */}
       {activeProtocol && (
-        <Panel title="Protocol Details" variant="default" className="max-w-6xl">
+        <Panel title="Protocol Details" variant="default" className="w-full">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
