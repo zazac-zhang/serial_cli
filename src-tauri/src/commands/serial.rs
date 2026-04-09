@@ -6,20 +6,21 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::state::app_state::AppState;
-use tauri::State;
+use crate::state::app_state::{AppState, DataSniffer};
+use tauri::{State, AppHandle};
+use log::{info, error, debug};
+use tokio::sync::Mutex;
+use std::time::Duration;
 
 /// Send data to a serial port
 #[tauri::command]
 pub async fn send_data(
     port_id: String,
     data: Vec<u8>,
-    app: tauri::AppHandle,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<usize, String> {
-    use tokio::sync::MutexGuard;
-
-    let manager: MutexGuard<serial_cli::serial_core::PortManager> = state.port_manager.lock().await;
+    let manager = state.port_manager.lock().await;
     let port_handle = manager
         .get_port(&port_id)
         .await
@@ -34,7 +35,7 @@ pub async fn send_data(
         port_id,
         data,
     ).await {
-        eprintln!("Failed to emit data-sent event: {}", e);
+        error!("Failed to emit data-sent event: {}", e);
     }
 
     Ok(bytes_written)
@@ -47,9 +48,7 @@ pub async fn read_data(
     max_bytes: usize,
     state: State<'_, AppState>,
 ) -> Result<Vec<u8>, String> {
-    use tokio::sync::MutexGuard;
-
-    let manager: MutexGuard<serial_cli::serial_core::PortManager> = state.port_manager.lock().await;
+    let manager = state.port_manager.lock().await;
     let port_handle = manager
         .get_port(&port_id)
         .await
@@ -65,9 +64,96 @@ pub async fn read_data(
 #[tauri::command]
 pub async fn start_sniffing(
     port_id: String,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // TODO: Implement sniffing
+    info!("Starting data sniffing for port: {}", port_id);
+
+    // Check if already sniffing
+    let mut sniffers = state.active_sniffers.lock().await;
+    if sniffers.contains_key(&port_id) {
+        return Err(format!("Already sniffing port: {}", port_id));
+    }
+
+    // Create a channel to stop the sniffer
+    let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
+
+    // Clone the necessary data for the task
+    let port_manager = state.port_manager.clone();
+    let port_id_clone = port_id.clone();
+    let app_clone = app.clone();
+
+    // Spawn the sniffer task
+    let task_handle = tokio::spawn(async move {
+        info!("Sniffer task started for port: {}", port_id_clone);
+
+        let mut buffer = vec![0u8; 4096];
+        let mut last_activity = std::time::Instant::now();
+
+        loop {
+            // Check for stop signal
+            match stop_rx.try_recv() {
+                Ok(_) | Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
+                    info!("Received stop signal for port: {}", port_id_clone);
+                    break;
+                }
+                Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {}
+            }
+
+            // Try to read data from the port
+            {
+                let manager = port_manager.lock().await;
+                if let Ok(port_handle) = manager.get_port(&port_id_clone).await {
+                    let mut handle = port_handle.lock().await;
+
+                    match handle.read(&mut buffer) {
+                        Ok(bytes_read) => {
+                            if bytes_read > 0 {
+                                let data = buffer[..bytes_read].to_vec();
+                                debug!("Received {} bytes from port {}", bytes_read, port_id_clone);
+                                last_activity = std::time::Instant::now();
+
+                                // Emit data-received event
+                                if let Err(e) = crate::events::emitter::emit_data_received(
+                                    app_clone.clone(),
+                                    port_id_clone.clone(),
+                                    data,
+                                ).await {
+                                    error!("Failed to emit data-received event: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            // Log error but continue trying
+                            debug!("Read error on port {}: {}", port_id_clone, e);
+                        }
+                    }
+                } else {
+                    // Port might be closed, stop sniffing
+                    error!("Port {} not found, stopping sniffer", port_id_clone);
+                    break;
+                }
+            }
+
+            // Small delay to prevent busy-waiting
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            // Check for timeout (no activity for 5 seconds)
+            if last_activity.elapsed() > Duration::from_secs(5) {
+                debug!("No activity on port {} for 5 seconds", port_id_clone);
+            }
+        }
+
+        info!("Sniffer task stopped for port: {}", port_id_clone);
+    });
+
+    // Store the sniffer
+    sniffers.insert(port_id.clone(), DataSniffer {
+        task_handle,
+        stop_tx,
+    });
+
+    info!("Started sniffing for port: {}", port_id);
     Ok(())
 }
 
@@ -77,6 +163,30 @@ pub async fn stop_sniffing(
     port_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // TODO: Implement sniffing
+    info!("Stopping data sniffing for port: {}", port_id);
+
+    let mut sniffers = state.active_sniffers.lock().await;
+
+    if let Some(sniffer) = sniffers.remove(&port_id) {
+        // Send stop signal
+        let _ = sniffer.stop_tx.send(());
+
+        // Wait for task to finish (with timeout)
+        match tokio::time::timeout(Duration::from_secs(2), sniffer.task_handle).await {
+            Ok(Ok(())) => {
+                info!("Sniffer task stopped successfully for port: {}", port_id);
+            }
+            Ok(Err(e)) => {
+                error!("Sniffer task error for port {}: {:?}", port_id, e);
+            }
+            Err(_) => {
+                error!("Timeout waiting for sniffer task to stop for port: {}", port_id);
+            }
+        }
+    } else {
+        return Err(format!("No active sniffer for port: {}", port_id));
+    }
+
+    info!("Stopped sniffing for port: {}", port_id);
     Ok(())
 }

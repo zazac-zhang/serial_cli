@@ -38,6 +38,16 @@ export function PortProvider({ children }: { children: React.ReactNode }) {
   const openPort = useCallback(async (portName: string, config: PortConfig) => {
     try {
       const portId = await invoke<string>('open_port', { portName, config })
+
+      // Start data sniffing for the opened port
+      try {
+        await invoke('start_sniffing', { portId })
+        console.log('Started data sniffing for port:', portId)
+      } catch (sniffError) {
+        console.error('Failed to start sniffing:', sniffError)
+        // Don't fail port opening if sniffing fails
+      }
+
       setActivePorts(prev => {
         const next = new Map(prev)
         next.set(portId, {
@@ -65,6 +75,15 @@ export function PortProvider({ children }: { children: React.ReactNode }) {
 
   const closePort = useCallback(async (portId: string) => {
     try {
+      // Stop data sniffing first
+      try {
+        await invoke('stop_sniffing', { portId })
+        console.log('Stopped data sniffing for port:', portId)
+      } catch (sniffError) {
+        console.error('Failed to stop sniffing:', sniffError)
+        // Continue with port closing even if stopping sniffing fails
+      }
+
       await invoke('close_port', { portId })
       setActivePorts(prev => {
         const next = new Map(prev)

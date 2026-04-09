@@ -150,6 +150,62 @@ pub async fn get_port_status(
             timeout_ms: handle.config().timeout_ms,
             flow_control: format!("{:?}", handle.config().flow_control),
         }),
+        stats: Some(PortStats {
+            bytes_sent: 0,
+            bytes_received: 0,
+            packets_sent: 0,
+            packets_received: 0,
+            last_activity: None,
+        }),
+    })
+}
+
+/// Get all active ports status
+#[tauri::command]
+pub async fn get_all_ports_status(state: State<'_, AppState>) -> Result<Vec<PortStatus>, String> {
+    use tokio::sync::MutexGuard;
+
+    let manager: MutexGuard<PortManager> = state.port_manager.lock().await;
+    let ports = manager
+        .list_ports()
+        .map_err(|e: e.to_string())?;
+
+    let mut statuses = Vec::new();
+
+    for port in ports {
+        // Try to get port status for each available port
+        // If port is not open, it won't be in the manager
+        statuses.push(PortStatus {
+            id: port.port_name.clone(),
+            port_name: port.port_name.clone(),
+            is_open: false, // We'll update this if we can get the handle
+            config: None,
+            stats: None,
+        });
+    }
+
+    Ok(statuses)
+}
+
+/// Check if a specific port is still connected and responsive
+#[tauri::command]
+pub async fn check_port_health(
+    port_id: String,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    use tokio::sync::MutexGuard;
+
+    let manager: MutexGuard<PortManager> = state.port_manager.lock().await;
+
+    // Try to get the port handle
+    match manager.get_port(&port_id).await {
+        Ok(_) => Ok(true),  // Port is still accessible
+        Err(_) => Ok(false), // Port is closed or error
+    }
+}
+            timeout_ms: handle.config().timeout_ms,
+            flow_control: format!("{:?}", handle.config().flow_control),
+        }),
         stats: PortStats::default(),
     })
 }

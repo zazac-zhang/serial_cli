@@ -8,8 +8,18 @@
 
 use serial_cli::protocol::{ProtocolManager, ProtocolRegistry};
 use serial_cli::serial_core::PortManager;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+
+/// Data sniffer for monitoring serial port data
+pub struct DataSniffer {
+    /// Join handle for the sniffer task
+    pub task_handle: JoinHandle<()>,
+    /// Channel to stop the sniffer
+    pub stop_tx: tokio::sync::oneshot::Sender<()>,
+}
 
 /// Global application state shared across all Tauri commands
 #[derive(Clone)]
@@ -20,6 +30,8 @@ pub struct AppState {
     pub protocol_registry: Arc<Mutex<ProtocolRegistry>>,
     /// Protocol manager for custom protocols
     pub protocol_manager: Arc<Mutex<ProtocolManager>>,
+    /// Active data sniffers per port (port_id -> DataSniffer)
+    pub active_sniffers: Arc<Mutex<HashMap<String, DataSniffer>>>,
 }
 
 impl AppState {
@@ -32,6 +44,7 @@ impl AppState {
             port_manager: Arc::new(Mutex::new(PortManager::new())),
             protocol_registry,
             protocol_manager,
+            active_sniffers: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }

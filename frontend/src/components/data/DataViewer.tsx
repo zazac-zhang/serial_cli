@@ -1,18 +1,27 @@
 import { useData } from '@/contexts/DataContext'
+import { usePorts } from '@/contexts/PortContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft, Send, Play } from 'lucide-react'
 import { useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 
 type ExportFormat = 'txt' | 'csv' | 'json'
 type ExportOption = 'all' | 'rx-only' | 'tx-only'
 
 export function DataViewer() {
   const { packets, clearPackets, displayOptions, setDisplayOptions } = useData()
+  const { activePorts } = usePorts()
   const [autoScroll, setAutoScroll] = useState(true)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('txt')
   const [exportOption, setExportOption] = useState<ExportOption>('all')
   const [showExportMenu, setShowExportMenu] = useState(false)
+
+  // Data sending states
+  const [sendData, setSendData] = useState('')
+  const [sendFormat, setSendFormat] = useState<'hex' | 'ascii'>('hex')
+  const [selectedPort, setSelectedPort] = useState<string>('')
+  const [isSending, setIsSending] = useState(false)
 
   const formatData = (data: number[], format: 'hex' | 'ascii') => {
     if (format === 'hex') {
@@ -91,6 +100,49 @@ export function DataViewer() {
     URL.revokeObjectURL(url)
   }
 
+  const handleSendData = async () => {
+    if (!selectedPort || !sendData.trim()) {
+      return
+    }
+
+    setIsSending(true)
+    try {
+      let dataToSend: number[] = []
+
+      if (sendFormat === 'hex') {
+        // Parse hex input (e.g., "01 02 AB CD" or "0102ABCD")
+        const cleanHex = sendData.replace(/\s+/g, '')
+        if (cleanHex.length % 2 !== 0) {
+          throw new Error('Hex string must have even length')
+        }
+        for (let i = 0; i < cleanHex.length; i += 2) {
+          const byte = parseInt(cleanHex.substr(i, 2), 16)
+          if (isNaN(byte)) {
+            throw new Error('Invalid hex character')
+          }
+          dataToSend.push(byte)
+        }
+      } else {
+        // ASCII input
+        dataToSend = sendData.split('').map(char => char.charCodeAt(0))
+      }
+
+      // Send data via Tauri
+      await invoke('send_data', {
+        portId: selectedPort,
+        data: dataToSend,
+      })
+
+      console.log('Data sent successfully')
+      setSendData('') // Clear input after successful send
+    } catch (error) {
+      console.error('Failed to send data:', error)
+      alert(`Failed to send data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
   const rxCount = packets.filter(p => p.direction === 'rx').length
   const txCount = packets.filter(p => p.direction === 'tx').length
 
@@ -134,6 +186,118 @@ export function DataViewer() {
           </div>
         </Panel>
       </div>
+
+      {/* Data Send Panel */}
+      <Panel
+        title="Send Data"
+        variant="amber"
+        className="w-full"
+        actions={
+          <div className="flex items-center gap-2">
+            <select
+              value={sendFormat}
+              onChange={(e) => setSendFormat(e.target.value as 'hex' | 'ascii')}
+              className="px-2 py-1 text-xs rounded border border-border bg-bg-deep text-text-primary"
+            >
+              <option value="hex">HEX</option>
+              <option value="ascii">ASCII</option>
+            </select>
+            <button
+              onClick={handleSendData}
+              disabled={!selectedPort || !sendData.trim() || isSending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-amber/10 text-amber border border-amber/30 hover:bg-amber/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSending ? (
+                <>
+                  <Play size={12} strokeWidth={1.5} className="animate-pulse" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send size={12} strokeWidth={1.5} />
+                  Send
+                </>
+              )}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {/* Port Selection */}
+          <div>
+            <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
+              Target Port
+            </label>
+            <select
+              value={selectedPort}
+              onChange={(e) => setSelectedPort(e.target.value)}
+              className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
+              disabled={activePorts.size === 0}
+            >
+              <option value="">Select a port...</option>
+              {Array.from(activePorts.values()).map((port) => (
+                <option key={port.port_id} value={port.port_id}>
+                  {port.port_name} ({port.port_id})
+                </option>
+              ))}
+            </select>
+            {activePorts.size === 0 && (
+              <p className="text-xs text-text-tertiary mt-1">No active ports. Open a port first.</p>
+            )}
+          </div>
+
+          {/* Data Input */}
+          <div>
+            <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
+              Data to Send ({sendFormat.toUpperCase()})
+            </label>
+            <textarea
+              value={sendData}
+              onChange={(e) => setSendData(e.target.value)}
+              placeholder={sendFormat === 'hex' ? "01 02 AB CD ..." : "Enter text to send..."}
+              className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono resize-none"
+              rows={3}
+              disabled={!selectedPort}
+            />
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-text-tertiary">
+                {sendFormat === 'hex' ? 'Enter hex bytes separated by spaces' : 'Enter plain text'}
+              </p>
+              {sendData && (
+                <span className="text-xs text-text-tertiary font-mono">
+                  {sendFormat === 'hex' ? `${sendData.replace(/\s+/g, '').length / 2} bytes` : `${sendData.length} bytes`}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex items-center gap-2 pt-2 border-t border-border">
+            <span className="text-xs text-text-tertiary">Quick:</span>
+            <button
+              onClick={() => setSendData('Hello, World!')}
+              className="px-2 py-1 text-xs rounded border border-border hover:bg-bg-elevated transition-colors"
+              disabled={!selectedPort}
+            >
+              Hello
+            </button>
+            <button
+              onClick={() => setSendData('AT')}
+              className="px-2 py-1 text-xs rounded border border-border hover:bg-bg-elevated transition-colors"
+              disabled={!selectedPort}
+            >
+              AT
+            </button>
+            <button
+              onClick={() => setSendData('\\r\\n')}
+              className="px-2 py-1 text-xs rounded border border-border hover:bg-bg-elevated transition-colors"
+              disabled={!selectedPort}
+            >
+              CRLF
+            </button>
+          </div>
+        </div>
+      </Panel>
 
       {/* Data Monitor Panel */}
       <Panel
