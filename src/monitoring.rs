@@ -155,19 +155,19 @@ impl PerformanceMonitor {
         let metrics = self.get_all_metrics().await;
 
         if metrics.is_empty() {
-            println!("No performance metrics available");
+            tracing::info!("No performance metrics available");
             return;
         }
 
-        println!("\n=== Performance Report ===");
-        println!("Uptime: {:.2}s", self.start_time.elapsed().as_secs_f64());
-        println!();
+        tracing::info!("\n=== Performance Report ===");
+        tracing::info!("Uptime: {:.2}s", self.start_time.elapsed().as_secs_f64());
+        tracing::info!("");
 
         for metric in metrics {
-            println!("{}", metric.format());
+            tracing::info!("{}", metric.format());
         }
 
-        println!();
+        tracing::info!("");
     }
 
     /// Reset all metrics

@@ -201,7 +201,7 @@ async fn run_lua_script(path: PathBuf, args: Vec<String>) -> Result<()> {
     if args.is_empty() {
         engine.execute_file(&path)?;
     } else {
-        println!("Executing script with arguments: {:?}", args);
+        tracing::info!("Executing script with arguments: {:?}", args);
         engine.execute_with_args(&script_content, args)?;
     }
 
@@ -379,11 +379,11 @@ async fn main() -> Result<()> {
 
     // Load configuration
     let config_manager = serial_cli::config::ConfigManager::load_with_fallback();
-    let config = config_manager.get();
+    let _config = config_manager.get();
 
     // Validate configuration
     if let Err(e) = config_manager.validate() {
-        eprintln!("Warning: Configuration validation failed: {}", e);
+        tracing::info!("Warning: Configuration validation failed: {}", e);
     }
 
     // Execute command
@@ -422,24 +422,24 @@ async fn main() -> Result<()> {
 fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
     match cmd {
         ProtocolCommand::List { verbose } => {
-            println!("Available protocols:");
+            tracing::info!("Available protocols:");
             if verbose {
-                println!("Built-in protocols:");
-                println!("  modbus_rtu      - Modbus RTU protocol (Industrial communication)");
-                println!("  modbus_ascii    - Modbus ASCII protocol (Industrial communication)");
-                println!("  at_command      - AT Command protocol (Modem control)");
-                println!("  line            - Line-based protocol (Text-based communication)");
+                tracing::info!("Built-in protocols:");
+                tracing::info!("  modbus_rtu      - Modbus RTU protocol (Industrial communication)");
+                tracing::info!("  modbus_ascii    - Modbus ASCII protocol (Industrial communication)");
+                tracing::info!("  at_command      - AT Command protocol (Modem control)");
+                tracing::info!("  line            - Line-based protocol (Text-based communication)");
             } else {
-                println!("  modbus_rtu");
-                println!("  modbus_ascii");
-                println!("  at_command");
-                println!("  line");
+                tracing::info!("  modbus_rtu");
+                tracing::info!("  modbus_ascii");
+                tracing::info!("  at_command");
+                tracing::info!("  line");
             }
-            println!();
-            println!("Custom protocols can be loaded via Lua scripts");
+            tracing::info!("");
+            tracing::info!("Custom protocols can be loaded via Lua scripts");
         }
         ProtocolCommand::Info { name } => {
-            println!("Protocol: {}", name);
+            tracing::info!("Protocol: {}", name);
             let descriptions = vec![
                 ("modbus_rtu", "Modbus RTU protocol - Binary industrial communication protocol"),
                 ("modbus_ascii", "Modbus ASCII protocol - Text-based industrial communication protocol"),
@@ -448,18 +448,18 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
             ];
 
             if let Some((_, desc)) = descriptions.iter().find(|(n, _)| *n == name) {
-                println!("Description: {}", desc);
+                tracing::info!("Description: {}", desc);
             } else {
-                println!("Description: Custom protocol");
+                tracing::info!("Description: Custom protocol");
             }
         }
         ProtocolCommand::Validate { path } => {
             use serial_cli::protocol::ProtocolValidator;
-            println!("Validating protocol script: {}", path.display());
+            tracing::info!("Validating protocol script: {}", path.display());
             match ProtocolValidator::validate_script(&path) {
-                Ok(_) => println!("✓ Protocol script is valid"),
+                Ok(_) => tracing::info!("✓ Protocol script is valid"),
                 Err(e) => {
-                    println!("✗ Validation failed: {}", e);
+                    tracing::info!("✗ Validation failed: {}", e);
                     return Err(e);
                 }
             }
@@ -480,14 +480,15 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             display,
             format: display_format,
         } => {
-            println!("Starting sniff on port: {}", port);
-            println!("Max packets: {}", max_packets);
-            println!("Real-time display: {}", if display { "enabled" } else { "disabled" });
-            println!("Display format: {}", display_format);
+            tracing::info!("Starting sniff on port: {}", port);
+            tracing::info!("Max packets: {}", max_packets);
+            let display_str = if display { "enabled" } else { "disabled" };
+            tracing::info!("Real-time display: {}", display_str);
+            tracing::info!("Display format: {}", display_format);
             if let Some(ref out_path) = output {
-                println!("Output file: {}", out_path.display());
+                tracing::info!("Output file: {}", out_path.display());
             }
-            println!();
+            tracing::info!("");
 
             // Create sniffer configuration
             let mut sniffer_config = SnifferConfig::default();
@@ -509,12 +510,12 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             // Start sniffing
             match sniffer.start_sniffing(&port).await {
                 Ok(_session) => {
-                    println!("✓ Sniffing started successfully on port: {}", port);
+                    tracing::info!("✓ Sniffing started successfully on port: {}", port);
                     if display {
-                        println!("Real-time display enabled - Press Ctrl+C to stop");
-                        println!();
+                        tracing::info!("Real-time display enabled - Press Ctrl+C to stop");
+                        tracing::info!("");
                     } else {
-                        println!("Press Ctrl+C to stop sniffing");
+                        tracing::info!("Press Ctrl+C to stop sniffing");
                     }
 
                     // Keep sniffing until interrupted
@@ -522,37 +523,37 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
                         .await
                         .map_err(|e| serial_cli::error::SerialError::Io(e))?;
 
-                    println!("\nStopping sniff...");
+                    tracing::info!("\nStopping sniff...");
 
                     // Get packet statistics
                     let packet_count = sniffer.packet_count().await;
-                    println!("Captured {} packets", packet_count);
+                    tracing::info!("Captured {} packets", packet_count);
 
                     // Save to file if requested
                     if let Some(out_path) = output {
-                        println!("Saving to: {}", out_path.display());
+                        tracing::info!("Saving to: {}", out_path.display());
                         if let Err(e) = sniffer.save_to_file(&out_path).await {
-                            println!("Warning: Failed to save: {}", e);
+                            tracing::info!("Warning: Failed to save: {}", e);
                         } else {
-                            println!("✓ Saved successfully");
+                            tracing::info!("✓ Saved successfully");
                         }
                     }
                 }
                 Err(e) => {
-                    println!("✗ Failed to start sniffing: {}", e);
+                    tracing::info!("✗ Failed to start sniffing: {}", e);
                     return Err(e);
                 }
             }
         }
         SniffCommand::Stats => {
-            println!("Sniff statistics:");
-            println!("No active sniff session");
-            println!("Note: Statistics tracking requires an active sniffing session");
+            tracing::info!("Sniff statistics:");
+            tracing::info!("No active sniff session");
+            tracing::info!("Note: Statistics tracking requires an active sniffing session");
         }
         SniffCommand::Save { path } => {
-            println!("Saving captured packets to: {}", path.display());
-            println!("Note: This command requires an active sniffing session");
-            println!("Use 'sniff start' to begin a sniffing session first");
+            tracing::info!("Saving captured packets to: {}", path.display());
+            tracing::info!("Note: This command requires an active sniffing session");
+            tracing::info!("Use 'sniff start' to begin a sniffing session first");
         }
     }
     Ok(())
@@ -564,13 +565,13 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
 
     match cmd {
         BatchCommand::Run { script, concurrent } => {
-            println!("Running batch script: {}", script.display());
-            println!("Max concurrent tasks: {}", concurrent);
-            println!();
+            tracing::info!("Running batch script: {}", script.display());
+            tracing::info!("Max concurrent tasks: {}", concurrent);
+            tracing::info!("");
 
             // Check if script exists
             if !script.exists() {
-                println!("✗ Batch script not found: {}", script.display());
+                tracing::info!("✗ Batch script not found: {}", script.display());
                 return Err(serial_cli::error::SerialError::Io(std::io::Error::new(
                     std::io::ErrorKind::NotFound,
                     "Batch script not found",
@@ -592,20 +593,20 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
             // Check if it's a single script or a batch file
             if script.extension().map_or(false, |e| e == "lua") {
                 // Single Lua script
-                println!("Executing single script...");
+                tracing::info!("Executing single script...");
 
                 match runner.run_script(&script).await {
                     Ok(_) => {
-                        println!("✓ Script executed successfully");
+                        tracing::info!("✓ Script executed successfully");
                     }
                     Err(e) => {
-                        println!("✗ Script execution failed: {}", e);
+                        tracing::info!("✗ Script execution failed: {}", e);
                         return Err(e);
                     }
                 }
             } else {
                 // Assume it's a batch file containing list of scripts
-                println!("Executing batch script file...");
+                tracing::info!("Executing batch script file...");
 
                 let content = std::fs::read_to_string(&script)
                     .map_err(serial_cli::error::SerialError::Io)?;
@@ -617,43 +618,43 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                     .collect();
 
                 if script_paths.is_empty() {
-                    println!("⚠ No scripts found in batch file");
+                    tracing::info!("⚠ No scripts found in batch file");
                     return Ok(());
                 }
 
-                println!("Found {} scripts to execute", script_paths.len());
+                tracing::info!("Found {} scripts to execute", script_paths.len());
 
                 // Run scripts in sequence
                 match runner.run_scripts(script_paths).await {
                     Ok(result) => {
-                        println!();
-                        println!("Batch execution completed:");
-                        println!("  Total scripts: {}", result.results.len());
+                        tracing::info!("");
+                        tracing::info!("Batch execution completed:");
+                        tracing::info!("  Total scripts: {}", result.results.len());
 
                         let successful = result.results.iter().filter(|r| r.success).count();
                         let failed = result.results.len() - successful;
 
-                        println!("  Successful: {}", successful);
-                        println!("  Failed: {}", failed);
+                        tracing::info!("  Successful: {}", successful);
+                        tracing::info!("  Failed: {}", failed);
 
                         if failed > 0 {
-                            println!();
-                            println!("Failed scripts:");
+                            tracing::info!("");
+                            tracing::info!("Failed scripts:");
                             for result in result.results.iter().filter(|r| !r.success) {
-                                println!("  - {}", result.script);
+                                tracing::info!("  - {}", result.script);
                             }
                         }
                     }
                     Err(e) => {
-                        println!("✗ Batch execution failed: {}", e);
+                        tracing::info!("✗ Batch execution failed: {}", e);
                         return Err(e);
                     }
                 }
             }
         }
         BatchCommand::List => {
-            println!("Batch scripts:");
-            println!("Looking for batch scripts in current directory...");
+            tracing::info!("Batch scripts:");
+            tracing::info!("Looking for batch scripts in current directory...");
 
             // List common batch script locations
             let batch_files = vec!["batch.txt", "scripts.txt", "batch.lua", "scripts.batch"];
@@ -661,19 +662,19 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
             let mut found = false;
             for batch_file in batch_files {
                 if std::path::Path::new(batch_file).exists() {
-                    println!("  ✓ {}", batch_file);
+                    tracing::info!("  ✓ {}", batch_file);
                     found = true;
                 }
             }
 
             if !found {
-                println!("  No batch scripts found");
-                println!();
-                println!("Create a batch script file with one Lua script per line:");
-                println!("  # Comments start with #");
-                println!("  script1.lua");
-                println!("  script2.lua");
-                println!("  script3.lua");
+                tracing::info!("  No batch scripts found");
+                tracing::info!("");
+                tracing::info!("Create a batch script file with one Lua script per line:");
+                tracing::info!("  # Comments start with #");
+                tracing::info!("  script1.lua");
+                tracing::info!("  script2.lua");
+                tracing::info!("  script3.lua");
             }
         }
     }
@@ -690,73 +691,73 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
         ConfigCommand::Show { json } => {
             let config = config_manager.get();
             if json {
-                println!("{}", serde_json::to_string_pretty(&config).unwrap());
+                tracing::info!("{}", serde_json::to_string_pretty(&config).unwrap());
             } else {
-                println!("Current configuration:");
-                println!();
-                println!("[serial]");
-                println!("  baudrate = {}", config.serial.baudrate);
-                println!("  databits = {}", config.serial.databits);
-                println!("  stopbits = {}", config.serial.stopbits);
-                println!("  parity = \"{}\"", config.serial.parity);
-                println!("  timeout_ms = {}", config.serial.timeout_ms);
-                println!();
-                println!("[logging]");
-                println!("  level = \"{}\"", config.logging.level);
-                println!("  format = \"{}\"", config.logging.format);
-                println!("  file = \"{}\"", config.logging.file);
-                println!();
-                println!("[lua]");
-                println!("  memory_limit_mb = {}", config.lua.memory_limit_mb);
-                println!("  timeout_seconds = {}", config.lua.timeout_seconds);
-                println!("  enable_sandbox = {}", config.lua.enable_sandbox);
-                println!();
-                println!("[task]");
-                println!("  max_concurrent = {}", config.task.max_concurrent);
-                println!("  default_timeout_seconds = {}", config.task.default_timeout_seconds);
-                println!();
-                println!("[output]");
-                println!("  json_pretty = {}", config.output.json_pretty);
-                println!("  show_timestamp = {}", config.output.show_timestamp);
-                println!();
-                println!("Use 'config set <key> <value>' to modify configuration");
-                println!("Use 'config save [path]' to save configuration to file");
-                println!("Use 'config reset' to reset to defaults");
+                tracing::info!("Current configuration:");
+                tracing::info!("");
+                tracing::info!("[serial]");
+                tracing::info!("  baudrate = {}", config.serial.baudrate);
+                tracing::info!("  databits = {}", config.serial.databits);
+                tracing::info!("  stopbits = {}", config.serial.stopbits);
+                tracing::info!("  parity = \"{}\"", config.serial.parity);
+                tracing::info!("  timeout_ms = {}", config.serial.timeout_ms);
+                tracing::info!("");
+                tracing::info!("[logging]");
+                tracing::info!("  level = \"{}\"", config.logging.level);
+                tracing::info!("  format = \"{}\"", config.logging.format);
+                tracing::info!("  file = \"{}\"", config.logging.file);
+                tracing::info!("");
+                tracing::info!("[lua]");
+                tracing::info!("  memory_limit_mb = {}", config.lua.memory_limit_mb);
+                tracing::info!("  timeout_seconds = {}", config.lua.timeout_seconds);
+                tracing::info!("  enable_sandbox = {}", config.lua.enable_sandbox);
+                tracing::info!("");
+                tracing::info!("[task]");
+                tracing::info!("  max_concurrent = {}", config.task.max_concurrent);
+                tracing::info!("  default_timeout_seconds = {}", config.task.default_timeout_seconds);
+                tracing::info!("");
+                tracing::info!("[output]");
+                tracing::info!("  json_pretty = {}", config.output.json_pretty);
+                tracing::info!("  show_timestamp = {}", config.output.show_timestamp);
+                tracing::info!("");
+                tracing::info!("Use 'config set <key> <value>' to modify configuration");
+                tracing::info!("Use 'config save [path]' to save configuration to file");
+                tracing::info!("Use 'config reset' to reset to defaults");
             }
         }
         ConfigCommand::Set { key, value } => {
-            println!("Setting configuration: {} = {}", key, value);
+            tracing::info!("Setting configuration: {} = {}", key, value);
 
             match config_manager.set(&key, &value) {
                 Ok(_) => {
-                    println!("✓ Configuration updated successfully");
+                    tracing::info!("✓ Configuration updated successfully");
 
                     // Validate after setting
                     if let Err(e) = config_manager.validate() {
-                        println!("⚠ Warning: Configuration may be invalid: {}", e);
+                        tracing::info!("⚠ Warning: Configuration may be invalid: {}", e);
                     }
 
-                    println!("Note: Use 'config save' to persist changes");
+                    tracing::info!("Note: Use 'config save' to persist changes");
                 }
                 Err(e) => {
-                    println!("✗ Failed to set configuration: {}", e);
-                    println!();
-                    println!("Valid configuration keys:");
-                    println!("  serial.baudrate              - Baud rate (e.g., 115200)");
-                    println!("  serial.databits              - Data bits (5-8)");
-                    println!("  serial.stopbits              - Stop bits (1-2)");
-                    println!("  serial.parity                - Parity (none/odd/even)");
-                    println!("  serial.timeout_ms            - Timeout in milliseconds");
-                    println!("  logging.level                - Log level (error/warn/info/debug/trace)");
-                    println!("  logging.format               - Log format (text/json)");
-                    println!("  logging.file                 - Log file path");
-                    println!("  lua.memory_limit_mb          - Lua memory limit");
-                    println!("  lua.timeout_seconds          - Lua timeout");
-                    println!("  lua.enable_sandbox           - Enable Lua sandbox");
-                    println!("  task.max_concurrent          - Max concurrent tasks");
-                    println!("  task.default_timeout_seconds - Default task timeout");
-                    println!("  output.json_pretty           - Pretty print JSON");
-                    println!("  output.show_timestamp        - Show timestamps");
+                    tracing::info!("✗ Failed to set configuration: {}", e);
+                    tracing::info!("");
+                    tracing::info!("Valid configuration keys:");
+                    tracing::info!("  serial.baudrate              - Baud rate (e.g., 115200)");
+                    tracing::info!("  serial.databits              - Data bits (5-8)");
+                    tracing::info!("  serial.stopbits              - Stop bits (1-2)");
+                    tracing::info!("  serial.parity                - Parity (none/odd/even)");
+                    tracing::info!("  serial.timeout_ms            - Timeout in milliseconds");
+                    tracing::info!("  logging.level                - Log level (error/warn/info/debug/trace)");
+                    tracing::info!("  logging.format               - Log format (text/json)");
+                    tracing::info!("  logging.file                 - Log file path");
+                    tracing::info!("  lua.memory_limit_mb          - Lua memory limit");
+                    tracing::info!("  lua.timeout_seconds          - Lua timeout");
+                    tracing::info!("  lua.enable_sandbox           - Enable Lua sandbox");
+                    tracing::info!("  task.max_concurrent          - Max concurrent tasks");
+                    tracing::info!("  task.default_timeout_seconds - Default task timeout");
+                    tracing::info!("  output.json_pretty           - Pretty print JSON");
+                    tracing::info!("  output.show_timestamp        - Show timestamps");
                     return Err(e);
                 }
             }
@@ -770,28 +771,28 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 }
             });
 
-            println!("Saving configuration to: {}", output_path.display());
+            tracing::info!("Saving configuration to: {}", output_path.display());
 
             match config_manager.save(Some(&output_path)) {
                 Ok(_) => {
-                    println!("✓ Configuration saved successfully");
+                    tracing::info!("✓ Configuration saved successfully");
                 }
                 Err(e) => {
-                    println!("✗ Failed to save configuration: {}", e);
+                    tracing::info!("✗ Failed to save configuration: {}", e);
                     return Err(e);
                 }
             }
         }
         ConfigCommand::Reset => {
-            println!("Resetting configuration to defaults...");
+            tracing::info!("Resetting configuration to defaults...");
 
             match config_manager.reset() {
                 Ok(_) => {
-                    println!("✓ Configuration reset to defaults");
-                    println!("Note: Use 'config save' to persist changes");
+                    tracing::info!("✓ Configuration reset to defaults");
+                    tracing::info!("Note: Use 'config save' to persist changes");
                 }
                 Err(e) => {
-                    println!("✗ Failed to reset configuration: {}", e);
+                    tracing::info!("✗ Failed to reset configuration: {}", e);
                     return Err(e);
                 }
             }
@@ -817,7 +818,7 @@ fn list_ports() -> Result<()> {
         })
         .collect();
 
-    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    tracing::info!("{}", serde_json::to_string_pretty(&output).unwrap());
 
     Ok(())
 }
@@ -827,7 +828,7 @@ async fn send_data(port: &str, data: &str) -> Result<()> {
     use std::thread;
     use std::time::Duration;
 
-    println!("Opening port: {}", port);
+    tracing::info!("Opening port: {}", port);
 
     // Create port manager
     let manager = PortManager::new();
@@ -838,8 +839,8 @@ async fn send_data(port: &str, data: &str) -> Result<()> {
     // Open the port
     let port_id = manager.open_port(port, config).await?;
 
-    println!("Port opened successfully: {}", port_id);
-    println!("Sending data: {}", data);
+    tracing::info!("Port opened successfully: {}", port_id);
+    tracing::info!("Sending data: {}", data);
 
     // Get the port handle
     let port_handle = manager.get_port(&port_id).await?;
@@ -850,7 +851,7 @@ async fn send_data(port: &str, data: &str) -> Result<()> {
 
     // Send data
     let bytes_written = handle.write(bytes)?;
-    println!("Sent {} bytes", bytes_written);
+    tracing::info!("Sent {} bytes", bytes_written);
 
     // Wait a bit for response
     thread::sleep(Duration::from_millis(100));
@@ -861,20 +862,20 @@ async fn send_data(port: &str, data: &str) -> Result<()> {
         Ok(bytes_read) => {
             if bytes_read > 0 {
                 let response = String::from_utf8_lossy(&buffer[..bytes_read]);
-                println!("Received response ({} bytes): {}", bytes_read, response);
+                tracing::info!("Received response ({} bytes): {}", bytes_read, response);
             } else {
-                println!("No response received");
+                tracing::info!("No response received");
             }
         }
         Err(e) => {
-            println!("Note: Could not read response: {}", e);
+            tracing::info!("Note: Could not read response: {}", e);
         }
     }
 
     // Close the port
     drop(handle);
     manager.close_port(&port_id).await?;
-    println!("Port closed");
+    tracing::info!("Port closed");
 
     Ok(())
 }

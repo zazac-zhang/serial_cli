@@ -33,28 +33,28 @@ impl LuaBindings {
 
         // log.info
         let info = self.lua.create_function(|_, msg: String| {
-            println!("[INFO] {}", msg);
+            tracing::info!("[INFO] {}", msg);
             Ok(())
         })?;
         globals.set("log_info", info)?;
 
         // log.debug
         let debug = self.lua.create_function(|_, msg: String| {
-            println!("[DEBUG] {}", msg);
+            tracing::info!("[DEBUG] {}", msg);
             Ok(())
         })?;
         globals.set("log_debug", debug)?;
 
         // log.warn
         let warn = self.lua.create_function(|_, msg: String| {
-            println!("[WARN] {}", msg);
+            tracing::info!("[WARN] {}", msg);
             Ok(())
         })?;
         globals.set("log_warn", warn)?;
 
         // log.error
         let error = self.lua.create_function(|_, msg: String| {
-            eprintln!("[ERROR] {}", msg);
+            tracing::info!("[ERROR] {}", msg);
             Ok(())
         })?;
         globals.set("log_error", error)?;

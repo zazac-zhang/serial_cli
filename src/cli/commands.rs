@@ -41,14 +41,14 @@ impl CommandExecutor {
         // Open port
         let port_id = manager.open_port(&self.port, config).await?;
 
-        println!("Sending to {}: {}", self.port, data);
+        tracing::info!("Sending to {}: {}", self.port, data);
 
         // Get port handle and send
         let port_handle = manager.get_port(&port_id).await?;
         let mut handle = port_handle.lock().await;
 
         let bytes_written = handle.write(data.as_bytes())?;
-        println!("Sent {} bytes", bytes_written);
+        tracing::info!("Sent {} bytes", bytes_written);
 
         // Wait for response
         std::thread::sleep(std::time::Duration::from_millis(100));
@@ -59,14 +59,14 @@ impl CommandExecutor {
             Ok(n) if n > 0 => {
                 buffer.truncate(n);
                 if let Ok(text) = String::from_utf8(buffer.clone()) {
-                    println!("Response: {}", text);
+                    tracing::info!("Response: {}", text);
                 } else {
                     let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
-                    println!("Response (hex): {}", hex);
+                    tracing::info!("Response (hex): {}", hex);
                 }
             }
-            Ok(_) => println!("No response"),
-            Err(e) => println!("Read error: {}", e),
+            Ok(_) => tracing::info!("No response"),
+            Err(e) => tracing::info!("Read error: {}", e),
         }
 
         // Close port
@@ -83,7 +83,7 @@ impl CommandExecutor {
         // Open port
         let port_id = manager.open_port(&self.port, config).await?;
 
-        println!("Reading up to {} bytes from {}", bytes, self.port);
+        tracing::info!("Reading up to {} bytes from {}", bytes, self.port);
 
         // Get port handle and read
         let port_handle = manager.get_port(&port_id).await?;
@@ -101,18 +101,18 @@ impl CommandExecutor {
                         "bytes_read": n,
                         "data": hex_data,
                     });
-                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                    tracing::info!("{}", serde_json::to_string_pretty(&output).unwrap());
                 } else {
                     if let Ok(text) = String::from_utf8(buffer.clone()) {
-                        println!("Received ({} bytes): {}", n, text);
+                        tracing::info!("Received ({} bytes): {}", n, text);
                     } else {
                         let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
-                        println!("Received ({} bytes): {}", n, hex);
+                        tracing::info!("Received ({} bytes): {}", n, hex);
                     }
                 }
             }
-            Ok(_) => println!("No data available"),
-            Err(e) => println!("Read error: {}", e),
+            Ok(_) => tracing::info!("No data available"),
+            Err(e) => tracing::info!("Read error: {}", e),
         }
 
         // Close port
@@ -128,10 +128,10 @@ impl CommandExecutor {
                 "port": self.port,
                 "status": "closed",
             });
-            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            tracing::info!("{}", serde_json::to_string_pretty(&output).unwrap());
         } else {
-            println!("Port: {}", self.port);
-            println!("Status: closed");
+            tracing::info!("Port: {}", self.port);
+            tracing::info!("Status: closed");
         }
 
         Ok(())

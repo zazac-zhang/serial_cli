@@ -26,12 +26,12 @@ impl InteractiveShell {
     /// Run the interactive shell
     pub async fn run(&mut self) -> Result<()> {
         self.running = true;
-        println!("Serial CLI Interactive Shell");
-        println!("Type 'help' for available commands, 'quit' to exit");
-        println!();
+        tracing::info!("Serial CLI Interactive Shell");
+        tracing::info!("Type 'help' for available commands, 'quit' to exit");
+        tracing::info!("");
 
         while self.running {
-            print!("serial> ");
+            tracing::trace!("serial> ");
             io::stdout().flush().map_err(SerialError::Io)?;
 
             let mut line = String::new();
@@ -43,7 +43,7 @@ impl InteractiveShell {
             }
 
             if let Err(e) = self.execute_command(line).await {
-                eprintln!("Error: {}", e);
+                tracing::info!("Error: {}", e);
             }
         }
 
@@ -69,10 +69,10 @@ impl InteractiveShell {
             "dtr" => self.cmd_dtr(&parts[1..]).await?,
             "rts" => self.cmd_rts(&parts[1..]).await?,
             "quit" | "exit" => {
-                println!("Goodbye!");
+                tracing::info!("Goodbye!");
                 self.running = false;
             }
-            _ => println!(
+            _ => tracing::info!(
                 "Unknown command: {}. Type 'help' for available commands.",
                 parts[0]
             ),
@@ -83,27 +83,27 @@ impl InteractiveShell {
 
     /// Help command
     fn cmd_help(&self) {
-        println!("Available commands:");
-        println!("  help              - Show this help message");
-        println!("  list              - List available serial ports");
-        println!("  open <port>       - Open a serial port");
-        println!("  close [port_id]   - Close a serial port (closes current if no ID given)");
-        println!("  send <data>       - Send data to the current port");
-        println!("  recv [n]          - Receive data from the current port (default: 64 bytes)");
-        println!("  status            - Show port status");
-        println!();
-        println!("Protocol commands:");
-        println!("  protocol          - Show current protocol and available protocols");
-        println!("  protocol list     - List all available protocols");
-        println!("  protocol set <name>  - Set protocol for current port");
-        println!("  protocol clear    - Clear protocol from current port");
-        println!("  protocol show     - Show protocol status");
-        println!();
-        println!("Hardware control commands:");
-        println!("  dtr [on|off]      - Get or set DTR signal state");
-        println!("  rts [on|off]      - Get or set RTS signal state");
-        println!();
-        println!("  quit/exit         - Exit the shell");
+        tracing::info!("Available commands:");
+        tracing::info!("  help              - Show this help message");
+        tracing::info!("  list              - List available serial ports");
+        tracing::info!("  open <port>       - Open a serial port");
+        tracing::info!("  close [port_id]   - Close a serial port (closes current if no ID given)");
+        tracing::info!("  send <data>       - Send data to the current port");
+        tracing::info!("  recv [n]          - Receive data from the current port (default: 64 bytes)");
+        tracing::info!("  status            - Show port status");
+        tracing::info!("");
+        tracing::info!("Protocol commands:");
+        tracing::info!("  protocol          - Show current protocol and available protocols");
+        tracing::info!("  protocol list     - List all available protocols");
+        tracing::info!("  protocol set <name>  - Set protocol for current port");
+        tracing::info!("  protocol clear    - Clear protocol from current port");
+        tracing::info!("  protocol show     - Show protocol status");
+        tracing::info!("");
+        tracing::info!("Hardware control commands:");
+        tracing::info!("  dtr [on|off]      - Get or set DTR signal state");
+        tracing::info!("  rts [on|off]      - Get or set RTS signal state");
+        tracing::info!("");
+        tracing::info!("  quit/exit         - Exit the shell");
     }
 
     /// List ports command
@@ -111,11 +111,11 @@ impl InteractiveShell {
         let ports = self.manager.list_ports()?;
 
         if ports.is_empty() {
-            println!("No serial ports found.");
+            tracing::info!("No serial ports found.");
         } else {
-            println!("Available serial ports:");
+            tracing::info!("Available serial ports:");
             for port in ports {
-                println!("  - {} ({})", port.port_name, port.port_type);
+                tracing::info!("  - {} ({})", port.port_name, port.port_type);
             }
         }
 
@@ -125,7 +125,7 @@ impl InteractiveShell {
     /// Open port command
     async fn cmd_open(&mut self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
-            println!("Usage: open <port>");
+            tracing::info!("Usage: open <port>");
             return Ok(());
         }
 
@@ -133,12 +133,12 @@ impl InteractiveShell {
 
         // Close current port if open
         if let Some(ref port_id) = self.current_port_id {
-            println!("Closing current port...");
+            tracing::info!("Closing current port...");
             self.manager.close_port(port_id).await?;
             self.current_port_id = None;
         }
 
-        println!("Opening port: {}", port_name);
+        tracing::info!("Opening port: {}", port_name);
 
         // Use default configuration
         let config = SerialConfig::default();
@@ -146,12 +146,12 @@ impl InteractiveShell {
         // Open the port
         match self.manager.open_port(port_name, config).await {
             Ok(port_id) => {
-                println!("Port opened successfully");
-                println!("Port ID: {}", port_id);
+                tracing::info!("Port opened successfully");
+                tracing::info!("Port ID: {}", port_id);
                 self.current_port_id = Some(port_id);
             }
             Err(e) => {
-                println!("Failed to open port: {}", e);
+                tracing::info!("Failed to open port: {}", e);
             }
         }
 
@@ -165,8 +165,8 @@ impl InteractiveShell {
             if let Some(ref id) = self.current_port_id {
                 id.clone()
             } else {
-                println!("No port is currently open");
-                println!("Usage: close <port_id>");
+                tracing::info!("No port is currently open");
+                tracing::info!("Usage: close <port_id>");
                 return Ok(());
             }
         } else {
@@ -176,13 +176,13 @@ impl InteractiveShell {
 
         match self.manager.close_port(&port_id).await {
             Ok(_) => {
-                println!("Port closed successfully");
+                tracing::info!("Port closed successfully");
                 if self.current_port_id.as_ref() == Some(&port_id) {
                     self.current_port_id = None;
                 }
             }
             Err(e) => {
-                println!("Failed to close port: {}", e);
+                tracing::info!("Failed to close port: {}", e);
             }
         }
 
@@ -192,20 +192,20 @@ impl InteractiveShell {
     /// Send command
     async fn cmd_send(&mut self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
-            println!("Usage: send <data>");
+            tracing::info!("Usage: send <data>");
             return Ok(());
         }
 
         if self.current_port_id.is_none() {
-            println!("No port is currently open");
-            println!("Use 'open <port>' first");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' first");
             return Ok(());
         }
 
         let data = args.join(" ");
         let port_id = self.current_port_id.as_ref().unwrap();
 
-        println!("Sending: {}", data);
+        tracing::info!("Sending: {}", data);
 
         // Get the port handle
         let port_handle = self.manager.get_port(port_id).await?;
@@ -214,10 +214,10 @@ impl InteractiveShell {
         // Send data
         match handle.write(data.as_bytes()) {
             Ok(n) => {
-                println!("Sent {} bytes", n);
+                tracing::info!("Sent {} bytes", n);
             }
             Err(e) => {
-                println!("Failed to send data: {}", e);
+                tracing::info!("Failed to send data: {}", e);
             }
         }
 
@@ -233,12 +233,12 @@ impl InteractiveShell {
         };
 
         if self.current_port_id.is_none() {
-            println!("No port is currently open");
-            println!("Use 'open <port>' first");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' first");
             return Ok(());
         }
 
-        println!("Reading up to {} bytes...", n);
+        tracing::info!("Reading up to {} bytes...", n);
 
         let port_id = self.current_port_id.as_ref().unwrap();
 
@@ -255,18 +255,18 @@ impl InteractiveShell {
 
                     // Try to display as string
                     if let Ok(text) = String::from_utf8(buffer.clone()) {
-                        println!("Received ({} bytes as text): {}", bytes_read, text);
+                        tracing::info!("Received ({} bytes as text): {}", bytes_read, text);
                     } else {
                         // Display as hex
                         let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
-                        println!("Received ({} bytes as hex): {}", bytes_read, hex);
+                        tracing::info!("Received ({} bytes as hex): {}", bytes_read, hex);
                     }
                 } else {
-                    println!("No data available");
+                    tracing::info!("No data available");
                 }
             }
             Err(e) => {
-                println!("Failed to read data: {}", e);
+                tracing::info!("Failed to read data: {}", e);
             }
         }
 
@@ -276,33 +276,33 @@ impl InteractiveShell {
     /// Status command
     async fn cmd_status(&self) -> Result<()> {
         if let Some(ref port_id) = self.current_port_id {
-            println!("Current port ID: {}", port_id);
+            tracing::info!("Current port ID: {}", port_id);
 
             // Try to get port info
             match self.manager.get_port(port_id).await {
                 Ok(port_handle) => {
                     let handle = port_handle.lock().await;
-                    println!("Port name: {}", handle.name());
-                    println!("Configuration:");
-                    println!("  Baud rate: {}", handle.config().baudrate);
-                    println!("  Data bits: {}", handle.config().databits);
-                    println!("  Stop bits: {}", handle.config().stopbits);
-                    println!("  Parity: {:?}", handle.config().parity);
-                    println!("  Flow control: {:?}", handle.config().flow_control);
+                    tracing::info!("Port name: {}", handle.name());
+                    tracing::info!("Configuration:");
+                    tracing::info!("  Baud rate: {}", handle.config().baudrate);
+                    tracing::info!("  Data bits: {}", handle.config().databits);
+                    tracing::info!("  Stop bits: {}", handle.config().stopbits);
+                    tracing::info!("  Parity: {:?}", handle.config().parity);
+                    tracing::info!("  Flow control: {:?}", handle.config().flow_control);
 
                     // Show protocol information
                     match handle.protocol() {
-                        Some(protocol) => println!("  Protocol: {}", protocol),
-                        None => println!("  Protocol: (none - raw mode)"),
+                        Some(protocol) => tracing::info!("  Protocol: {}", protocol),
+                        None => tracing::info!("  Protocol: (none - raw mode)"),
                     }
                 }
                 Err(_) => {
-                    println!("Port handle not available");
+                    tracing::info!("Port handle not available");
                 }
             }
         } else {
-            println!("No port is currently open");
-            println!("Use 'open <port>' to open a port");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' to open a port");
         }
 
         Ok(())
@@ -322,8 +322,8 @@ impl InteractiveShell {
                 "set" => {
                     // Set protocol for current port
                     if args.len() < 2 {
-                        println!("Usage: protocol set <protocol_name>");
-                        println!("Available protocols:");
+                        tracing::info!("Usage: protocol set <protocol_name>");
+                        tracing::info!("Available protocols:");
                         self.list_protocols().await?;
                     } else {
                         self.set_port_protocol(args[1]).await?;
@@ -352,29 +352,29 @@ impl InteractiveShell {
         if let Some(ref port_id) = self.current_port_id {
             match self.manager.get_port_protocol(port_id).await {
                 Ok(Some(protocol)) => {
-                    println!("Current protocol: {}", protocol);
-                    println!();
-                    println!("Protocol commands:");
-                    println!("  protocol list          - List all available protocols");
-                    println!("  protocol set <name>    - Set protocol for current port");
-                    println!("  protocol clear         - Clear protocol from current port");
-                    println!("  protocol show          - Show protocol status");
+                    tracing::info!("Current protocol: {}", protocol);
+                    tracing::info!("");
+                    tracing::info!("Protocol commands:");
+                    tracing::info!("  protocol list          - List all available protocols");
+                    tracing::info!("  protocol set <name>    - Set protocol for current port");
+                    tracing::info!("  protocol clear         - Clear protocol from current port");
+                    tracing::info!("  protocol show          - Show protocol status");
                 }
                 Ok(None) => {
-                    println!("Current protocol: (none)");
-                    println!();
-                    println!("Available protocols:");
+                    tracing::info!("Current protocol: (none)");
+                    tracing::info!("");
+                    tracing::info!("Available protocols:");
                     self.list_protocols().await?;
-                    println!();
-                    println!("Use 'protocol set <name>' to attach a protocol to this port");
+                    tracing::info!("");
+                    tracing::info!("Use 'protocol set <name>' to attach a protocol to this port");
                 }
                 Err(e) => {
-                    println!("Error getting protocol: {}", e);
+                    tracing::info!("Error getting protocol: {}", e);
                 }
             }
         } else {
-            println!("No port is currently open");
-            println!("Use 'open <port>' first");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' first");
         }
 
         Ok(())
@@ -382,13 +382,13 @@ impl InteractiveShell {
 
     /// List all available protocols
     async fn list_protocols(&self) -> Result<()> {
-        println!("Built-in protocols:");
-        println!("  - modbus_rtu      - Modbus RTU protocol");
-        println!("  - modbus_ascii    - Modbus ASCII protocol");
-        println!("  - at_command      - AT Command protocol");
-        println!("  - line            - Line-based protocol");
-        println!();
-        println!("Custom protocols can be loaded with 'protocol_load' in Lua scripts");
+        tracing::info!("Built-in protocols:");
+        tracing::info!("  - modbus_rtu      - Modbus RTU protocol");
+        tracing::info!("  - modbus_ascii    - Modbus ASCII protocol");
+        tracing::info!("  - at_command      - AT Command protocol");
+        tracing::info!("  - line            - Line-based protocol");
+        tracing::info!("");
+        tracing::info!("Custom protocols can be loaded with 'protocol_load' in Lua scripts");
 
         Ok(())
     }
@@ -396,17 +396,17 @@ impl InteractiveShell {
     /// Set protocol for current port
     async fn set_port_protocol(&mut self, protocol_name: &str) -> Result<()> {
         if self.current_port_id.is_none() {
-            println!("No port is currently open");
-            println!("Use 'open <port>' first");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' first");
             return Ok(());
         }
 
         // Validate protocol name
         let valid_protocols = vec!["modbus_rtu", "modbus_ascii", "at_command", "line"];
         if !valid_protocols.contains(&protocol_name) {
-            println!("Unknown protocol: {}", protocol_name);
-            println!();
-            println!("Available protocols:");
+            tracing::info!("Unknown protocol: {}", protocol_name);
+            tracing::info!("");
+            tracing::info!("Available protocols:");
             self.list_protocols().await?;
             return Ok(());
         }
@@ -418,11 +418,11 @@ impl InteractiveShell {
             .await
         {
             Ok(_) => {
-                println!("Protocol '{}' set for port", protocol_name);
-                println!("Data will now be processed using the {} protocol", protocol_name);
+                tracing::info!("Protocol '{}' set for port", protocol_name);
+                tracing::info!("Data will now be processed using the {} protocol", protocol_name);
             }
             Err(e) => {
-                println!("Failed to set protocol: {}", e);
+                tracing::info!("Failed to set protocol: {}", e);
             }
         }
 
@@ -432,8 +432,8 @@ impl InteractiveShell {
     /// Clear protocol from current port
     async fn clear_port_protocol(&mut self) -> Result<()> {
         if self.current_port_id.is_none() {
-            println!("No port is currently open");
-            println!("Use 'open <port>' first");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' first");
             return Ok(());
         }
 
@@ -444,11 +444,11 @@ impl InteractiveShell {
             .await
         {
             Ok(_) => {
-                println!("Protocol cleared from port");
-                println!("Data will be processed as raw bytes");
+                tracing::info!("Protocol cleared from port");
+                tracing::info!("Data will be processed as raw bytes");
             }
             Err(e) => {
-                println!("Failed to clear protocol: {}", e);
+                tracing::info!("Failed to clear protocol: {}", e);
             }
         }
 
@@ -458,8 +458,8 @@ impl InteractiveShell {
     /// DTR command
     async fn cmd_dtr(&mut self, args: &[&str]) -> Result<()> {
         if self.current_port_id.is_none() {
-            println!("No port is currently open");
-            println!("Use 'open <port>' first");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' first");
             return Ok(());
         }
 
@@ -467,11 +467,11 @@ impl InteractiveShell {
             // Show current DTR state
             let port_id = self.current_port_id.as_ref().unwrap();
             match self.manager.get_dtr(port_id).await {
-                Ok(state) => println!("DTR signal: {}", if state { "ON" } else { "OFF" }),
-                Err(e) => println!("Error getting DTR state: {}", e),
+                Ok(state) => tracing::info!("DTR signal: {}", if state { "ON" } else { "OFF" }),
+                Err(e) => tracing::info!("Error getting DTR state: {}", e),
             }
-            println!();
-            println!("Usage: dtr on|off");
+            tracing::info!("");
+            tracing::info!("Usage: dtr on|off");
             return Ok(());
         }
 
@@ -479,8 +479,8 @@ impl InteractiveShell {
             "on" | "true" | "1" | "enable" => true,
             "off" | "false" | "0" | "disable" => false,
             _ => {
-                println!("Invalid argument: {}", args[0]);
-                println!("Usage: dtr on|off");
+                tracing::info!("Invalid argument: {}", args[0]);
+                tracing::info!("Usage: dtr on|off");
                 return Ok(());
             }
         };
@@ -488,11 +488,11 @@ impl InteractiveShell {
         let port_id = self.current_port_id.as_ref().unwrap();
         match self.manager.set_dtr(port_id, enable).await {
             Ok(_) => {
-                println!("DTR signal set to: {}", if enable { "ON" } else { "OFF" });
-                println!("Note: Full platform-specific DTR control implementation pending");
+                tracing::info!("DTR signal set to: {}", if enable { "ON" } else { "OFF" });
+                tracing::info!("Note: Full platform-specific DTR control implementation pending");
             }
             Err(e) => {
-                println!("Failed to set DTR: {}", e);
+                tracing::info!("Failed to set DTR: {}", e);
             }
         }
 
@@ -502,8 +502,8 @@ impl InteractiveShell {
     /// RTS command
     async fn cmd_rts(&mut self, args: &[&str]) -> Result<()> {
         if self.current_port_id.is_none() {
-            println!("No port is currently open");
-            println!("Use 'open <port>' first");
+            tracing::info!("No port is currently open");
+            tracing::info!("Use 'open <port>' first");
             return Ok(());
         }
 
@@ -511,11 +511,11 @@ impl InteractiveShell {
             // Show current RTS state
             let port_id = self.current_port_id.as_ref().unwrap();
             match self.manager.get_rts(port_id).await {
-                Ok(state) => println!("RTS signal: {}", if state { "ON" } else { "OFF" }),
-                Err(e) => println!("Error getting RTS state: {}", e),
+                Ok(state) => tracing::info!("RTS signal: {}", if state { "ON" } else { "OFF" }),
+                Err(e) => tracing::info!("Error getting RTS state: {}", e),
             }
-            println!();
-            println!("Usage: rts on|off");
+            tracing::info!("");
+            tracing::info!("Usage: rts on|off");
             return Ok(());
         }
 
@@ -523,8 +523,8 @@ impl InteractiveShell {
             "on" | "true" | "1" | "enable" => true,
             "off" | "false" | "0" | "disable" => false,
             _ => {
-                println!("Invalid argument: {}", args[0]);
-                println!("Usage: rts on|off");
+                tracing::info!("Invalid argument: {}", args[0]);
+                tracing::info!("Usage: rts on|off");
                 return Ok(());
             }
         };
@@ -532,11 +532,11 @@ impl InteractiveShell {
         let port_id = self.current_port_id.as_ref().unwrap();
         match self.manager.set_rts(port_id, enable).await {
             Ok(_) => {
-                println!("RTS signal set to: {}", if enable { "ON" } else { "OFF" });
-                println!("Note: Full platform-specific RTS control implementation pending");
+                tracing::info!("RTS signal set to: {}", if enable { "ON" } else { "OFF" });
+                tracing::info!("Note: Full platform-specific RTS control implementation pending");
             }
             Err(e) => {
-                println!("Failed to set RTS: {}", e);
+                tracing::info!("Failed to set RTS: {}", e);
             }
         }
 

@@ -269,17 +269,17 @@ impl SnifferSession {
         let reset = "\x1b[0m";
 
         // Display packet info
-        println!("{}[{}] {} ({} bytes){}", color, time_str, direction, packet.length, reset);
+        tracing::info!("{}[{}] {} ({} bytes){}", color, time_str, direction, packet.length, reset);
 
         // Display data
         if self.config.hex_display {
             // Hex dump format
             let hex = DataFormat::bytes_to_hex(&packet.data, " ");
-            println!("  {}", hex);
+            tracing::info!("  {}", hex);
         } else {
             // Escaped string format
             let escaped = DataFormat::escape_bytes(&packet.data);
-            println!("  {}", escaped);
+            tracing::info!("  {}", escaped);
         }
 
         // Flush stdout

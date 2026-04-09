@@ -276,12 +276,12 @@ impl BatchRunner {
             match &batch_lines[i] {
                 BatchLine::Comment(msg) => {
                     if self.config.verbose {
-                        println!("  # {}", msg);
+                        tracing::info!("  # {}", msg);
                     }
                 }
                 BatchLine::Script(script_path) => {
                     if self.config.verbose {
-                        println!("Running: {}", script_path.display());
+                        tracing::info!("Running: {}", script_path.display());
                     }
 
                     match self.run_script(script_path).await {
@@ -300,7 +300,7 @@ impl BatchRunner {
                             });
 
                             if !self.config.continue_on_error {
-                                eprintln!("Error executing {}: {}", script_path.display(), e);
+                                tracing::info!("Error executing {}: {}", script_path.display(), e);
                                 break;
                             }
                         }
@@ -312,7 +312,7 @@ impl BatchRunner {
                 }
                 BatchLine::Sleep(duration) => {
                     if self.config.verbose {
-                        println!("Sleeping for {:?}", duration);
+                        tracing::info!("Sleeping for {:?}", duration);
                     }
                     tokio::time::sleep(*duration).await;
                 }
@@ -320,19 +320,19 @@ impl BatchRunner {
                     // Handle loop - execute next lines in a loop
                     let loop_count = *count;
                     if self.config.verbose {
-                        println!("Starting loop ({} iterations)", loop_count);
+                        tracing::info!("Starting loop ({} iterations)", loop_count);
                     }
 
                     for iteration in 0..loop_count {
                         if self.config.verbose {
-                            println!("  Loop iteration {}/{}", iteration + 1, loop_count);
+                            tracing::info!("  Loop iteration {}/{}", iteration + 1, loop_count);
                         }
 
                         // Execute scripts in the loop (simplified - would need more complex parsing)
                         if let Some(next_line) = batch_lines.get(i + 1) {
                             if let BatchLine::Script(script) = next_line {
                                 if let Err(e) = self.run_script(script).await {
-                                    eprintln!("Loop iteration failed: {}", e);
+                                    tracing::info!("Loop iteration failed: {}", e);
                                     if !self.config.continue_on_error {
                                         break;
                                     }
@@ -344,7 +344,7 @@ impl BatchRunner {
                 BatchLine::Conditional { condition, scripts } => {
                     // Handle conditional execution (simplified - always execute for now)
                     if self.config.verbose {
-                        println!("Conditional: {} (always true in current implementation)", condition);
+                        tracing::info!("Conditional: {} (always true in current implementation)", condition);
                     }
 
                     for script in scripts {

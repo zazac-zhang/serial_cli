@@ -342,7 +342,7 @@ impl ProgressReporter {
 
         let eta_str = eta.map(|d| format!(" in {:.1}s", d.as_secs_f64())).unwrap_or_default();
 
-        print!(
+        tracing::trace!(
             "\r{}: {}/{} ({}%) {:.2} ops/s{}",
             self.name,
             self.current,
@@ -353,7 +353,7 @@ impl ProgressReporter {
         );
 
         if self.current >= self.total {
-            println!(); // New line when complete
+            tracing::info!(""); // New line when complete
         }
 
         let _ = std::io::stdout().flush();

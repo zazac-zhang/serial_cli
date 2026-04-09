@@ -93,15 +93,15 @@ impl TaskMonitor {
         let running = self.running_count().await;
         let uptime = self.uptime();
 
-        println!("=== Task Monitor Report ===");
-        println!("Uptime: {:.2}s", uptime.as_secs_f64());
-        println!("Pending tasks: {}", pending);
-        println!("Running tasks: {}", running);
-        println!("Completed tasks: {}", stats.total_completed);
-        println!("Failed tasks: {}", stats.total_failed);
-        println!("Total duration: {}ms", stats.total_duration_ms);
-        println!("Average duration: {}ms", stats.average_duration_ms);
-        println!("========================");
+        tracing::info!("=== Task Monitor Report ===");
+        tracing::info!("Uptime: {:.2}s", uptime.as_secs_f64());
+        tracing::info!("Pending tasks: {}", pending);
+        tracing::info!("Running tasks: {}", running);
+        tracing::info!("Completed tasks: {}", stats.total_completed);
+        tracing::info!("Failed tasks: {}", stats.total_failed);
+        tracing::info!("Total duration: {}ms", stats.total_duration_ms);
+        tracing::info!("Average duration: {}ms", stats.average_duration_ms);
+        tracing::info!("========================");
     }
 
     /// Start monitoring loop
