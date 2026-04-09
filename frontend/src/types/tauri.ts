@@ -5,10 +5,11 @@ export interface SerialPort {
 }
 
 export interface PortConfig {
-  baud_rate: number
-  data_bits: number
-  stop_bits: number
+  baudrate: number
+  databits: number
+  stopbits: number
   parity: string
+  timeout_ms: number
   flow_control: string
 }
 
@@ -17,6 +18,15 @@ export interface PortStatus {
   port_name: string
   is_open: boolean
   config: PortConfig
+  stats: PortStats
+}
+
+export interface PortStats {
+  bytes_sent: number
+  bytes_received: number
+  packets_sent: number
+  packets_received: number
+  last_activity: number | null
 }
 
 export interface DataPacket {

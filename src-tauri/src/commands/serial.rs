@@ -14,6 +14,7 @@ use tauri::State;
 pub async fn send_data(
     port_id: String,
     data: Vec<u8>,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<usize, String> {
     use tokio::sync::MutexGuard;
@@ -24,7 +25,19 @@ pub async fn send_data(
         .await
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
     let mut handle = port_handle.lock().await;
-    handle.write(&data).map_err(|e: serial_cli::error::SerialError| e.to_string())
+
+    let bytes_written = handle.write(&data).map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+
+    // Emit data-sent event
+    if let Err(e) = crate::events::emitter::emit_data_sent(
+        app,
+        port_id,
+        data,
+    ).await {
+        eprintln!("Failed to emit data-sent event: {}", e);
+    }
+
+    Ok(bytes_written)
 }
 
 /// Read data from a serial port

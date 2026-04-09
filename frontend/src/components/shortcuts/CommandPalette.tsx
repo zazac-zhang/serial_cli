@@ -3,6 +3,7 @@ import { useNavigation } from '@/contexts/NavigationContext'
 import { usePorts } from '@/contexts/PortContext'
 import { useData } from '@/contexts/DataContext'
 import { useShortcuts } from '@/contexts/ShortcutContext'
+import { useScriptActions } from '@/contexts/ScriptActionContext'
 import { cn } from '@/lib/utils'
 
 interface Command {
@@ -20,6 +21,7 @@ export function CommandPalette() {
   const { listPorts } = usePorts()
   const { clearPackets } = useData()
   const { isCommandPaletteOpen, closeCommandPalette, openShortcutsHelp } = useShortcuts()
+  const { createNewScript } = useScriptActions()
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
 
@@ -96,7 +98,7 @@ export function CommandPalette() {
       category: 'Scripts',
       action: () => {
         setCurrentView('scripts')
-        // TODO: Implement new script logic
+        createNewScript()
       },
     },
     // General

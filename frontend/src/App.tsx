@@ -5,6 +5,8 @@ import { DataProvider } from './contexts/DataContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ShortcutProvider } from './contexts/ShortcutContext'
 import { NotificationProvider } from './contexts/NotificationContext'
+import { ScriptActionProvider } from './contexts/ScriptActionContext'
+import { SettingsProvider } from './contexts/SettingsContext'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
@@ -70,13 +72,17 @@ function App() {
       <ToastProvider>
         <NotificationProvider>
           <ShortcutProvider>
-            <NavigationProvider>
-              <PortProvider>
-                <DataProvider>
-                  <AppContent />
-                </DataProvider>
-              </PortProvider>
-            </NavigationProvider>
+            <ScriptActionProvider>
+              <SettingsProvider>
+                <NavigationProvider>
+                  <PortProvider>
+                    <DataProvider>
+                      <AppContent />
+                    </DataProvider>
+                  </PortProvider>
+                </NavigationProvider>
+              </SettingsProvider>
+            </ScriptActionProvider>
           </ShortcutProvider>
         </NotificationProvider>
       </ToastProvider>

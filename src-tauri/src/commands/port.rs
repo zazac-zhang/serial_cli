@@ -36,6 +36,7 @@ pub async fn list_ports(state: State<'_, AppState>) -> Result<Vec<PortInfo>, Str
 pub async fn open_port(
     port_name: String,
     config: SerialConfig,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     use tokio::sync::MutexGuard;
@@ -54,10 +55,62 @@ pub async fn open_port(
         rts_enable: false,
     };
 
-    manager
+    let port_id = manager
         .open_port(&port_name, core_config)
         .await
-        .map_err(|e: serial_cli::error::SerialError| e.to_string())
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+
+    // Spawn background task to read data from this port
+    let port_manager_clone = state.port_manager.clone();
+    let port_id_clone = port_id.clone();
+    let app_handle = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let mut buffer = vec![0u8; 4096];
+
+        loop {
+            // Try to get the port
+            let manager = port_manager_clone.lock().await;
+            let port_handle = match manager.get_port(&port_id_clone).await {
+                Ok(handle) => handle,
+                Err(_) => {
+                    // Port was closed
+                    break;
+                }
+            };
+            drop(manager);
+
+            // Try to read data
+            let mut handle = port_handle.lock().await;
+            match handle.read(&mut buffer) {
+                Ok(n) if n > 0 => {
+                    buffer.truncate(n);
+                    let data = buffer.clone();
+
+                    // Emit data-received event
+                    if let Err(e) = crate::events::emitter::emit_data_received(
+                        app_handle.clone(),
+                        port_id_clone.clone(),
+                        data,
+                    ).await {
+                        eprintln!("Failed to emit data-received event: {}", e);
+                    }
+                }
+                Ok(_) => {
+                    // No data available
+                }
+                Err(_) => {
+                    // Port error or closed
+                    break;
+                }
+            }
+
+            // Small delay to prevent busy-waiting
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        }
+    });
+
+    Ok(port_id)
 }
 
 /// Close a serial port

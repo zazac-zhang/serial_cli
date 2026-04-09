@@ -4,6 +4,7 @@ import { useNavigation } from '@/contexts/NavigationContext'
 import { usePorts } from '@/contexts/PortContext'
 import { useData } from '@/contexts/DataContext'
 import { useShortcuts } from '@/contexts/ShortcutContext'
+import { useScriptActions } from '@/contexts/ScriptActionContext'
 import { useWindow } from '@/hooks/useWindow'
 
 export function useGlobalShortcuts() {
@@ -11,6 +12,7 @@ export function useGlobalShortcuts() {
   const { listPorts } = usePorts()
   const { clearPackets } = useData()
   const { openCommandPalette, openShortcutsHelp } = useShortcuts()
+  const { createNewScript, runCurrentScript } = useScriptActions()
   const { hideWindow } = useWindow()
 
   // Command Palette: Cmd/Ctrl + K
@@ -53,15 +55,14 @@ export function useGlobalShortcuts() {
   useHotkeys('mod+n', (e) => {
     e.preventDefault()
     setCurrentView('scripts')
-    // TODO: Create new script
+    createNewScript()
   })
 
   // Scripts: Cmd/Ctrl + Enter (only in scripts view)
   useHotkeys('mod+enter', (e) => {
     e.preventDefault()
     if (currentView === 'scripts') {
-      // TODO: Run current script
-      console.log('Run script')
+      runCurrentScript()
     }
   })
 

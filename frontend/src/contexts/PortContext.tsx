@@ -45,6 +45,13 @@ export function PortProvider({ children }: { children: React.ReactNode }) {
           port_name: portName,
           is_open: true,
           config,
+          stats: {
+            bytes_sent: 0,
+            bytes_received: 0,
+            packets_sent: 0,
+            packets_received: 0,
+            last_activity: null,
+          },
         })
         return next
       })

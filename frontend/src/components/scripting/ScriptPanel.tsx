@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
+import { useScriptActions } from '@/contexts/ScriptActionContext'
 
 const DEFAULT_SCRIPT = `-- Lua Script for Serial CLI
 -- Use the serial API to communicate with devices
@@ -43,6 +44,7 @@ interface ScriptFile {
 }
 
 export function ScriptPanel() {
+  const { registerCallbacks } = useScriptActions()
   const [scripts, setScripts] = useState<ScriptFile[]>([])
   const [activeScriptId, setActiveScriptId] = useState<string | null>(null)
   const [scriptContent, setScriptContent] = useState(DEFAULT_SCRIPT)
@@ -65,16 +67,25 @@ export function ScriptPanel() {
     setScriptContent(newScript.content)
   }
 
-  const saveScript = () => {
-    if (activeScriptId) {
-      setScripts(prev => prev.map(s =>
-        s.id === activeScriptId
-          ? { ...s, content: scriptContent, lastModified: Date.now() }
-          : s
-      ))
-      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script saved`])
-    }
+  const runScript = () => {
+    setIsRunning(true)
+    setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Starting script...`])
+
+    // Simulate script execution
+    setTimeout(() => {
+      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script execution complete`])
+      setIsRunning(false)
+    }, 1500)
   }
+
+  // Register callbacks for global shortcuts
+  useEffect(() => {
+    const unregister = registerCallbacks({
+      createNewScript,
+      runCurrentScript: runScript,
+    })
+    return unregister
+  }, [registerCallbacks])
 
   const deleteScript = (id: string) => {
     setScripts(prev => prev.filter(s => s.id !== id))
@@ -122,15 +133,15 @@ export function ScriptPanel() {
     }
   }
 
-  const runScript = () => {
-    setIsRunning(true)
-    setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Starting script...`])
-
-    // Simulate script execution
-    setTimeout(() => {
-      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script execution complete`])
-      setIsRunning(false)
-    }, 1500)
+  const saveScript = () => {
+    if (activeScriptId) {
+      setScripts(prev => prev.map(s =>
+        s.id === activeScriptId
+          ? { ...s, content: scriptContent, lastModified: Date.now() }
+          : s
+      ))
+      setOutput(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script saved`])
+    }
   }
 
   useEffect(() => {
