@@ -1,14 +1,15 @@
 <div align="center">
 
-  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.1.0-blue?style=for-the-badge&logo=rust)
+  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.2.0-blue?style=for-the-badge&logo=rust)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
+  [![GUI](https://img.shields.io/badge/GUI-Ready-success?style=for-the-badge&logo=react)](https://reactjs.org/)
 
   # 🚀 Serial CLI
 
-  **A Universal Serial Port CLI Tool Optimized for AI Interaction**
+  **A Universal Serial Port Tool with CLI & GUI - Optimized for AI Interaction**
 
-  [Quick Start](#-quick-start) • [Features](#-features) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
+  [Quick Start](#-quick-start) • [Features](#-features) • [GUI Application](#-gui-application) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
 
 </div>
 
@@ -16,9 +17,9 @@
 
 ## 💡 What is Serial CLI?
 
-Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **structured JSON output**, **embedded LuaJIT scripting**, and **support for multiple protocols** - making it perfect for both human interaction and AI/automation workflows.
+Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **both CLI and GUI interfaces**, **structured JSON output**, **embedded LuaJIT scripting**, and **support for multiple protocols** - making it perfect for both human interaction and AI/automation workflows.
 
-**✨ Production Ready** • **🔧 58/58 Tests Passing** • **🌍 Linux • macOS • Windows**
+**✨ Production Ready** • **🖥️ GUI Available** • **🔧 58/58 Tests Passing** • **🌍 Linux • macOS • Windows**
 
 ---
 
@@ -62,7 +63,7 @@ serial-cli run script.lua --port=/dev/ttyUSB0
 
 | 📡 **Protocols** | 🔄 **Batch Mode** | 🖥️ **GUI Available** | 🧪 **Well-Tested** |
 |:---:|:---:|:---:|:---:|
-| Modbus • AT Commands • Custom | Sequential & Parallel execution | Tauri-based GUI | 58 passing tests |
+| Modbus • AT Commands • Custom | Sequential & Parallel execution | Tauri-based GUI (NEW!) | 58 passing tests |
 
 </div>
 
@@ -74,8 +75,15 @@ serial-cli run script.lua --port=/dev/ttyUSB0
 - **🎨 Custom Protocols** - Load custom protocols from Lua scripts with hot-reload support
 - **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
 - **🔄 Batch Processing** - Execute multiple scripts sequentially or in parallel
-- **🖥️ Interactive Shell** - Powerful REPL shell with command history and auto-completion
-- **🎛️ GUI Application** - Tauri-based cross-platform GUI (optional)
+- **🖥️ GUI Application** - **NEW!** Modern Tauri-based GUI with:
+  - Cyber-industrial aesthetic design
+  - Real-time data monitoring
+  - Monaco script editor
+  - Protocol management
+  - Multi-format data export (TXT/CSV/JSON)
+  - System notifications
+  - Complete keyboard shortcuts
+  - Data persistence
 
 ---
 
@@ -315,7 +323,7 @@ just build-windows # Windows (requires cross)
 # Install GUI dependencies
 just gui-deps
 
-# Start GUI development
+# Start GUI development server
 just gui-dev
 
 # Build GUI application
@@ -323,7 +331,25 @@ just gui-build
 
 # Type check frontend
 just gui-type-check
+
+# Format all code (Rust + TypeScript)
+just gui-fmt
+
+# Check Rust + TypeScript code
+just gui-check
 ```
+
+**GUI Features (v0.2.0)**:
+- ✅ Serial port management with configuration UI
+- ✅ Real-time data monitoring with RX/TX distinction
+- ✅ Lua script editor with Monaco Editor
+- ✅ Protocol loading and validation
+- ✅ Settings management with persistence
+- ✅ Data export (TXT/CSV/JSON)
+- ✅ System notifications
+- ✅ Command palette (⌘K)
+- ✅ Keyboard shortcuts
+- ✅ Data persistence (localStorage)
 
 ### Project Structure
 

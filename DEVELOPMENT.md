@@ -97,7 +97,9 @@ just test <test_name>
 just test-watch
 ```
 
-**Test Status:** 58/58 passing
+**Test Status:** 58/58 passing ✅
+
+**GUI Type Check:** All passing ✅
 
 ---
 
@@ -155,8 +157,13 @@ just release
 
 ```bash
 # Node.js 20+
+node --version  # Should be v20 or higher
+
 # Rust + Tauri CLI
 cargo install tauri-cli
+
+# Just task runner
+cargo install just
 ```
 
 ### Commands
@@ -165,7 +172,7 @@ cargo install tauri-cli
 # Install frontend dependencies
 just gui-deps
 
-# Start development server
+# Start development server (hot reload)
 just gui-dev
 
 # Build GUI application
@@ -174,15 +181,100 @@ just gui-build
 # Type check frontend
 just gui-type-check
 
-# Check Rust code
+# Check Rust + TypeScript code
 just gui-check
 
-# Format all code
+# Format all code (Rust + TypeScript + CSS)
 just gui-fmt
 
 # Clean build artifacts
 just gui-clean
 ```
+
+### GUI Architecture
+
+```
+frontend/
+├── src/
+│   ├── components/          # React components
+│   │   ├── layout/         # Sidebar, TopBar
+│   │   ├── ui/             # Panel, Toast, shared UI
+│   │   ├── ports/          # Serial port management
+│   │   ├── data/           # Data monitoring
+│   │   ├── scripting/      # Script editor
+│   │   ├── protocols/      # Protocol management
+│   │   ├── settings/       # Settings panels
+│   │   └── shortcuts/      # Command palette
+│   ├── contexts/           # React contexts
+│   │   ├── NavigationContext.tsx
+│   │   ├── PortContext.tsx
+│   │   ├── DataContext.tsx
+│   │   ├── ToastContext.tsx
+│   │   ├── NotificationContext.tsx
+│   │   ├── ScriptActionContext.tsx
+│   │   └── SettingsContext.tsx
+│   ├── hooks/              # Custom hooks
+│   ├── lib/                # Utilities
+│   │   ├── utils.ts
+│   │   └── storage.ts      # Data persistence
+│   └── types/              # TypeScript definitions
+└── package.json
+```
+
+### Key Features Implemented
+
+1. **Serial Port Management**
+   - Port listing and status monitoring
+   - Configuration UI (baudrate, data bits, parity, etc.)
+   - Open/close with real-time status
+   - Recent port configuration memory
+
+2. **Data Monitoring**
+   - Real-time data display (RX/TX)
+   - Configurable display format (hex/ascii)
+   - Export to TXT/CSV/JSON
+   - Statistics dashboard
+
+3. **Script Editor**
+   - Monaco Editor integration
+   - Lua syntax highlighting
+   - File management (new, save, load, export)
+   - Real script execution (LuaJIT)
+   - Output console with error handling
+
+4. **Protocol Management**
+   - Built-in protocols (Modbus, AT, Line-based)
+   - Custom protocol loading (.lua files)
+   - Protocol validation
+   - Status management
+
+5. **Settings System**
+   - Serial port defaults
+   - Display preferences
+   - Notification settings
+   - Data persistence
+
+6. **User Experience**
+   - Command palette (⌘K)
+   - Global keyboard shortcuts
+   - System notifications
+   - Data persistence
+   - Responsive design
+
+### Type Safety
+
+All TypeScript code is in strict mode:
+```bash
+# Run type check
+just gui-type-check  # ✅ All checks passing
+```
+
+### Performance
+
+- Virtual scrolling for large data sets
+- Lazy loading for Monaco Editor
+- Optimized re-renders with React.memo
+- Event-driven architecture for real-time updates
 
 ---
 
@@ -274,12 +366,15 @@ serial_cli/
 │   ├── tauri.conf.json      # Tauri configuration
 │   └── build.rs
 ├── frontend/                # React frontend (GUI)
-│   ├── src/                 # React source
-│   ├── components/          # UI components
-│   ├── contexts/            # React contexts
-│   ├── hooks/               # Custom hooks
+│   ├── src/                # React source
+│   │   ├── components/     # UI components (18 components)
+│   │   ├── contexts/       # React contexts (8 contexts)
+│   │   ├── hooks/          # Custom hooks
+│   │   ├── lib/            # Utilities (storage, utils)
+│   │   └── types/          # TypeScript definitions
+│   ├── package.json        # Frontend dependencies
 │   ├── index.html
-│   └── package.json
+│   └── vite.config.ts      # Vite bundler config
 ├── examples/                # Lua script examples
 ├── tests/                   # Integration tests
 ├── docs/                    # Documentation
