@@ -410,6 +410,7 @@ impl LuaBindings {
     }
 
     /// Helper function to register built-in protocols
+    #[allow(dead_code)]
     async fn register_builtins(registry: &mut crate::protocol::ProtocolRegistry) {
         use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
         use crate::protocol::registry::SimpleProtocolFactory;

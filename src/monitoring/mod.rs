@@ -1,6 +1,9 @@
 //! Performance monitoring and profiling utilities
 //!
-//! This module provides performance monitoring capabilities for serial operations.
+//! This module provides performance monitoring capabilities for serial operations,
+//! including platform-specific implementations for Windows and Unix systems.
+
+pub mod windows;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -265,8 +268,13 @@ impl ResourceMonitor {
 
         #[cfg(windows)]
         {
-            // Get memory usage on Windows
-            self.memory_usage = Self::get_memory_usage_windows();
+            // Use Windows-specific monitoring
+            if let Ok(mut win_monitor) = windows::WindowsPerformanceMonitor::new() {
+                if let Ok(metrics) = win_monitor.update_metrics() {
+                    self.memory_usage = metrics.working_set_size;
+                    self.cpu_usage = metrics.cpu_usage;
+                }
+            }
             // On Windows, file descriptors are not directly accessible
             self.open_fds = 0;
         }
@@ -302,31 +310,6 @@ impl ResourceMonitor {
         if let Ok(entries) = fs::read_dir("/proc/self/fd") {
             return entries.count();
         }
-        0
-    }
-
-    #[cfg(windows)]
-    fn get_memory_usage_windows() -> usize {
-        use std::mem;
-
-        // Windows implementation using GetProcessMemoryInfo
-        #[cfg(target_os = "windows")]
-        unsafe {
-            use winapi::um::processthreadsapi::GetCurrentProcess;
-            use winapi::um::psapi::GetProcessMemoryInfo;
-            use winapi::um::psapi::PROCESS_MEMORY_COUNTERS;
-            use winapi::um::winnt::HANDLE;
-
-            let handle = GetCurrentProcess();
-            let mut pmc: PROCESS_MEMORY_COUNTERS = mem::zeroed();
-            pmc.cb = mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
-
-            if GetProcessMemoryInfo(handle, &mut pmc, pmc.cb) != 0 {
-                return pmc.WorkingSetSize as usize;
-            }
-        }
-
-        // Fallback: estimate based on heap size
         0
     }
 
@@ -396,5 +379,14 @@ mod tests {
         let metrics = monitor.get_metrics("test_timer").await;
         assert!(metrics.is_some());
         assert_eq!(metrics.unwrap().total_operations, 1);
+    }
+
+    #[test]
+    fn test_resource_monitor() {
+        let mut monitor = ResourceMonitor::new();
+        monitor.update();
+
+        // Basic sanity checks
+        assert!(monitor.thread_count > 0);
     }
 }
