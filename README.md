@@ -33,6 +33,19 @@ cargo install --path .
 
 # Or download pre-built binaries
 # Visit: https://github.com/zazac-zhang/serial_cli/releases
+
+# Clone repository
+git clone <repository-url>
+cd serial_cli
+
+# Development build
+just dev
+
+# Release build
+just build
+
+# Run tests
+just test
 ```
 
 ### Basic Usage
@@ -46,6 +59,9 @@ serial-cli interactive
 
 # Send data to a port
 serial-cli send --port=/dev/ttyUSB0 "AT+CMD"
+
+# Send hex data
+serial-cli send --port=/dev/ttyUSB0 "0102030405"
 
 # Run a Lua script
 serial-cli run script.lua --port=/dev/ttyUSB0
