@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{timeout, Duration};
+use tokio::task::JoinHandle;
 
 /// I/O event
 #[derive(Debug, Clone)]
@@ -52,6 +53,8 @@ pub struct IoLoop {
     event_tx: mpsc::Sender<IoEvent>,
     event_rx: Option<mpsc::Receiver<IoEvent>>,
     active_ports: Arc<Mutex<HashMap<String, bool>>>,
+    io_task_handle: Option<JoinHandle<()>>,
+    shutdown_signal: Option<mpsc::Receiver<()>>,
 }
 
 impl IoLoop {
@@ -64,6 +67,7 @@ impl IoLoop {
     /// Create a new I/O loop with custom configuration
     pub fn with_config(config: IoLoopConfig) -> Self {
         let (event_tx, event_rx) = mpsc::channel(config.event_channel_size);
+        let (_, shutdown_rx) = mpsc::channel(1);
 
         Self {
             config,
@@ -71,6 +75,8 @@ impl IoLoop {
             event_tx,
             event_rx: Some(event_rx),
             active_ports: Arc::new(Mutex::new(HashMap::new())),
+            io_task_handle: None,
+            shutdown_signal: Some(shutdown_rx),
         }
     }
 
@@ -126,69 +132,82 @@ impl IoLoop {
             SerialError::Io(std::io::Error::other("Event receiver already taken"))
         })?;
 
+        let mut shutdown_rx = self.shutdown_signal.take().ok_or_else(|| {
+            SerialError::Io(std::io::Error::other("Shutdown receiver already taken"))
+        })?;
+
         // Spawn I/O tasks for each active port
         let active_ports = self.active_ports.clone();
         let port_manager = self.port_manager.clone();
         let event_tx = self.event_tx.clone();
         let config = self.config.clone();
 
-        // I/O task
-        let io_task: tokio::task::JoinHandle<()> = tokio::spawn(async move {
+        // I/O task with shutdown support
+        let io_task: JoinHandle<()> = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(config.read_timeout_ms));
 
             loop {
-                interval.tick().await;
+                tokio::select! {
+                    _ = interval.tick() => {
+                        // Get list of active ports
+                        let ports = {
+                            let ports_guard = active_ports.lock().await;
+                            ports_guard.keys().cloned().collect::<Vec<_>>()
+                        };
 
-                // Get list of active ports
-                let ports = {
-                    let ports_guard = active_ports.lock().await;
-                    ports_guard.keys().cloned().collect::<Vec<_>>()
-                };
+                        // Try to read from each port
+                        for port_id in ports {
+                            let port_handle = match port_manager.get_port(&port_id).await {
+                                Ok(handle) => handle,
+                                Err(_) => continue,
+                            };
 
-                // Try to read from each port
-                for port_id in ports {
-                    let port_handle = match port_manager.get_port(&port_id).await {
-                        Ok(handle) => handle,
-                        Err(_) => continue,
-                    };
+                            let mut handle = port_handle.lock().await;
+                            let mut buffer = vec![0u8; config.buffer_size];
 
-                    let mut handle = port_handle.lock().await;
-                    let mut buffer = vec![0u8; config.buffer_size];
+                            // Non-blocking read with timeout
+                            match timeout(Duration::from_millis(10), async {
+                                handle.read(&mut buffer)
+                            })
+                            .await
+                            {
+                                Ok(Ok(n)) if n > 0 => {
+                                    buffer.truncate(n);
 
-                    // Non-blocking read with timeout
-                    match timeout(Duration::from_millis(10), async {
-                        handle.read(&mut buffer)
-                    })
-                    .await
-                    {
-                        Ok(Ok(n)) if n > 0 => {
-                            buffer.truncate(n);
-
-                            let _ = event_tx
-                                .send(IoEvent::DataReceived {
-                                    port_id: port_id.clone(),
-                                    data: buffer,
-                                })
-                                .await;
+                                    let _ = event_tx
+                                        .send(IoEvent::DataReceived {
+                                            port_id: port_id.clone(),
+                                            data: buffer,
+                                        })
+                                        .await;
+                                }
+                                Ok(Ok(_)) => {
+                                    // No data available
+                                }
+                                Ok(Err(e)) => {
+                                    let _ = event_tx
+                                        .send(IoEvent::Error {
+                                            port_id: port_id.clone(),
+                                            error: format!("{:?}", e),
+                                        })
+                                        .await;
+                                }
+                                Err(_) => {
+                                    // Timeout - no data available
+                                }
+                            }
                         }
-                        Ok(Ok(_)) => {
-                            // No data available
-                        }
-                        Ok(Err(e)) => {
-                            let _ = event_tx
-                                .send(IoEvent::Error {
-                                    port_id: port_id.clone(),
-                                    error: format!("{:?}", e),
-                                })
-                                .await;
-                        }
-                        Err(_) => {
-                            // Timeout - no data available
-                        }
+                    }
+                    _ = shutdown_rx.recv() => {
+                        // Shutdown signal received
+                        tracing::info!("IoLoop shutdown signal received");
+                        break;
                     }
                 }
             }
         });
+
+        self.io_task_handle = Some(io_task);
 
         // Event processing loop
         while let Some(event) = event_rx.recv().await {
@@ -212,9 +231,28 @@ impl IoLoop {
         }
 
         // Clean up I/O task
-        io_task.abort();
+        if let Some(handle) = self.io_task_handle.take() {
+            handle.abort();
+        }
 
         Ok(())
+    }
+
+    /// Shutdown the I/O loop gracefully
+    pub async fn shutdown(&mut self) -> Result<()> {
+        // Abort I/O task if still running
+        if let Some(handle) = self.io_task_handle.take() {
+            handle.abort();
+            let _ = timeout(Duration::from_secs(5), handle).await;
+        }
+
+        tracing::info!("IoLoop shutdown complete");
+        Ok(())
+    }
+
+    /// Check if the I/O loop is running
+    pub fn is_running(&self) -> bool {
+        self.io_task_handle.is_some()
     }
 
     /// Write data to a port
@@ -261,6 +299,7 @@ mod tests {
     fn test_io_loop_creation() {
         let io_loop = IoLoop::new();
         assert!(io_loop.event_rx.is_some());
+        assert!(!io_loop.is_running());
     }
 
     #[test]
@@ -292,5 +331,38 @@ mod tests {
             }
             _ => panic!("Unexpected event"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_ioloop_shutdown() {
+        let mut io_loop = IoLoop::new();
+
+        // Verify not running initially
+        assert!(!io_loop.is_running());
+
+        // Shutdown should be safe even when not running
+        let result = io_loop.shutdown().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_ioloop_lifecycle() {
+        let mut io_loop = IoLoop::new();
+
+        // Test creation
+        assert!(!io_loop.is_running());
+        assert!(io_loop.event_rx.is_some());
+
+        // Test event sender works
+        let tx = io_loop.event_sender();
+        let result = tx.send(IoEvent::PortOpened {
+            port_id: "lifecycle_test".to_string(),
+        }).await;
+        assert!(result.is_ok());
+
+        // Test shutdown
+        let shutdown_result = io_loop.shutdown().await;
+        assert!(shutdown_result.is_ok());
+        assert!(!io_loop.is_running());
     }
 }
