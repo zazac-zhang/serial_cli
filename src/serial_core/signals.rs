@@ -63,6 +63,7 @@ impl UnixSignalController {
     }
 
     /// Validate file descriptor before use
+    #[allow(dead_code)]
     fn validate_fd(&self, fd: libc::c_int) -> Result<()> {
         if fd < 0 {
             return Err(SerialError::Serial(SerialPortError::IoError(
@@ -157,6 +158,7 @@ impl UnixSignalController {
     /// This function validates the file descriptor before use and returns
     /// appropriate errors for invalid operations. It does NOT perform signal
     /// control operations that could fail silently - all failures are reported.
+    #[allow(dead_code)]
     fn set_modem_bit(&self, bit: libc::c_int, enable: bool) -> Result<()> {
         // Implementation requires a valid fd - this is a template
         // The actual implementation will be provided by the caller
@@ -199,9 +201,12 @@ impl UnixSignalController {
     /// # Example
     ///
     /// ```no_run
-    /// use libc::{TIOCMGET, TIOCMSET, TIOCM_DTR};
-    /// let fd = std::fs::File::open("/dev/ttyUSB0")?.as_raw_fd();
-    /// unsafe { set_modem_bit_on_fd(fd, TIOCM_DTR, true)?; }
+    /// use serial_cli::serial_core::signals::UnixSignalController;
+    /// use libc::TIOCM_DTR;
+    /// use std::os::unix::io::AsRawFd;
+    /// let file = std::fs::File::open("/dev/ttyUSB0").unwrap();
+    /// let fd = file.as_raw_fd();
+    /// unsafe { UnixSignalController::set_modem_bit_on_fd(fd, TIOCM_DTR, true).unwrap(); }
     /// ```
     pub unsafe fn set_modem_bit_on_fd(
         fd: libc::c_int,
@@ -293,6 +298,56 @@ impl WindowsSignalController {
             rts_state: true,  // Default RTS enabled
         }
     }
+
+    /// Set DTR signal using EscapeCommFunction
+    ///
+    /// # Safety
+    ///
+    /// This function requires a valid HANDLE to a COM port.
+    /// The handle must have GENERIC_WRITE access.
+    #[allow(dead_code)]
+    unsafe fn set_dtr_on_handle(handle: winapi::um::winnt::HANDLE, enable: bool) -> Result<()> {
+        use winapi::um::winbase::{SETDTR, CLRDTR, EscapeCommFunction};
+
+        let func = if enable { SETDTR } else { CLRDTR };
+
+        let result = EscapeCommFunction(handle as _, func);
+        if result == 0 {
+            let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+            return Err(SerialError::Serial(SerialPortError::IoError(format!(
+                "Failed to set DTR on Windows. Error code: {}",
+                error_code
+            ))));
+        }
+
+        tracing::debug!("DTR set to {} on Windows handle {:?}", enable, handle);
+        Ok(())
+    }
+
+    /// Set RTS signal using EscapeCommFunction
+    ///
+    /// # Safety
+    ///
+    /// This function requires a valid HANDLE to a COM port.
+    /// The handle must have GENERIC_WRITE access.
+    #[allow(dead_code)]
+    unsafe fn set_rts_on_handle(handle: winapi::um::winnt::HANDLE, enable: bool) -> Result<()> {
+        use winapi::um::winbase::{SETRTS, CLRRTS, EscapeCommFunction};
+
+        let func = if enable { SETRTS } else { CLRRTS };
+
+        let result = EscapeCommFunction(handle as _, func);
+        if result == 0 {
+            let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+            return Err(SerialError::Serial(SerialPortError::IoError(format!(
+                "Failed to set RTS on Windows. Error code: {}",
+                error_code
+            ))));
+        }
+
+        tracing::debug!("RTS set to {} on Windows handle {:?}", enable, handle);
+        Ok(())
+    }
 }
 
 #[cfg(windows)]
@@ -301,9 +356,9 @@ impl PlatformSignals for WindowsSignalController {
         let old_state = self.dtr_state;
         self.dtr_state = enable;
 
-        // Windows implementation will use EscapeCommFunction
-        // For now, we update the state and log
-        tracing::debug!("DTR signal state updated to {} on Windows", enable);
+        // Note: This updates the software state. For actual hardware control,
+        // use the set_dtr_on_handle() method with a valid COM port handle.
+        tracing::debug!("DTR signal state updated to {} on Windows (use set_dtr_on_handle for hardware control)", enable);
         Ok(SignalState::Set(enable))
     }
 
@@ -311,7 +366,9 @@ impl PlatformSignals for WindowsSignalController {
         let old_state = self.rts_state;
         self.rts_state = enable;
 
-        tracing::debug!("RTS signal state updated to {} on Windows", enable);
+        // Note: This updates the software state. For actual hardware control,
+        // use the set_rts_on_handle() method with a valid COM port handle.
+        tracing::debug!("RTS signal state updated to {} on Windows (use set_rts_on_handle for hardware control)", enable);
         Ok(SignalState::Set(enable))
     }
 

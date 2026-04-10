@@ -454,11 +454,34 @@ impl LuaBindings {
             self.lua
                 .create_function(move |_, (protocol_name, data): (String, String)| {
                     // Simplified version without runtime creation
-                    // For basic protocols, just pass through the data
+                    // For basic protocols, process according to their semantics
                     match protocol_name.as_str() {
-                        "lines" => Ok(data + "\n"),        // Add newline for line protocol
-                        "at_command" => Ok(data + "\r\n"), // Add CRLF for AT commands
-                        "modbus_rtu" | "modbus_ascii" => Ok(data.clone()), // Pass through for Modbus
+                        "line" | "lines" => {
+                            // Add newline only if not already present
+                            if data.ends_with('\n') {
+                                Ok(data)
+                            } else {
+                                Ok(data + "\n")
+                            }
+                        }
+                        "at_command" => {
+                            // Add CRLF only if not already present
+                            if data.ends_with("\r\n") {
+                                Ok(data)
+                            } else {
+                                Ok(data + "\r\n")
+                            }
+                        }
+                        "modbus_rtu" => {
+                            // Add Modbus CRC
+                            let data_bytes = data.as_bytes();
+                            let crc = Self::calculate_modbus_crc(data_bytes);
+                            let mut result = data.clone();
+                            result.push((crc & 0xFF) as u8 as char);
+                            result.push(((crc >> 8) & 0xFF) as u8 as char);
+                            Ok(result)
+                        }
+                        "modbus_ascii" => Ok(data.clone()), // Pass through for ASCII
                         _ => Ok(data),                                     // Default: pass through
                     }
                 })?;
@@ -467,16 +490,41 @@ impl LuaBindings {
         Ok(())
     }
 
+    /// Calculate Modbus CRC (helper function)
+    #[allow(dead_code)]
+    fn calculate_modbus_crc(data: &[u8]) -> u16 {
+        let mut crc: u16 = 0xFFFF;
+        for &byte in data {
+            crc ^= byte as u16;
+            for _ in 0..8 {
+                if crc & 0x0001 != 0 {
+                    crc = (crc >> 1) ^ 0xA001;
+                } else {
+                    crc >>= 1;
+                }
+            }
+        }
+        crc
+    }
+
     /// Register protocol_decode API
     pub fn register_protocol_decode(&self) -> Result<()> {
         let decode =
             self.lua
                 .create_function(move |_, (protocol_name, data): (String, String)| {
                     // Simplified version without runtime creation
-                    // For basic protocols, just pass through the data
+                    // For basic protocols, process according to their semantics
                     match protocol_name.as_str() {
-                        "lines" => Ok(data.trim_end_matches('\n').to_string()), // Remove trailing newline
-                        "at_command" => Ok(data.trim_end_matches("\r\n").to_string()), // Remove CRLF
+                        "line" | "lines" => {
+                            // For line protocol, return data as-is (parse doesn't trim)
+                            // The protocol's parse() method just returns the data unchanged
+                            Ok(data)
+                        }
+                        "at_command" => {
+                            // For AT command protocol, return data as-is (parse doesn't trim)
+                            // The protocol's parse() method just returns the data unchanged
+                            Ok(data)
+                        }
                         "modbus_rtu" | "modbus_ascii" => Ok(data.clone()), // Pass through for Modbus
                         _ => Ok(data),                                     // Default: pass through
                     }
@@ -820,15 +868,20 @@ mod tests {
         bindings.register_protocol_decode().unwrap();
 
         let script = r#"
-            -- Test lines protocol (removes trailing newline)
-            local decoded = protocol_decode("lines", "Hello\n")
+            -- Test line protocol (returns data as-is, matching actual protocol behavior)
+            local decoded = protocol_decode("line", "Hello\n")
             assert(type(decoded) == "string")
-            assert(decoded == "Hello", "Expected trailing newline to be removed")
+            assert(decoded == "Hello\n", "Expected data to be returned as-is")
 
-            -- Test at_command protocol (removes CRLF)
+            -- Test lines protocol (alias for line)
+            local decoded_lines = protocol_decode("lines", "World\n")
+            assert(type(decoded_lines) == "string")
+            assert(decoded_lines == "World\n", "Expected data to be returned as-is")
+
+            -- Test at_command protocol (returns data as-is, matching actual protocol behavior)
             local decoded_at = protocol_decode("at_command", "ATZ\r\n")
             assert(type(decoded_at) == "string")
-            assert(decoded_at == "ATZ", "Expected CRLF to be removed")
+            assert(decoded_at == "ATZ\r\n", "Expected data to be returned as-is")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());

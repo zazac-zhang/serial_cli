@@ -4,8 +4,7 @@
 
 use crate::error::{Result, SerialError};
 use crate::serial_core::{PortManager, SerialConfig};
-use crate::utils::DataFormat;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -104,7 +103,6 @@ impl SerialSniffer {
             self.packets.clone(),
             self.config.clone(),
             Arc::new(Mutex::new(true)),
-            true, // Enable real-time display by default
         ))
     }
 
@@ -211,8 +209,6 @@ pub struct SnifferSession {
     packets: Arc<Mutex<Vec<CapturedPacket>>>,
     config: SnifferConfig,
     running: Arc<Mutex<bool>>,
-    /// Real-time display enabled
-    display_enabled: bool,
 }
 
 impl SnifferSession {
@@ -223,7 +219,6 @@ impl SnifferSession {
         packets: Arc<Mutex<Vec<CapturedPacket>>>,
         config: SnifferConfig,
         running: Arc<Mutex<bool>>,
-        display_enabled: bool,
     ) -> Self {
         Self {
             port_id,
@@ -231,7 +226,6 @@ impl SnifferSession {
             packets,
             config,
             running,
-            display_enabled,
         }
     }
 
@@ -243,54 +237,6 @@ impl SnifferSession {
     /// Capture a received packet
     pub async fn capture_rx(&self, data: &[u8]) -> Result<()> {
         self.capture_packet(data, PacketDirection::Rx).await
-    }
-
-    /// Display packet in real-time
-    fn display_packet(&self, packet: &CapturedPacket) {
-        if !self.display_enabled {
-            return;
-        }
-
-        let direction = match packet.direction {
-            PacketDirection::Tx => "TX",
-            PacketDirection::Rx => "RX",
-        };
-
-        // Format timestamp
-        let time_str = chrono::DateTime::from_timestamp(packet.timestamp as i64, 0)
-            .map(|dt| dt.format("%H:%M:%S").to_string())
-            .unwrap_or_else(|| format!("{}s", packet.timestamp));
-
-        // Color coding (using ANSI escape codes)
-        let color = match packet.direction {
-            PacketDirection::Tx => "\x1b[32m", // Green for TX
-            PacketDirection::Rx => "\x1b[36m", // Cyan for RX
-        };
-        let reset = "\x1b[0m";
-
-        // Display packet info
-        tracing::info!(
-            "{}[{}] {} ({} bytes){}",
-            color,
-            time_str,
-            direction,
-            packet.length,
-            reset
-        );
-
-        // Display data
-        if self.config.hex_display {
-            // Hex dump format
-            let hex = DataFormat::bytes_to_hex(&packet.data, " ");
-            tracing::info!("  {}", hex);
-        } else {
-            // Escaped string format
-            let escaped = DataFormat::escape_bytes(&packet.data);
-            tracing::info!("  {}", escaped);
-        }
-
-        // Flush stdout
-        let _ = io::stdout().flush();
     }
 
     /// Capture a packet
@@ -404,7 +350,6 @@ mod tests {
             sniffer.packets.clone(),
             sniffer.config.clone(),
             Arc::new(Mutex::new(true)),
-            false, // Disable display for tests
         );
 
         // Simulate capturing some packets
@@ -433,7 +378,6 @@ mod tests {
             sniffer.packets.clone(),
             sniffer.config.clone(),
             Arc::new(Mutex::new(true)),
-            false, // Disable display for tests
         );
 
         // Capture more than max_packets
@@ -456,7 +400,6 @@ mod tests {
             sniffer.packets.clone(),
             sniffer.config.clone(),
             Arc::new(Mutex::new(true)),
-            false, // Disable display for tests
         );
 
         session.capture_tx(&[0x01]).await.unwrap();
@@ -477,7 +420,6 @@ mod tests {
             sniffer.packets.clone(),
             sniffer.config.clone(),
             Arc::new(Mutex::new(true)),
-            false, // Disable display for tests
         );
 
         session.capture_tx(&[0x01, 0x02, 0x03]).await.unwrap();

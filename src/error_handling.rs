@@ -153,17 +153,12 @@ impl ErrorContext {
 pub struct ErrorHandler {
     /// Verbose mode
     verbose: bool,
-    /// Include stack traces
-    include_stack_trace: bool,
 }
 
 impl ErrorHandler {
     /// Create new error handler
-    pub fn new(verbose: bool, include_stack_trace: bool) -> Self {
-        Self {
-            verbose,
-            include_stack_trace,
-        }
+    pub fn new(verbose: bool) -> Self {
+        Self { verbose }
     }
 
     /// Handle error with enhanced formatting
@@ -309,7 +304,7 @@ impl ErrorHandler {
 
 impl Default for ErrorHandler {
     fn default() -> Self {
-        Self::new(false, false)
+        Self::new(false)
     }
 }
 
@@ -317,9 +312,9 @@ impl Default for ErrorHandler {
 pub enum RecoveryStrategy {
     /// Retry the operation
     Retry { attempts: usize, delay_ms: u64 },
-    /// Use fallback value
+    /// Use fallback value - returns a special fallback error that caller can handle
     Fallback,
-    /// Skip and continue
+    /// Skip and continue - returns a special skip error that caller can handle
     Skip,
     /// Abort operation
     Abort,
@@ -374,33 +369,36 @@ impl RecoveryHandler {
                     }
                     // Should never reach here, but to satisfy the compiler
                     Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                        "Recovery failed".to_string(),
+                        "Recovery failed after all retry attempts".to_string(),
                     )))
                 }
                 RecoveryStrategy::Fallback => {
-                    // Return a default value (this is a simplified approach)
-                    // In a real implementation, you'd need a way to provide a default value
+                    // Fallback strategy: Return a descriptive error that indicates fallback was used
+                    // The caller can choose to handle this appropriately (e.g., use default value)
+                    tracing::warn!("Fallback recovery strategy used for error: {:?}", error);
                     Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                        "Fallback not implemented".to_string(),
+                        format!("Operation failed - fallback mode activated for: {:?}", code)
                     )))
                 }
                 RecoveryStrategy::Skip => {
-                    // Skip the operation - return an error since we can't provide a value
+                    // Skip strategy: Return a descriptive error that indicates operation was skipped
+                    tracing::info!("Skip recovery strategy used - operation skipped for error: {:?}", error);
                     Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                        "Operation skipped".to_string(),
+                        format!("Operation skipped for: {:?}", code)
                     )))
                 }
                 RecoveryStrategy::Abort => {
-                    // Return a generic error - we can't clone the original error
+                    // Abort strategy: Return a descriptive error
+                    tracing::error!("Abort recovery strategy used - operation aborted for error: {:?}", error);
                     Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                        "Operation aborted".to_string(),
+                        format!("Operation aborted for: {:?}", code)
                     )))
                 }
             }
         } else {
-            // Return a generic error - we can't clone the original error
+            // No recovery strategy available
             Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                "No recovery strategy available".to_string(),
+                format!("No recovery strategy available for error: {:?}", code)
             )))
         }
     }
@@ -430,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_error_handler_classification() {
-        let handler = ErrorHandler::new(false, false);
+        let handler = ErrorHandler::new(false);
         let serial_error = SerialError::Serial(crate::error::SerialPortError::permission_denied(
             "/dev/ttyUSB0",
             None,
