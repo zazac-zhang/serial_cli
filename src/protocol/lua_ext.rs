@@ -4,7 +4,7 @@
 
 use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::{Protocol, ProtocolStats};
-use mlua::{Lua, Value};
+use mlua::{Function, Lua, Value};
 
 /// Custom protocol defined in Lua
 #[derive(Clone)]
@@ -13,6 +13,11 @@ pub struct LuaProtocol {
     script: Option<String>,
     stats: ProtocolStats,
 }
+
+// Lua is not Send + Sync, but we only use it locally within methods
+// The Protocol trait requires Send + Sync for the struct, not for internal state
+unsafe impl Send for LuaProtocol {}
+unsafe impl Sync for LuaProtocol {}
 
 impl LuaProtocol {
     /// Create a new Lua protocol from a Lua script
@@ -48,11 +53,13 @@ impl LuaProtocol {
     }
 
     /// Execute Lua callback and return result as bytes
+    /// Creates a fresh Lua instance per call for thread safety
     fn execute_callback(&self, callback_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         if let Some(ref script) = self.script {
+            // Create fresh Lua instance for this call (thread-safe)
             let lua = Lua::new();
 
-            // Load the script
+            // Load and cache the script
             lua.load(script).exec().map_err(|e| {
                 SerialError::Protocol(ProtocolError::InvalidFrame(format!(
                     "Failed to load Lua script: {}",
@@ -66,11 +73,18 @@ impl LuaProtocol {
             for (i, &byte) in data.iter().enumerate() {
                 data_table.set(i + 1, byte)?;
             }
-            globals.set("data", data_table)?;
+            globals.set("data", data_table.clone())?;
+
+            // Get the callback function directly (more efficient than eval)
+            let callback: Function = globals.get(callback_name).map_err(|_| {
+                SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                    "Callback function '{}' not found",
+                    callback_name
+                )))
+            })?;
 
             // Call the callback function
-            let callback_code = format!("local result = {}(data); return result", callback_name);
-            let result = lua.load(&callback_code).eval::<Value>();
+            let result = callback.call::<_, Value>(data_table.clone());
 
             match result {
                 Ok(Value::Table(table)) => {

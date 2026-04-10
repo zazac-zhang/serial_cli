@@ -153,22 +153,33 @@ mod tests {
 
 /// Protocol subcommands
 pub enum ProtocolCommand {
-    Load { path: std::path::PathBuf, name: Option<String> },
-    Unload { name: String },
-    Reload { name: String },
-    List { verbose: bool },
-    Info { name: String },
-    Validate { path: std::path::PathBuf },
+    Load {
+        path: std::path::PathBuf,
+        name: Option<String>,
+    },
+    Unload {
+        name: String,
+    },
+    Reload {
+        name: String,
+    },
+    List {
+        verbose: bool,
+    },
+    Info {
+        name: String,
+    },
+    Validate {
+        path: std::path::PathBuf,
+    },
 }
 
 /// Execute protocol command
-pub async fn execute_protocol_command(
-    cmd: ProtocolCommand,
-) -> Result<String> {
+pub async fn execute_protocol_command(cmd: ProtocolCommand) -> Result<String> {
     match cmd {
         ProtocolCommand::Load { path, name } => {
             use crate::protocol::ProtocolValidator;
-            
+
             // Validate first
             ProtocolValidator::validate_script(&path)?;
 
@@ -179,28 +190,29 @@ pub async fn execute_protocol_command(
                     .to_string()
             });
 
-            Ok(format!("Protocol '{}' loaded from {}", protocol_name, path.display()))
+            Ok(format!(
+                "Protocol '{}' loaded from {}",
+                protocol_name,
+                path.display()
+            ))
         }
 
-        ProtocolCommand::Unload { name } => {
-            Ok(format!("Protocol '{}' unloaded", name))
-        }
+        ProtocolCommand::Unload { name } => Ok(format!("Protocol '{}' unloaded", name)),
 
-        ProtocolCommand::Reload { name } => {
-            Ok(format!("Protocol '{}' reloaded", name))
-        }
+        ProtocolCommand::Reload { name } => Ok(format!("Protocol '{}' reloaded", name)),
 
         ProtocolCommand::List { verbose } => {
             if verbose {
-                Ok("Protocols (verbose):\n  - modbus_rtu (built-in)\n  - line (built-in)".to_string())
+                Ok(
+                    "Protocols (verbose):\n  - modbus_rtu (built-in)\n  - line (built-in)"
+                        .to_string(),
+                )
             } else {
                 Ok("Protocols:\n  - modbus_rtu\n  - line".to_string())
             }
         }
 
-        ProtocolCommand::Info { name } => {
-            Ok(format!("Protocol: {}\n  Type: built-in", name))
-        }
+        ProtocolCommand::Info { name } => Ok(format!("Protocol: {}\n  Type: built-in", name)),
 
         ProtocolCommand::Validate { path } => {
             use crate::protocol::ProtocolValidator;

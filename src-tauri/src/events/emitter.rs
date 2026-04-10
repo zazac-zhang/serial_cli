@@ -6,8 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use tauri::{AppHandle, Emitter, Listener};
 use log::{debug, error};
+use tauri::{AppHandle, Emitter, Listener};
 
 /// Setup the event system for real-time updates
 pub fn setup_event_system(app: AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -87,10 +87,7 @@ pub async fn emit_port_status_changed(
 }
 
 /// Emit an error event
-pub async fn emit_error(
-    app: AppHandle,
-    error: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn emit_error(app: AppHandle, error: String) -> Result<(), Box<dyn std::error::Error>> {
     let payload = serde_json::json!({
         "error": error,
         "timestamp": chrono::Utc::now().timestamp_millis(),

@@ -413,37 +413,38 @@ impl LuaBindings {
     async fn register_builtins(registry: &mut crate::protocol::ProtocolRegistry) {
         use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
         use crate::protocol::registry::SimpleProtocolFactory;
+        use std::sync::Arc;
 
         registry
-            .register(SimpleProtocolFactory::new(
+            .register(Arc::new(SimpleProtocolFactory::new(
                 "line".to_string(),
                 "Line-based protocol".to_string(),
                 LineProtocol::new,
-            ))
+            )))
             .await;
 
         registry
-            .register(SimpleProtocolFactory::new(
+            .register(Arc::new(SimpleProtocolFactory::new(
                 "at_command".to_string(),
                 "AT Command protocol".to_string(),
                 AtCommandProtocol::new,
-            ))
+            )))
             .await;
 
         registry
-            .register(SimpleProtocolFactory::new(
+            .register(Arc::new(SimpleProtocolFactory::new(
                 "modbus_rtu".to_string(),
                 "Modbus RTU protocol".to_string(),
                 || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Rtu),
-            ))
+            )))
             .await;
 
         registry
-            .register(SimpleProtocolFactory::new(
+            .register(Arc::new(SimpleProtocolFactory::new(
                 "modbus_ascii".to_string(),
                 "Modbus ASCII protocol".to_string(),
                 || ModbusProtocol::new(crate::protocol::built_in::modbus::ModbusMode::Ascii),
-            ))
+            )))
             .await;
     }
 
@@ -455,10 +456,10 @@ impl LuaBindings {
                     // Simplified version without runtime creation
                     // For basic protocols, just pass through the data
                     match protocol_name.as_str() {
-                        "lines" => Ok(data + "\n"), // Add newline for line protocol
+                        "lines" => Ok(data + "\n"),        // Add newline for line protocol
                         "at_command" => Ok(data + "\r\n"), // Add CRLF for AT commands
                         "modbus_rtu" | "modbus_ascii" => Ok(data.clone()), // Pass through for Modbus
-                        _ => Ok(data), // Default: pass through
+                        _ => Ok(data),                                     // Default: pass through
                     }
                 })?;
 
@@ -477,7 +478,7 @@ impl LuaBindings {
                         "lines" => Ok(data.trim_end_matches('\n').to_string()), // Remove trailing newline
                         "at_command" => Ok(data.trim_end_matches("\r\n").to_string()), // Remove CRLF
                         "modbus_rtu" | "modbus_ascii" => Ok(data.clone()), // Pass through for Modbus
-                        _ => Ok(data), // Default: pass through
+                        _ => Ok(data),                                     // Default: pass through
                     }
                 })?;
 

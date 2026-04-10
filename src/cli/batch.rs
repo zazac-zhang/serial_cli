@@ -95,37 +95,45 @@ impl BatchRunner {
                 content: script_content,
             });
 
+            // Submit task with unique identifier
+            let task_id = task.id().clone();
             self.executor.submit(task, TaskPriority::Normal).await?;
 
-            // Wait for task to complete (with timeout)
+            // Wait for this specific task to complete
             let start = std::time::Instant::now();
-            loop {
+            let mut task_completed = false;
+
+            while !task_completed && start.elapsed() < Duration::from_secs(self.config.timeout_secs)
+            {
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
                 let completed = self.executor.get_completed().await;
-                if let Some(last) = completed.last() {
+                if let Some(completion) = completed.iter().find(|c| c.task_id == task_id) {
                     results.push(ScriptResult {
                         script: script_path.display().to_string(),
-                        success: matches!(last.result, crate::task::TaskResult::Success),
-                        duration: last.duration,
+                        success: matches!(completion.result, crate::task::TaskResult::Success),
+                        duration: completion.duration,
                     });
 
                     if !self.config.continue_on_error
-                        && matches!(last.result, crate::task::TaskResult::Error(_))
+                        && matches!(completion.result, crate::task::TaskResult::Error(_))
                     {
+                        executor.stop().await?;
                         return Err(SerialError::Script(crate::error::ScriptError::ApiError(
                             "Script execution failed".to_string(),
                         )));
                     }
+                    task_completed = true;
                     break;
                 }
+            }
 
-                if start.elapsed() > Duration::from_secs(self.config.timeout_secs) {
-                    return Err(SerialError::Io(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "Script execution timeout",
-                    )));
-                }
+            if !task_completed {
+                executor.stop().await?;
+                return Err(SerialError::Io(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "Script execution timeout",
+                )));
             }
         }
 
@@ -266,7 +274,10 @@ impl BatchRunner {
         let mut results = Vec::new();
         let total_lines = batch_lines.len();
         let mut progress = if self.config.show_progress {
-            Some(ProgressReporter::new("Batch execution".to_string(), total_lines))
+            Some(ProgressReporter::new(
+                "Batch execution".to_string(),
+                total_lines,
+            ))
         } else {
             None
         };
@@ -344,7 +355,10 @@ impl BatchRunner {
                 BatchLine::Conditional { condition, scripts } => {
                     // Handle conditional execution (simplified - always execute for now)
                     if self.config.verbose {
-                        tracing::info!("Conditional: {} (always true in current implementation)", condition);
+                        tracing::info!(
+                            "Conditional: {} (always true in current implementation)",
+                            condition
+                        );
                     }
 
                     for script in scripts {

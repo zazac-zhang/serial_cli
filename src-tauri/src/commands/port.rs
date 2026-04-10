@@ -7,8 +7,8 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use crate::state::port_state::{PortStatus, SerialConfig, PortStats};
-use serial_cli::serial_core::{PortManager, SerialConfig as CoreSerialConfig, Parity, FlowControl};
+use crate::state::port_state::{PortStats, PortStatus, SerialConfig};
+use serial_cli::serial_core::{FlowControl, Parity, PortManager, SerialConfig as CoreSerialConfig};
 use tauri::State;
 
 /// List available serial ports
@@ -92,7 +92,9 @@ pub async fn open_port(
                         app_handle.clone(),
                         port_id_clone.clone(),
                         data,
-                    ).await {
+                    )
+                    .await
+                    {
                         eprintln!("Failed to emit data-received event: {}", e);
                     }
                 }
@@ -160,9 +162,7 @@ pub async fn get_all_ports_status(state: State<'_, AppState>) -> Result<Vec<Port
     use tokio::sync::MutexGuard;
 
     let manager: MutexGuard<PortManager> = state.port_manager.lock().await;
-    let ports = manager
-        .list_ports()
-        .map_err(|e| e.to_string())?;
+    let ports = manager.list_ports().map_err(|e| e.to_string())?;
 
     let mut statuses = Vec::new();
 
@@ -193,7 +193,7 @@ pub async fn check_port_health(
 
     // Try to get the port handle
     match manager.get_port(&port_id).await {
-        Ok(_) => Ok(true),  // Port is still accessible
+        Ok(_) => Ok(true),   // Port is still accessible
         Err(_) => Ok(false), // Port is closed or error
     }
 }

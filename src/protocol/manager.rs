@@ -41,20 +41,28 @@ impl ProtocolManager {
         let loaded = ProtocolLoader::load_from_file(path)?;
 
         // Create factory
-        let _factory = ProtocolLoader::create_factory(&loaded)?;
+        let factory = ProtocolLoader::create_factory(&loaded)?;
 
         // Store metadata
         let custom = CustomProtocol {
             name: loaded.name.clone(),
-            script_path: loaded.script_path,
+            script_path: loaded.script_path.clone(),
             loaded_at: loaded.loaded_at,
             version: 1,
         };
 
+        // Register to protocol registry
+        let mut registry = self.registry.lock().await;
+        registry.register(factory).await;
+        drop(registry);
+
+        // Store in custom protocols tracking
         self.custom_protocols.insert(loaded.name.clone(), custom);
 
-        // Note: Actual registration with ProtocolRegistry will be done
-        // in a follow-up task. For now, we just track metadata.
+        tracing::info!(
+            "Successfully loaded and registered protocol: {}",
+            loaded.name
+        );
 
         Ok(ProtocolInfo {
             name: loaded.name,
@@ -64,12 +72,19 @@ impl ProtocolManager {
 
     /// Unload a protocol
     pub async fn unload_protocol(&mut self, name: &str) -> Result<()> {
+        // Check if protocol exists
+        if !self.custom_protocols.contains_key(name) {
+            return Err(SerialError::Protocol(ProtocolError::NotFound(name.to_string())));
+        }
+
         // Remove from metadata
         self.custom_protocols.remove(name);
 
-        // Note: ProtocolRegistry doesn't have unregister yet
-        // Protocol will be removed from actual registry on restart
-        // This is a known limitation to be addressed in future enhancement
+        // Remove from registry
+        let mut registry = self.registry.lock().await;
+        registry.unregister(name).await?;
+
+        tracing::info!("Successfully unloaded protocol: {}", name);
 
         Ok(())
     }

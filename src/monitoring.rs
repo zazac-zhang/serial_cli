@@ -3,8 +3,8 @@
 //! This module provides performance monitoring capabilities for serial operations.
 
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 /// Performance metrics
@@ -132,10 +132,16 @@ impl PerformanceMonitor {
         let mut metrics = self.metrics.lock().await;
 
         if !metrics.contains_key(operation) {
-            metrics.insert(operation.to_string(), PerformanceMetrics::new(operation.to_string()));
+            metrics.insert(
+                operation.to_string(),
+                PerformanceMetrics::new(operation.to_string()),
+            );
         }
 
-        metrics.get_mut(operation).unwrap().update(duration, success, bytes_processed);
+        metrics
+            .get_mut(operation)
+            .unwrap()
+            .update(duration, success, bytes_processed);
     }
 
     /// Get metrics for an operation
@@ -211,13 +217,17 @@ impl OperationTimer {
     /// Complete the operation (success)
     pub async fn complete(self) {
         let duration = self.start_time.elapsed();
-        self.monitor.record_operation(&self.operation, duration, true, self.bytes_processed).await;
+        self.monitor
+            .record_operation(&self.operation, duration, true, self.bytes_processed)
+            .await;
     }
 
     /// Complete the operation with failure
     pub async fn complete_failure(self) {
         let duration = self.start_time.elapsed();
-        self.monitor.record_operation(&self.operation, duration, false, self.bytes_processed).await;
+        self.monitor
+            .record_operation(&self.operation, duration, false, self.bytes_processed)
+            .await;
     }
 }
 
@@ -257,6 +267,8 @@ impl ResourceMonitor {
         {
             // Get memory usage on Windows
             self.memory_usage = Self::get_memory_usage_windows();
+            // On Windows, file descriptors are not directly accessible
+            self.open_fds = 0;
         }
 
         self.thread_count = Self::get_thread_count();
@@ -295,15 +307,34 @@ impl ResourceMonitor {
 
     #[cfg(windows)]
     fn get_memory_usage_windows() -> usize {
-        // Windows implementation would use GetProcessMemoryInfo
-        // For now, return 0
+        use std::mem;
+
+        // Windows implementation using GetProcessMemoryInfo
+        #[cfg(target_os = "windows")]
+        unsafe {
+            use winapi::um::processthreadsapi::GetCurrentProcess;
+            use winapi::um::psapi::GetProcessMemoryInfo;
+            use winapi::um::psapi::PROCESS_MEMORY_COUNTERS;
+            use winapi::um::winnt::HANDLE;
+
+            let handle = GetCurrentProcess();
+            let mut pmc: PROCESS_MEMORY_COUNTERS = mem::zeroed();
+            pmc.cb = mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+
+            if GetProcessMemoryInfo(handle, &mut pmc, pmc.cb) != 0 {
+                return pmc.WorkingSetSize as usize;
+            }
+        }
+
+        // Fallback: estimate based on heap size
         0
     }
 
     fn get_thread_count() -> usize {
-        // Estimate thread count
-        // A real implementation would use platform-specific APIs
-        1
+        // Estimate thread count using available parallelism
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
     }
 
     /// Format as string
@@ -333,9 +364,15 @@ mod tests {
         let monitor = PerformanceMonitor::new();
 
         // Record some operations
-        monitor.record_operation("test_op", Duration::from_millis(100), true, 1024).await;
-        monitor.record_operation("test_op", Duration::from_millis(200), true, 2048).await;
-        monitor.record_operation("test_op", Duration::from_millis(150), false, 0).await;
+        monitor
+            .record_operation("test_op", Duration::from_millis(100), true, 1024)
+            .await;
+        monitor
+            .record_operation("test_op", Duration::from_millis(200), true, 2048)
+            .await;
+        monitor
+            .record_operation("test_op", Duration::from_millis(150), false, 0)
+            .await;
 
         let metrics = monitor.get_metrics("test_op").await;
         assert!(metrics.is_some());

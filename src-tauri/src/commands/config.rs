@@ -7,7 +7,9 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::config::{Config, SerialConfig, LoggingConfig, LuaConfig, TaskConfig, OutputConfig};
+use serial_cli::config::{
+    Config, LoggingConfig, LuaConfig, OutputConfig, SerialConfig, TaskConfig,
+};
 use std::fs;
 use std::path::PathBuf;
 use tauri::State;
@@ -57,16 +59,12 @@ pub async fn get_config_raw() -> Result<String, String> {
         return Ok(toml_string);
     }
 
-    fs::read_to_string(&config_path)
-        .map_err(|e| format!("Failed to read config file: {}", e))
+    fs::read_to_string(&config_path).map_err(|e| format!("Failed to read config file: {}", e))
 }
 
 /// Update configuration
 #[tauri::command]
-pub async fn update_config(
-    config: ConfigData,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn update_config(config: ConfigData, state: State<'_, AppState>) -> Result<(), String> {
     let config_path = get_config_path()?;
 
     // Create config directory if it doesn't exist
@@ -111,8 +109,7 @@ pub async fn update_config(
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
     // Write to file
-    fs::write(&config_path, toml_string)
-        .map_err(|e| format!("Failed to write config file: {}", e))
+    fs::write(&config_path, toml_string).map_err(|e| format!("Failed to write config file: {}", e))
 }
 
 /// Save configuration from raw TOML string
@@ -121,8 +118,7 @@ pub async fn save_config_raw(content: String) -> Result<(), String> {
     let config_path = get_config_path()?;
 
     // Validate TOML syntax
-    toml::from_str::<Config>(&content)
-        .map_err(|e| format!("Invalid TOML syntax: {}", e))?;
+    toml::from_str::<Config>(&content).map_err(|e| format!("Invalid TOML syntax: {}", e))?;
 
     // Create config directory if it doesn't exist
     if let Some(parent) = config_path.parent() {
@@ -133,8 +129,7 @@ pub async fn save_config_raw(content: String) -> Result<(), String> {
     }
 
     // Write to file
-    fs::write(&config_path, content)
-        .map_err(|e| e.to_string())
+    fs::write(&config_path, content).map_err(|e| e.to_string())
 }
 
 /// Reset configuration to defaults
@@ -146,8 +141,7 @@ pub async fn reset_config() -> Result<(), String> {
     let toml_string = toml::to_string_pretty(&default_config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-    fs::write(&config_path, toml_string)
-        .map_err(|e| format!("Failed to write config file: {}", e))
+    fs::write(&config_path, toml_string).map_err(|e| format!("Failed to write config file: {}", e))
 }
 
 /// Get configuration file path

@@ -43,7 +43,8 @@ async fn test_validate_protocol() {
     let error_path = std::path::PathBuf::from("tests/fixtures/protocols/test_syntax_error.lua");
     assert!(ProtocolValidator::validate_script(&error_path).is_err());
 
-    let missing_func_path = std::path::PathBuf::from("tests/fixtures/protocols/test_missing_func.lua");
+    let missing_func_path =
+        std::path::PathBuf::from("tests/fixtures/protocols/test_missing_func.lua");
     assert!(ProtocolValidator::validate_script(&missing_func_path).is_err());
 }
 

@@ -162,12 +162,9 @@ impl AutoReconnect {
                 }
                 Err(e) => {
                     if attempt >= self.config.max_attempts {
-                        return Err(SerialError::Serial(
-                            crate::error::SerialPortError::IoError(format!(
-                                "Failed to connect after {} attempts: {}",
-                                attempt, e
-                            )),
-                        ));
+                        return Err(SerialError::Serial(crate::error::SerialPortError::IoError(
+                            format!("Failed to connect after {} attempts: {}", attempt, e),
+                        )));
                     }
 
                     tracing::warn!(
@@ -255,9 +252,8 @@ impl DataFormat {
         let mut bytes = Vec::new();
         for i in (0..hex.len()).step_by(2) {
             let byte_str = &hex[i..i + 2];
-            let byte = u8::from_str_radix(byte_str, 16).map_err(|_| {
-                SerialError::Config(format!("Invalid hex string: {}", byte_str))
-            })?;
+            let byte = u8::from_str_radix(byte_str, 16)
+                .map_err(|_| SerialError::Config(format!("Invalid hex string: {}", byte_str)))?;
             bytes.push(byte);
         }
 
@@ -340,7 +336,9 @@ impl ProgressReporter {
             None
         };
 
-        let eta_str = eta.map(|d| format!(" in {:.1}s", d.as_secs_f64())).unwrap_or_default();
+        let eta_str = eta
+            .map(|d| format!(" in {:.1}s", d.as_secs_f64()))
+            .unwrap_or_default();
 
         tracing::trace!(
             "\r{}: {}/{} ({}%) {:.2} ops/s{}",

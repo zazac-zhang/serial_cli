@@ -6,9 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+pub mod config;
 pub mod port;
-pub mod serial;
 pub mod protocol;
 pub mod script;
-pub mod config;
+pub mod serial;
 pub mod window;

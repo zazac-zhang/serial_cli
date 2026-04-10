@@ -7,8 +7,8 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::protocol::{ProtocolInfo, Protocol};
 use serial_cli::error::Result as SerialResult;
+use serial_cli::protocol::{Protocol, ProtocolInfo};
 use std::path::PathBuf;
 use tauri::State;
 
@@ -40,10 +40,7 @@ pub async fn load_protocol(
 
 /// Unload a custom protocol
 #[tauri::command]
-pub async fn unload_protocol(
-    name: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn unload_protocol(name: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut manager = state.protocol_manager.lock().await;
     manager
         .unload_protocol(&name)
@@ -53,10 +50,7 @@ pub async fn unload_protocol(
 
 /// Reload a custom protocol
 #[tauri::command]
-pub async fn reload_protocol(
-    name: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn reload_protocol(name: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut manager = state.protocol_manager.lock().await;
     manager
         .reload_protocol(&name)

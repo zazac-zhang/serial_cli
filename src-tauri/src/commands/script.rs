@@ -8,26 +8,24 @@
 
 use crate::state::app_state::AppState;
 use serial_cli::lua::LuaBindings;
-use tauri::State;
 use std::fs;
 use std::path::PathBuf;
+use tauri::State;
 
 /// Execute a Lua script
 #[tauri::command]
-pub async fn execute_script(
-    script: String,
-    _state: State<'_, AppState>,
-) -> Result<String, String> {
+pub async fn execute_script(script: String, _state: State<'_, AppState>) -> Result<String, String> {
     // Create Lua bindings
-    let bindings = LuaBindings::new()
-        .map_err(|e| format!("Failed to create Lua engine: {}", e))?;
+    let bindings = LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
 
     // Register all APIs at once
-    bindings.register_all_apis()
+    bindings
+        .register_all_apis()
         .map_err(|e| format!("Failed to register APIs: {}", e))?;
 
     // Execute the script
-    bindings.execute_script(&script)
+    bindings
+        .execute_script(&script)
         .map(|_| "Script executed successfully".to_string())
         .map_err(|e| format!("Script execution error: {}", e))
 }
@@ -39,8 +37,7 @@ pub async fn validate_script(
     _state: State<'_, AppState>,
 ) -> Result<Vec<ValidationError>, String> {
     // Create Lua bindings
-    let bindings = LuaBindings::new()
-        .map_err(|e| format!("Failed to create Lua engine: {}", e))?;
+    let bindings = LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
 
     // Try to load the script (without executing)
     match bindings.lua().load(script).exec() {
@@ -61,9 +58,7 @@ pub async fn validate_script(
 
 /// List available scripts
 #[tauri::command]
-pub async fn list_scripts(
-    _state: State<'_, AppState>,
-) -> Result<Vec<ScriptInfo>, String> {
+pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>, String> {
     let scripts_dir = get_scripts_dir()?;
     let mut scripts = Vec::new();
 
@@ -103,10 +98,7 @@ pub async fn list_scripts(
 
 /// Load a script
 #[tauri::command]
-pub async fn load_script(
-    name: String,
-    _state: State<'_, AppState>,
-) -> Result<String, String> {
+pub async fn load_script(name: String, _state: State<'_, AppState>) -> Result<String, String> {
     let scripts_dir = get_scripts_dir()?;
     let script_path = scripts_dir.join(format!("{}.lua", name));
 
@@ -114,8 +106,7 @@ pub async fn load_script(
         return Err(format!("Script not found: {}", name));
     }
 
-    fs::read_to_string(&script_path)
-        .map_err(|e| format!("Failed to read script: {}", e))
+    fs::read_to_string(&script_path).map_err(|e| format!("Failed to read script: {}", e))
 }
 
 /// Save a script
@@ -135,16 +126,12 @@ pub async fn save_script(
 
     let script_path = scripts_dir.join(format!("{}.lua", name));
 
-    fs::write(&script_path, content)
-        .map_err(|e| format!("Failed to write script: {}", e))
+    fs::write(&script_path, content).map_err(|e| format!("Failed to write script: {}", e))
 }
 
 /// Delete a script
 #[tauri::command]
-pub async fn delete_script(
-    name: String,
-    _state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn delete_script(name: String, _state: State<'_, AppState>) -> Result<(), String> {
     let scripts_dir = get_scripts_dir()?;
     let script_path = scripts_dir.join(format!("{}.lua", name));
 
@@ -152,14 +139,12 @@ pub async fn delete_script(
         return Err(format!("Script not found: {}", name));
     }
 
-    fs::remove_file(&script_path)
-        .map_err(|e| format!("Failed to delete script: {}", e))
+    fs::remove_file(&script_path).map_err(|e| format!("Failed to delete script: {}", e))
 }
 
 /// Get scripts directory
 fn get_scripts_dir() -> Result<PathBuf, String> {
-    let mut base_dir = dirs::home_dir()
-        .ok_or("Failed to get home directory")?;
+    let mut base_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
 
     base_dir.push(".serial-cli");
     base_dir.push("scripts");

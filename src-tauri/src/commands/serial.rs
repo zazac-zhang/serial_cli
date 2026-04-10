@@ -7,10 +7,10 @@
 // except according to those terms.
 
 use crate::state::app_state::{AppState, DataSniffer};
-use tauri::{State, AppHandle};
-use log::{info, error, debug};
-use tokio::sync::Mutex;
+use log::{debug, error, info};
 use std::time::Duration;
+use tauri::{AppHandle, State};
+use tokio::sync::Mutex;
 
 /// Send data to a serial port
 #[tauri::command]
@@ -27,14 +27,12 @@ pub async fn send_data(
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
     let mut handle = port_handle.lock().await;
 
-    let bytes_written = handle.write(&data).map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    let bytes_written = handle
+        .write(&data)
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
 
     // Emit data-sent event
-    if let Err(e) = crate::events::emitter::emit_data_sent(
-        app,
-        port_id,
-        data,
-    ).await {
+    if let Err(e) = crate::events::emitter::emit_data_sent(app, port_id, data).await {
         error!("Failed to emit data-sent event: {}", e);
     }
 
@@ -55,7 +53,9 @@ pub async fn read_data(
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
     let mut handle = port_handle.lock().await;
     let mut buffer = vec![0u8; max_bytes];
-    let bytes_read = handle.read(&mut buffer).map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    let bytes_read = handle
+        .read(&mut buffer)
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
     buffer.truncate(bytes_read);
     Ok(buffer)
 }
@@ -118,7 +118,9 @@ pub async fn start_sniffing(
                                     app_clone.clone(),
                                     port_id_clone.clone(),
                                     data,
-                                ).await {
+                                )
+                                .await
+                                {
                                     error!("Failed to emit data-received event: {}", e);
                                 }
                             }
@@ -148,10 +150,13 @@ pub async fn start_sniffing(
     });
 
     // Store the sniffer
-    sniffers.insert(port_id.clone(), DataSniffer {
-        task_handle,
-        stop_tx,
-    });
+    sniffers.insert(
+        port_id.clone(),
+        DataSniffer {
+            task_handle,
+            stop_tx,
+        },
+    );
 
     info!("Started sniffing for port: {}", port_id);
     Ok(())
@@ -159,10 +164,7 @@ pub async fn start_sniffing(
 
 /// Stop sniffing data on a port
 #[tauri::command]
-pub async fn stop_sniffing(
-    port_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn stop_sniffing(port_id: String, state: State<'_, AppState>) -> Result<(), String> {
     info!("Stopping data sniffing for port: {}", port_id);
 
     let mut sniffers = state.active_sniffers.lock().await;
@@ -180,7 +182,10 @@ pub async fn stop_sniffing(
                 error!("Sniffer task error for port {}: {:?}", port_id, e);
             }
             Err(_) => {
-                error!("Timeout waiting for sniffer task to stop for port: {}", port_id);
+                error!(
+                    "Timeout waiting for sniffer task to stop for port: {}",
+                    port_id
+                );
             }
         }
     } else {

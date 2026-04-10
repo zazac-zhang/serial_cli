@@ -18,9 +18,7 @@ use state::app_state::AppState;
 #[tokio::main]
 async fn main() {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     // Create global app state
     let app_state = AppState::new().await;

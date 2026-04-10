@@ -116,19 +116,34 @@ impl ErrorContext {
                 format!("Operation timeout: {}. The operation took too long to complete. Try increasing the timeout value.", self.message)
             }
             ErrorCode::InvalidConfig => {
-                format!("Invalid configuration: {}. Check your configuration file and try again.", self.message)
+                format!(
+                    "Invalid configuration: {}. Check your configuration file and try again.",
+                    self.message
+                )
             }
             ErrorCode::ProtocolError => {
-                format!("Protocol error: {}. The data format or protocol may be incorrect.", self.message)
+                format!(
+                    "Protocol error: {}. The data format or protocol may be incorrect.",
+                    self.message
+                )
             }
             ErrorCode::ScriptError => {
-                format!("Script error: {}. Check your Lua script for syntax or runtime errors.", self.message)
+                format!(
+                    "Script error: {}. Check your Lua script for syntax or runtime errors.",
+                    self.message
+                )
             }
             ErrorCode::IoError => {
-                format!("I/O error: {}. A system-level error occurred.", self.message)
+                format!(
+                    "I/O error: {}. A system-level error occurred.",
+                    self.message
+                )
             }
             ErrorCode::Unknown => {
-                format!("Unknown error: {}. An unexpected error occurred.", self.message)
+                format!(
+                    "Unknown error: {}. An unexpected error occurred.",
+                    self.message
+                )
             }
         }
     }
@@ -173,32 +188,20 @@ impl ErrorHandler {
         match error {
             SerialError::Serial(ref port_error) => {
                 let error_str = port_error.to_string().to_lowercase();
-                if error_str.contains("permission denied")
-                    || error_str.contains("access denied")
-                {
+                if error_str.contains("permission denied") || error_str.contains("access denied") {
                     (
                         format!("Permission denied: {}", port_error),
                         ErrorCode::PermissionDenied,
                     )
-                } else if error_str.contains("not found")
-                    || error_str.contains("no such file")
-                {
+                } else if error_str.contains("not found") || error_str.contains("no such file") {
                     (
                         format!("Port not found: {}", port_error),
                         ErrorCode::PortNotFound,
                     )
-                } else if error_str.contains("busy")
-                    || error_str.contains("in use")
-                {
-                    (
-                        format!("Port busy: {}", port_error),
-                        ErrorCode::PortBusy,
-                    )
+                } else if error_str.contains("busy") || error_str.contains("in use") {
+                    (format!("Port busy: {}", port_error), ErrorCode::PortBusy)
                 } else {
-                    (
-                        format!("Serial error: {}", port_error),
-                        ErrorCode::IoError,
-                    )
+                    (format!("Serial error: {}", port_error), ErrorCode::IoError)
                 }
             }
             SerialError::Io(ref io_error) => {
@@ -209,10 +212,7 @@ impl ErrorHandler {
                         ErrorCode::Timeout,
                     )
                 } else {
-                    (
-                        format!("I/O error: {}", io_error),
-                        ErrorCode::IoError,
-                    )
+                    (format!("I/O error: {}", io_error), ErrorCode::IoError)
                 }
             }
             SerialError::Config(ref config_error) => (
@@ -227,10 +227,7 @@ impl ErrorHandler {
                 format!("Script error: {}", script_error),
                 ErrorCode::ScriptError,
             ),
-            _ => (
-                format!("Error: {}", error),
-                ErrorCode::Unknown,
-            ),
+            _ => (format!("Error: {}", error), ErrorCode::Unknown),
         }
     }
 
@@ -239,65 +236,69 @@ impl ErrorHandler {
         match code {
             ErrorCode::PermissionDenied => {
                 context = context.add_suggestion(
-                    "Try running the command with sudo (Linux/macOS) or as Administrator (Windows)".to_string()
+                    "Try running the command with sudo (Linux/macOS) or as Administrator (Windows)"
+                        .to_string(),
                 );
                 context = context.add_suggestion(
-                    "Check if your user has proper permissions for the serial port device".to_string()
+                    "Check if your user has proper permissions for the serial port device"
+                        .to_string(),
                 );
                 context = context.add_suggestion(
-                    "On Linux, you may need to add your user to the 'dialout' or 'uucp' group".to_string()
+                    "On Linux, you may need to add your user to the 'dialout' or 'uucp' group"
+                        .to_string(),
                 );
             }
             ErrorCode::PortNotFound => {
+                context =
+                    context.add_suggestion("Check if the device is properly connected".to_string());
                 context = context.add_suggestion(
-                    "Check if the device is properly connected".to_string()
+                    "Verify the port name (e.g., COM1, /dev/ttyUSB0, /dev/tty.usbserial-*)"
+                        .to_string(),
                 );
                 context = context.add_suggestion(
-                    "Verify the port name (e.g., COM1, /dev/ttyUSB0, /dev/tty.usbserial-*)".to_string()
-                );
-                context = context.add_suggestion(
-                    "Try running 'serial-cli list-ports' to see available ports".to_string()
+                    "Try running 'serial-cli list-ports' to see available ports".to_string(),
                 );
             }
             ErrorCode::PortBusy => {
                 context = context.add_suggestion(
-                    "Close other applications that may be using this port".to_string()
+                    "Close other applications that may be using this port".to_string(),
                 );
                 context = context.add_suggestion(
-                    "Check if another instance of serial-cli is running".to_string()
+                    "Check if another instance of serial-cli is running".to_string(),
                 );
                 context = context.add_suggestion(
-                    "On Linux, you can use 'lsof | grep tty' to find processes using the port".to_string()
+                    "On Linux, you can use 'lsof | grep tty' to find processes using the port"
+                        .to_string(),
                 );
             }
             ErrorCode::Timeout => {
+                context = context
+                    .add_suggestion("Increase the timeout value in configuration".to_string());
+                context = context
+                    .add_suggestion("Check if the device is responding correctly".to_string());
                 context = context.add_suggestion(
-                    "Increase the timeout value in configuration".to_string()
-                );
-                context = context.add_suggestion(
-                    "Check if the device is responding correctly".to_string()
-                );
-                context = context.add_suggestion(
-                    "Verify the baud rate and other serial settings match the device".to_string()
+                    "Verify the baud rate and other serial settings match the device".to_string(),
                 );
             }
             ErrorCode::InvalidConfig => {
                 context = context.add_suggestion(
-                    "Check your configuration file (.serial-cli.toml) for syntax errors".to_string()
+                    "Check your configuration file (.serial-cli.toml) for syntax errors"
+                        .to_string(),
                 );
                 context = context.add_suggestion(
-                    "Try running 'serial-cli config reset' to restore default configuration".to_string()
+                    "Try running 'serial-cli config reset' to restore default configuration"
+                        .to_string(),
                 );
                 context = context.add_suggestion(
-                    "Validate configuration values (e.g., baud rate must be a valid number)".to_string()
+                    "Validate configuration values (e.g., baud rate must be a valid number)"
+                        .to_string(),
                 );
             }
             _ => {
+                context = context
+                    .add_suggestion("Check the error message for specific details".to_string());
                 context = context.add_suggestion(
-                    "Check the error message for specific details".to_string()
-                );
-                context = context.add_suggestion(
-                    "Try running with --verbose flag for more information".to_string()
+                    "Try running with --verbose flag for more information".to_string(),
                 );
             }
         }
@@ -352,11 +353,7 @@ impl RecoveryHandler {
     }
 
     /// Attempt recovery from an error
-    pub async fn recover<F, Fut, T>(
-        &self,
-        error: &SerialError,
-        mut operation: F,
-    ) -> Result<T>
+    pub async fn recover<F, Fut, T>(&self, error: &SerialError, mut operation: F) -> Result<T>
     where
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<T>>,
@@ -376,35 +373,35 @@ impl RecoveryHandler {
                         }
                     }
                     // Should never reach here, but to satisfy the compiler
-                    Err(SerialError::Serial(
-                        crate::error::SerialPortError::IoError("Recovery failed".to_string())
-                    ))
+                    Err(SerialError::Serial(crate::error::SerialPortError::IoError(
+                        "Recovery failed".to_string(),
+                    )))
                 }
                 RecoveryStrategy::Fallback => {
                     // Return a default value (this is a simplified approach)
                     // In a real implementation, you'd need a way to provide a default value
-                    Err(SerialError::Serial(
-                        crate::error::SerialPortError::IoError("Fallback not implemented".to_string())
-                    ))
+                    Err(SerialError::Serial(crate::error::SerialPortError::IoError(
+                        "Fallback not implemented".to_string(),
+                    )))
                 }
                 RecoveryStrategy::Skip => {
                     // Skip the operation - return an error since we can't provide a value
-                    Err(SerialError::Serial(
-                        crate::error::SerialPortError::IoError("Operation skipped".to_string())
-                    ))
+                    Err(SerialError::Serial(crate::error::SerialPortError::IoError(
+                        "Operation skipped".to_string(),
+                    )))
                 }
                 RecoveryStrategy::Abort => {
                     // Return a generic error - we can't clone the original error
-                    Err(SerialError::Serial(
-                        crate::error::SerialPortError::IoError("Operation aborted".to_string())
-                    ))
+                    Err(SerialError::Serial(crate::error::SerialPortError::IoError(
+                        "Operation aborted".to_string(),
+                    )))
                 }
             }
         } else {
             // Return a generic error - we can't clone the original error
-            Err(SerialError::Serial(
-                crate::error::SerialPortError::IoError("No recovery strategy available".to_string())
-            ))
+            Err(SerialError::Serial(crate::error::SerialPortError::IoError(
+                "No recovery strategy available".to_string(),
+            )))
         }
     }
 }
@@ -434,9 +431,10 @@ mod tests {
     #[test]
     fn test_error_handler_classification() {
         let handler = ErrorHandler::new(false, false);
-        let serial_error = SerialError::Serial(
-            crate::error::SerialPortError::permission_denied("/dev/ttyUSB0", None)
-        );
+        let serial_error = SerialError::Serial(crate::error::SerialPortError::permission_denied(
+            "/dev/ttyUSB0",
+            None,
+        ));
 
         let context = handler.handle_error(&serial_error);
         assert_eq!(context.code, ErrorCode::PermissionDenied);
@@ -447,7 +445,10 @@ mod tests {
         let mut recovery = RecoveryHandler::new();
         recovery.add_strategy(
             ErrorCode::Timeout,
-            RecoveryStrategy::Retry { attempts: 3, delay_ms: 100 }
+            RecoveryStrategy::Retry {
+                attempts: 3,
+                delay_ms: 100,
+            },
         );
 
         let strategy = recovery.get_strategy(ErrorCode::Timeout);

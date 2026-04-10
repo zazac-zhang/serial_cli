@@ -38,7 +38,8 @@ impl AppState {
     /// Create a new application state
     pub async fn new() -> Self {
         let protocol_registry = Arc::new(Mutex::new(ProtocolRegistry::new()));
-        let protocol_manager = Arc::new(Mutex::new(ProtocolManager::new(protocol_registry.clone())));
+        let protocol_manager =
+            Arc::new(Mutex::new(ProtocolManager::new(protocol_registry.clone())));
 
         Self {
             port_manager: Arc::new(Mutex::new(PortManager::new())),

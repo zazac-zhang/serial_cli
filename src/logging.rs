@@ -53,8 +53,7 @@ impl LoggingConfig {
                 }
             });
 
-        let format = env::var("LOG_FORMAT")
-            .unwrap_or_else(|_| "pretty".to_string());
+        let format = env::var("LOG_FORMAT").unwrap_or_else(|_| "pretty".to_string());
 
         Self {
             level,

@@ -35,9 +35,9 @@ impl ProtocolRegistry {
     }
 
     /// Register a protocol factory
-    pub async fn register<F: ProtocolFactory + 'static>(&mut self, factory: F) {
+    pub async fn register(&mut self, factory: Arc<dyn ProtocolFactory>) {
         let name = factory.name().to_string();
-        self.factories.insert(name, Arc::new(factory));
+        self.factories.insert(name, factory);
     }
 
     /// Get or create a protocol instance
@@ -66,6 +66,20 @@ impl ProtocolRegistry {
     /// Clear all protocol instances (no-op in new implementation)
     pub async fn clear_instances(&self) {
         // No longer needed with factory pattern
+    }
+
+    /// Unregister a protocol by name
+    pub async fn unregister(&mut self, name: &str) -> Result<()> {
+        if self.factories.remove(name).is_none() {
+            return Err(SerialError::Protocol(ProtocolError::NotFound(name.to_string())));
+        }
+        tracing::info!("Unregistered protocol: {}", name);
+        Ok(())
+    }
+
+    /// Check if a protocol is registered
+    pub async fn is_registered(&self, name: &str) -> bool {
+        self.factories.contains_key(name)
     }
 }
 
@@ -136,12 +150,12 @@ mod tests {
     async fn test_registry_registration() {
         let mut registry = ProtocolRegistry::new();
 
-        // Register line protocol
-        let factory = SimpleProtocolFactory::new(
+        // Register line protocol using Arc
+        let factory = Arc::new(SimpleProtocolFactory::new(
             "line".to_string(),
             "Line-based protocol".to_string(),
             LineProtocol::new,
-        );
+        ));
         registry.register(factory).await;
 
         // List protocols
@@ -155,11 +169,11 @@ mod tests {
     async fn test_get_protocol() {
         let mut registry = ProtocolRegistry::new();
 
-        let factory = SimpleProtocolFactory::new(
+        let factory = Arc::new(SimpleProtocolFactory::new(
             "modbus_rtu".to_string(),
             "Modbus RTU protocol".to_string(),
             || ModbusProtocol::new(ModbusMode::Rtu),
-        );
+        ));
         registry.register(factory).await;
 
         // Get protocol

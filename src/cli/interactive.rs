@@ -89,7 +89,9 @@ impl InteractiveShell {
         tracing::info!("  open <port>       - Open a serial port");
         tracing::info!("  close [port_id]   - Close a serial port (closes current if no ID given)");
         tracing::info!("  send <data>       - Send data to the current port");
-        tracing::info!("  recv [n]          - Receive data from the current port (default: 64 bytes)");
+        tracing::info!(
+            "  recv [n]          - Receive data from the current port (default: 64 bytes)"
+        );
         tracing::info!("  status            - Show port status");
         tracing::info!("");
         tracing::info!("Protocol commands:");
@@ -419,7 +421,10 @@ impl InteractiveShell {
         {
             Ok(_) => {
                 tracing::info!("Protocol '{}' set for port", protocol_name);
-                tracing::info!("Data will now be processed using the {} protocol", protocol_name);
+                tracing::info!(
+                    "Data will now be processed using the {} protocol",
+                    protocol_name
+                );
             }
             Err(e) => {
                 tracing::info!("Failed to set protocol: {}", e);
@@ -438,11 +443,7 @@ impl InteractiveShell {
         }
 
         let port_id = self.current_port_id.as_ref().unwrap();
-        match self
-            .manager
-            .set_port_protocol(port_id, None)
-            .await
-        {
+        match self.manager.set_port_protocol(port_id, None).await {
             Ok(_) => {
                 tracing::info!("Protocol cleared from port");
                 tracing::info!("Data will be processed as raw bytes");

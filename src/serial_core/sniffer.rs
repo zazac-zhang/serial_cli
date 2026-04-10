@@ -269,7 +269,14 @@ impl SnifferSession {
         let reset = "\x1b[0m";
 
         // Display packet info
-        tracing::info!("{}[{}] {} ({} bytes){}", color, time_str, direction, packet.length, reset);
+        tracing::info!(
+            "{}[{}] {} ({} bytes){}",
+            color,
+            time_str,
+            direction,
+            packet.length,
+            reset
+        );
 
         // Display data
         if self.config.hex_display {

@@ -5,8 +5,8 @@
 use crate::error::{Result, SerialError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 /// Global configuration manager
@@ -56,17 +56,20 @@ impl ConfigManager {
 
         match parts.as_slice() {
             ["serial", "baudrate"] => {
-                let baudrate = value.parse::<u32>()
+                let baudrate = value
+                    .parse::<u32>()
                     .map_err(|_| SerialError::Config(format!("Invalid baudrate: {}", value)))?;
                 config.serial.baudrate = baudrate;
             }
             ["serial", "databits"] => {
-                let databits = value.parse::<u8>()
+                let databits = value
+                    .parse::<u8>()
                     .map_err(|_| SerialError::Config(format!("Invalid databits: {}", value)))?;
                 config.serial.databits = databits;
             }
             ["serial", "stopbits"] => {
-                let stopbits = value.parse::<u8>()
+                let stopbits = value
+                    .parse::<u8>()
                     .map_err(|_| SerialError::Config(format!("Invalid stopbits: {}", value)))?;
                 config.serial.stopbits = stopbits;
             }
@@ -74,7 +77,8 @@ impl ConfigManager {
                 config.serial.parity = value.to_string();
             }
             ["serial", "timeout_ms"] => {
-                let timeout = value.parse::<u64>()
+                let timeout = value
+                    .parse::<u64>()
                     .map_err(|_| SerialError::Config(format!("Invalid timeout: {}", value)))?;
                 config.serial.timeout_ms = timeout;
             }
@@ -88,42 +92,52 @@ impl ConfigManager {
                 config.logging.file = value.to_string();
             }
             ["lua", "memory_limit_mb"] => {
-                let limit = value.parse::<usize>()
+                let limit = value
+                    .parse::<usize>()
                     .map_err(|_| SerialError::Config(format!("Invalid memory limit: {}", value)))?;
                 config.lua.memory_limit_mb = limit;
             }
             ["lua", "timeout_seconds"] => {
-                let timeout = value.parse::<u64>()
+                let timeout = value
+                    .parse::<u64>()
                     .map_err(|_| SerialError::Config(format!("Invalid timeout: {}", value)))?;
                 config.lua.timeout_seconds = timeout;
             }
             ["lua", "enable_sandbox"] => {
-                let enable = value.parse::<bool>()
+                let enable = value
+                    .parse::<bool>()
                     .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
                 config.lua.enable_sandbox = enable;
             }
             ["task", "max_concurrent"] => {
-                let max = value.parse::<usize>()
-                    .map_err(|_| SerialError::Config(format!("Invalid max concurrent: {}", value)))?;
+                let max = value.parse::<usize>().map_err(|_| {
+                    SerialError::Config(format!("Invalid max concurrent: {}", value))
+                })?;
                 config.task.max_concurrent = max;
             }
             ["task", "default_timeout_seconds"] => {
-                let timeout = value.parse::<u64>()
+                let timeout = value
+                    .parse::<u64>()
                     .map_err(|_| SerialError::Config(format!("Invalid timeout: {}", value)))?;
                 config.task.default_timeout_seconds = timeout;
             }
             ["output", "json_pretty"] => {
-                let pretty = value.parse::<bool>()
+                let pretty = value
+                    .parse::<bool>()
                     .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
                 config.output.json_pretty = pretty;
             }
             ["output", "show_timestamp"] => {
-                let show = value.parse::<bool>()
+                let show = value
+                    .parse::<bool>()
                     .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
                 config.output.show_timestamp = show;
             }
             _ => {
-                return Err(SerialError::Config(format!("Unknown configuration key: {}", key)));
+                return Err(SerialError::Config(format!(
+                    "Unknown configuration key: {}",
+                    key
+                )));
             }
         }
 
@@ -134,15 +148,14 @@ impl ConfigManager {
     pub fn save(&self, path: Option<&Path>) -> Result<()> {
         let config = self.config.read().unwrap();
         let default_path = PathBuf::from(".serial-cli.toml");
-        let save_path = path.unwrap_or_else(|| {
-            self.config_path.as_ref().unwrap_or(&default_path)
-        });
+        let save_path = path.unwrap_or_else(|| self.config_path.as_ref().unwrap_or(&default_path));
 
         // Create parent directories if they don't exist
         if let Some(parent) = save_path.parent() {
             if !parent.exists() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| SerialError::Config(format!("Failed to create config directory: {}", e)))?;
+                fs::create_dir_all(parent).map_err(|e| {
+                    SerialError::Config(format!("Failed to create config directory: {}", e))
+                })?;
             }
         }
 
@@ -176,7 +189,9 @@ impl ConfigManager {
         }
 
         if config.serial.databits < 5 || config.serial.databits > 8 {
-            return Err(SerialError::Config("Databits must be between 5 and 8".to_string()));
+            return Err(SerialError::Config(
+                "Databits must be between 5 and 8".to_string(),
+            ));
         }
 
         if config.serial.stopbits < 1 || config.serial.stopbits > 2 {
@@ -185,19 +200,25 @@ impl ConfigManager {
 
         // Validate parity
         match config.serial.parity.to_lowercase().as_str() {
-            "none" | "odd" | "even" => {},
-            _ => return Err(SerialError::Config("Parity must be 'none', 'odd', or 'even'".to_string())),
+            "none" | "odd" | "even" => {}
+            _ => {
+                return Err(SerialError::Config(
+                    "Parity must be 'none', 'odd', or 'even'".to_string(),
+                ))
+            }
         }
 
         // Validate logging level
         match config.logging.level.to_lowercase().as_str() {
-            "error" | "warn" | "info" | "debug" | "trace" => {},
+            "error" | "warn" | "info" | "debug" | "trace" => {}
             _ => return Err(SerialError::Config("Invalid logging level".to_string())),
         }
 
         // Validate task configuration
         if config.task.max_concurrent == 0 {
-            return Err(SerialError::Config("Max concurrent tasks cannot be zero".to_string()));
+            return Err(SerialError::Config(
+                "Max concurrent tasks cannot be zero".to_string(),
+            ));
         }
 
         Ok(())

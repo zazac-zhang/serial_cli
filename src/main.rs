@@ -428,10 +428,16 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
             tracing::info!("Available protocols:");
             if verbose {
                 tracing::info!("Built-in protocols:");
-                tracing::info!("  modbus_rtu      - Modbus RTU protocol (Industrial communication)");
-                tracing::info!("  modbus_ascii    - Modbus ASCII protocol (Industrial communication)");
+                tracing::info!(
+                    "  modbus_rtu      - Modbus RTU protocol (Industrial communication)"
+                );
+                tracing::info!(
+                    "  modbus_ascii    - Modbus ASCII protocol (Industrial communication)"
+                );
                 tracing::info!("  at_command      - AT Command protocol (Modem control)");
-                tracing::info!("  line            - Line-based protocol (Text-based communication)");
+                tracing::info!(
+                    "  line            - Line-based protocol (Text-based communication)"
+                );
             } else {
                 tracing::info!("  modbus_rtu");
                 tracing::info!("  modbus_ascii");
@@ -444,10 +450,19 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
         ProtocolCommand::Info { name } => {
             tracing::info!("Protocol: {}", name);
             let descriptions = vec![
-                ("modbus_rtu", "Modbus RTU protocol - Binary industrial communication protocol"),
-                ("modbus_ascii", "Modbus ASCII protocol - Text-based industrial communication protocol"),
+                (
+                    "modbus_rtu",
+                    "Modbus RTU protocol - Binary industrial communication protocol",
+                ),
+                (
+                    "modbus_ascii",
+                    "Modbus ASCII protocol - Text-based industrial communication protocol",
+                ),
                 ("at_command", "AT Command protocol - Modem control commands"),
-                ("line", "Line-based protocol - Simple text line communication"),
+                (
+                    "line",
+                    "Line-based protocol - Simple text line communication",
+                ),
             ];
 
             if let Some((_, desc)) = descriptions.iter().find(|(n, _)| *n == name) {
@@ -611,8 +626,8 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                 // Assume it's a batch file containing list of scripts
                 tracing::info!("Executing batch script file...");
 
-                let content = std::fs::read_to_string(&script)
-                    .map_err(serial_cli::error::SerialError::Io)?;
+                let content =
+                    std::fs::read_to_string(&script).map_err(serial_cli::error::SerialError::Io)?;
 
                 let script_paths: Vec<&std::path::Path> = content
                     .lines()
@@ -717,7 +732,10 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 tracing::info!("");
                 tracing::info!("[task]");
                 tracing::info!("  max_concurrent = {}", config.task.max_concurrent);
-                tracing::info!("  default_timeout_seconds = {}", config.task.default_timeout_seconds);
+                tracing::info!(
+                    "  default_timeout_seconds = {}",
+                    config.task.default_timeout_seconds
+                );
                 tracing::info!("");
                 tracing::info!("[output]");
                 tracing::info!("  json_pretty = {}", config.output.json_pretty);
@@ -751,7 +769,9 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                     tracing::info!("  serial.stopbits              - Stop bits (1-2)");
                     tracing::info!("  serial.parity                - Parity (none/odd/even)");
                     tracing::info!("  serial.timeout_ms            - Timeout in milliseconds");
-                    tracing::info!("  logging.level                - Log level (error/warn/info/debug/trace)");
+                    tracing::info!(
+                        "  logging.level                - Log level (error/warn/info/debug/trace)"
+                    );
                     tracing::info!("  logging.format               - Log format (text/json)");
                     tracing::info!("  logging.file                 - Log file path");
                     tracing::info!("  lua.memory_limit_mb          - Lua memory limit");

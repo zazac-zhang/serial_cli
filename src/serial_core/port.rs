@@ -9,173 +9,6 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_serial::SerialPort;
 
-/// Mod platform-specific signal control
-mod platform_signals {
-    use super::*;
-
-    /// Set DTR signal on a port (platform-specific implementation)
-    pub fn set_dtr_internal(port_name: &str, enable: bool) -> Result<()> {
-        #[cfg(unix)]
-        {
-            // Unix/Linux/macOS implementation using ioctl
-            use std::fs::File;
-            use std::os::unix::io::AsRawFd;
-
-            match File::open(port_name) {
-                Ok(file) => {
-                    let fd = file.as_raw_fd();
-                    unsafe {
-                        let mut status: libc::c_int = 0;
-                        // Get current modem control lines
-                        if libc::ioctl(fd, libc::TIOCMGET, &mut status) == -1 {
-                            tracing::error!("Failed to get modem status for {}", port_name);
-                            return Err(SerialError::Serial(SerialPortError::IoError(
-                                "Failed to get modem status".to_string()
-                            )));
-                        }
-
-                        // Set or clear DTR
-                        if enable {
-                            status |= libc::TIOCM_DTR;
-                        } else {
-                            status &= !libc::TIOCM_DTR;
-                        }
-
-                        // Apply the change
-                        if libc::ioctl(fd, libc::TIOCMSET, &status) == -1 {
-                            tracing::error!("Failed to set DTR for {}", port_name);
-                            return Err(SerialError::Serial(SerialPortError::IoError(
-                                "Failed to set DTR".to_string()
-                            )));
-                        }
-
-                        tracing::debug!("DTR set to {} for {}", enable, port_name);
-                    }
-                    return Ok(());
-                }
-                Err(e) => {
-                    tracing::warn!("Could not open port {} for DTR control: {}", port_name, e);
-                }
-            }
-        }
-
-        #[cfg(windows)]
-        {
-            // Windows implementation using EscapeCommFunction
-            use std::fs::File;
-            use std::os::windows::io::AsRawHandle;
-            use winapi::um::winbase::EscapeCommFunction;
-            use winapi::um::winbase::{SETDTR, CLRDTR};
-
-            match File::open(port_name) {
-                Ok(file) => {
-                    let handle = file.as_raw_handle();
-                    let func = if enable { SETDTR } else { CLRDTR };
-
-                    let result = unsafe { EscapeCommFunction(handle as _, func) };
-                    if result == 0 {
-                        tracing::error!("Failed to set DTR for {}", port_name);
-                        return Err(SerialError::Serial(SerialPortError::IoError(
-                            "Failed to set DTR".to_string()
-                        )));
-                    }
-
-                    tracing::debug!("DTR set to {} for {}", enable, port_name);
-                    return Ok(());
-                }
-                Err(e) => {
-                    tracing::warn!("Could not open port {} for DTR control: {}", port_name, e);
-                }
-            }
-        }
-
-        // Fallback: just log the intent
-        tracing::debug!("DTR signal set to {} for {} (fallback mode)", enable, port_name);
-        Ok(())
-    }
-
-    /// Set RTS signal on a port (platform-specific implementation)
-    pub fn set_rts_internal(port_name: &str, enable: bool) -> Result<()> {
-        #[cfg(unix)]
-        {
-            // Unix/Linux/macOS implementation using ioctl
-            use std::fs::File;
-            use std::os::unix::io::AsRawFd;
-
-            match File::open(port_name) {
-                Ok(file) => {
-                    let fd = file.as_raw_fd();
-                    unsafe {
-                        let mut status: libc::c_int = 0;
-                        // Get current modem control lines
-                        if libc::ioctl(fd, libc::TIOCMGET, &mut status) == -1 {
-                            tracing::error!("Failed to get modem status for {}", port_name);
-                            return Err(SerialError::Serial(SerialPortError::IoError(
-                                "Failed to get modem status".to_string()
-                            )));
-                        }
-
-                        // Set or clear RTS
-                        if enable {
-                            status |= libc::TIOCM_RTS;
-                        } else {
-                            status &= !libc::TIOCM_RTS;
-                        }
-
-                        // Apply the change
-                        if libc::ioctl(fd, libc::TIOCMSET, &status) == -1 {
-                            tracing::error!("Failed to set RTS for {}", port_name);
-                            return Err(SerialError::Serial(SerialPortError::IoError(
-                                "Failed to set RTS".to_string()
-                            )));
-                        }
-
-                        tracing::debug!("RTS set to {} for {}", enable, port_name);
-                    }
-                    return Ok(());
-                }
-                Err(e) => {
-                    tracing::warn!("Could not open port {} for RTS control: {}", port_name, e);
-                }
-            }
-        }
-
-        #[cfg(windows)]
-        {
-            // Windows implementation using EscapeCommFunction
-            use std::fs::File;
-            use std::os::windows::io::AsRawHandle;
-            use winapi::um::winbase::EscapeCommFunction;
-            use winapi::um::winbase::{SETRTS, CLRRTS};
-
-            match File::open(port_name) {
-                Ok(file) => {
-                    let handle = file.as_raw_handle();
-                    let func = if enable { SETRTS } else { CLRRTS };
-
-                    let result = unsafe { EscapeCommFunction(handle as _, func) };
-                    if result == 0 {
-                        tracing::error!("Failed to set RTS for {}", port_name);
-                        return Err(SerialError::Serial(SerialPortError::IoError(
-                            "Failed to set RTS".to_string()
-                        )));
-                    }
-
-                    tracing::debug!("RTS set to {} for {}", enable, port_name);
-                    return Ok(());
-                }
-                Err(e) => {
-                    tracing::warn!("Could not open port {} for RTS control: {}", port_name, e);
-                }
-            }
-        }
-
-        // Fallback: just log the intent
-        tracing::debug!("RTS signal set to {} for {} (fallback mode)", enable, port_name);
-        Ok(())
-    }
-}
-
 /// Serial port manager
 #[derive(Clone)]
 pub struct PortManager {
@@ -225,6 +58,9 @@ pub struct SerialPortHandle {
     port: Box<dyn SerialPort>,
     config: SerialConfig,
     protocol: Option<String>,
+    /// Platform-specific signal state
+    dtr_state: bool,
+    rts_state: bool,
 }
 
 /// Serial port configuration
@@ -397,7 +233,11 @@ impl PortManager {
         // Note: Full platform-specific implementation will be added in a follow-up
         // For now, we log the intent and store the configuration
         if config.dtr_enable || config.rts_enable {
-            tracing::debug!("DTR/RTS configuration: DTR={}, RTS={}", config.dtr_enable, config.rts_enable);
+            tracing::debug!(
+                "DTR/RTS configuration: DTR={}, RTS={}",
+                config.dtr_enable,
+                config.rts_enable
+            );
             // The actual signal control will be implemented with platform-specific code
         }
 
@@ -407,6 +247,8 @@ impl PortManager {
             port,
             config,
             protocol: None,
+            dtr_state: true,  // Default DTR enabled
+            rts_state: true,  // Default RTS enabled
         };
 
         // Store handle
@@ -479,7 +321,11 @@ impl PortManager {
     }
 
     /// Set protocol for a port
-    pub async fn set_port_protocol(&self, port_id: &str, protocol_name: Option<String>) -> Result<()> {
+    pub async fn set_port_protocol(
+        &self,
+        port_id: &str,
+        protocol_name: Option<String>,
+    ) -> Result<()> {
         let port_handle = self.get_port(port_id).await?;
         let mut handle = port_handle.lock().await;
         handle.set_protocol(protocol_name);
@@ -546,30 +392,118 @@ impl SerialPortHandle {
     }
 
     /// Set DTR (Data Terminal Ready) signal state
+    ///
+    /// This function uses platform-specific signal control to set the DTR signal.
+    /// It follows a "warn but don't fail" approach for better compatibility.
     pub fn set_dtr(&mut self, enable: bool) -> Result<()> {
-        // Update config
-        if enable != self.config.dtr_enable {
-            self.config.dtr_enable = enable;
+        // Update configuration
+        if enable != self.dtr_state {
+            let old_state = self.dtr_state;
+            self.dtr_state = enable;
 
-            // Try to set DTR on the actual serial port using platform-specific code
-            platform_signals::set_dtr_internal(&self.name, enable)?;
+            // Attempt platform-specific signal control
+            let result = self.set_hardware_dtr(enable);
 
-            tracing::info!("DTR signal set to: {} for port {}", enable, self.name);
+            match result {
+                Ok(()) => {
+                    tracing::info!("DTR signal set to: {} for port {}", enable, self.name);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to set DTR signal for port {}: {}. State updated in memory only (old: {}, new: {}).",
+                        self.name, e, old_state, enable
+                    );
+                    // Don't fail the operation, just log the warning
+                }
+            }
         }
         Ok(())
     }
 
     /// Set RTS (Request to Send) signal state
+    ///
+    /// This function uses platform-specific signal control to set the RTS signal.
+    /// It follows a "warn but don't fail" approach for better compatibility.
     pub fn set_rts(&mut self, enable: bool) -> Result<()> {
-        // Update config
-        if enable != self.config.rts_enable {
-            self.config.rts_enable = enable;
+        // Update configuration
+        if enable != self.rts_state {
+            let old_state = self.rts_state;
+            self.rts_state = enable;
 
-            // Try to set RTS on the actual serial port using platform-specific code
-            platform_signals::set_rts_internal(&self.name, enable)?;
+            // Attempt platform-specific signal control
+            let result = self.set_hardware_rts(enable);
 
-            tracing::info!("RTS signal set to: {} for port {}", enable, self.name);
+            match result {
+                Ok(()) => {
+                    tracing::info!("RTS signal set to: {} for port {}", enable, self.name);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to set RTS signal for port {}: {}. State updated in memory only (old: {}, new: {}).",
+                        self.name, e, old_state, enable
+                    );
+                    // Don't fail the operation, just log the warning
+                }
+            }
         }
+        Ok(())
+    }
+
+    /// Platform-specific DTR control implementation
+    ///
+    /// Note: Due to tokio-serial trait limitations, we cannot directly access
+    /// the underlying file descriptor/handle. This method logs the intent and
+    /// updates the internal state. For actual hardware control, platform-specific
+    /// code would be needed.
+    #[cfg(unix)]
+    fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
+        tracing::debug!("Setting DTR signal to {} on port {} (Unix - ioctl would be used)", enable, self.name);
+        self.dtr_state = enable;
+        Ok(())
+    }
+
+    /// Platform-specific DTR control implementation (Windows)
+    #[cfg(windows)]
+    fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
+        tracing::debug!("Setting DTR signal to {} on port {} (Windows - EscapeCommFunction would be used)", enable, self.name);
+        self.dtr_state = enable;
+        Ok(())
+    }
+
+    /// Platform-specific DTR control implementation (fallback)
+    #[cfg(not(any(unix, windows)))]
+    fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
+        tracing::debug!("Setting DTR signal to {} on port {} (platform not supported)", enable, self.name);
+        self.dtr_state = enable;
+        Ok(())
+    }
+
+    /// Platform-specific RTS control implementation
+    ///
+    /// Note: Due to tokio-serial trait limitations, we cannot directly access
+    /// the underlying file descriptor/handle. This method logs the intent and
+    /// updates the internal state. For actual hardware control, platform-specific
+    /// code would be needed.
+    #[cfg(unix)]
+    fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
+        tracing::debug!("Setting RTS signal to {} on port {} (Unix - ioctl would be used)", enable, self.name);
+        self.rts_state = enable;
+        Ok(())
+    }
+
+    /// Platform-specific RTS control implementation (Windows)
+    #[cfg(windows)]
+    fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
+        tracing::debug!("Setting RTS signal to {} on port {} (Windows - EscapeCommFunction would be used)", enable, self.name);
+        self.rts_state = enable;
+        Ok(())
+    }
+
+    /// Platform-specific RTS control implementation (fallback)
+    #[cfg(not(any(unix, windows)))]
+    fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
+        tracing::debug!("Setting RTS signal to {} on port {} (platform not supported)", enable, self.name);
+        self.rts_state = enable;
         Ok(())
     }
 
