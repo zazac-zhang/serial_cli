@@ -404,7 +404,7 @@ impl InteractiveShell {
         }
 
         // Validate protocol name
-        let valid_protocols = vec!["modbus_rtu", "modbus_ascii", "at_command", "line"];
+        let valid_protocols = ["modbus_rtu", "modbus_ascii", "at_command", "line"];
         if !valid_protocols.contains(&protocol_name) {
             tracing::info!("Unknown protocol: {}", protocol_name);
             tracing::info!("");

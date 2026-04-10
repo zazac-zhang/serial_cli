@@ -340,13 +340,11 @@ impl BatchRunner {
                         }
 
                         // Execute scripts in the loop (simplified - would need more complex parsing)
-                        if let Some(next_line) = batch_lines.get(i + 1) {
-                            if let BatchLine::Script(script) = next_line {
-                                if let Err(e) = self.run_script(script).await {
-                                    tracing::info!("Loop iteration failed: {}", e);
-                                    if !self.config.continue_on_error {
-                                        break;
-                                    }
+                        if let Some(BatchLine::Script(script)) = batch_lines.get(i + 1) {
+                            if let Err(e) = self.run_script(script).await {
+                                tracing::info!("Loop iteration failed: {}", e);
+                                if !self.config.continue_on_error {
+                                    break;
                                 }
                             }
                         }

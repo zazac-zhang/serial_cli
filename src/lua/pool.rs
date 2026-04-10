@@ -5,7 +5,7 @@
 
 use crate::error::Result;
 use mlua::Lua;
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 /// Configuration for Lua pool
 #[derive(Debug, Clone)]
@@ -28,7 +28,7 @@ impl Default for LuaPoolConfig {
 /// Lua instance pool (simplified, non-thread-safe version)
 pub struct LuaPool {
     config: LuaPoolConfig,
-    instances: Arc<Mutex<Vec<Lua>>>,
+    instances: Rc<RefCell<Vec<Lua>>>,
 }
 
 impl LuaPool {
@@ -39,7 +39,7 @@ impl LuaPool {
 
     /// Create a new Lua pool with custom configuration
     pub fn with_config(config: LuaPoolConfig) -> Result<Self> {
-        let instances = Arc::new(Mutex::new(Vec::new()));
+        let instances = Rc::new(RefCell::new(Vec::new()));
 
         let pool = Self { config, instances };
 
@@ -51,7 +51,7 @@ impl LuaPool {
 
     /// Initialize the pool with initial Lua instances
     fn initialize_instances(&self) -> Result<()> {
-        let mut instances = self.instances.lock().unwrap();
+        let mut instances = self.instances.borrow_mut();
         for _ in 0..self.config.initial_instances {
             let lua = Self::create_lua_instance()?;
             instances.push(lua);
@@ -67,7 +67,7 @@ impl LuaPool {
 
     /// Acquire a Lua instance from the pool
     pub fn acquire(&self) -> Result<Lua> {
-        let mut instances = self.instances.lock().unwrap();
+        let mut instances = self.instances.borrow_mut();
         if instances.is_empty() {
             // Create new instance if pool is empty
             Self::create_lua_instance()
@@ -79,7 +79,7 @@ impl LuaPool {
 
     /// Return a Lua instance to the pool
     pub fn release(&self, lua: Lua) {
-        let mut instances = self.instances.lock().unwrap();
+        let mut instances = self.instances.borrow_mut();
         if instances.len() < self.config.max_instances {
             instances.push(lua);
         }
@@ -88,7 +88,7 @@ impl LuaPool {
 
     /// Get pool statistics
     pub fn stats(&self) -> PoolStats {
-        let instances = self.instances.lock().unwrap();
+        let instances = self.instances.borrow();
         let available = instances.len();
         let total = self.config.max_instances;
         let in_use = total - available;

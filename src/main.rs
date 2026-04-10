@@ -449,8 +449,7 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
         }
         ProtocolCommand::Info { name } => {
             tracing::info!("Protocol: {}", name);
-            let descriptions = vec![
-                (
+            let descriptions = [(
                     "modbus_rtu",
                     "Modbus RTU protocol - Binary industrial communication protocol",
                 ),
@@ -462,8 +461,7 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
                 (
                     "line",
                     "Line-based protocol - Simple text line communication",
-                ),
-            ];
+                )];
 
             if let Some((_, desc)) = descriptions.iter().find(|(n, _)| *n == name) {
                 tracing::info!("Description: {}", desc);
@@ -509,9 +507,11 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             tracing::info!("");
 
             // Create sniffer configuration
-            let mut sniffer_config = SnifferConfig::default();
-            sniffer_config.max_packets = max_packets;
-            sniffer_config.hex_display = display_format == "hex";
+            let mut sniffer_config = SnifferConfig {
+                max_packets,
+                hex_display: display_format == "hex",
+                ..SnifferConfig::default()
+            };
 
             if output.is_some() {
                 sniffer_config.save_to_file = true;
@@ -539,7 +539,7 @@ async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
                     // Keep sniffing until interrupted
                     tokio::signal::ctrl_c()
                         .await
-                        .map_err(|e| serial_cli::error::SerialError::Io(e))?;
+                        .map_err(serial_cli::error::SerialError::Io)?;
 
                     tracing::info!("\nStopping sniff...");
 
@@ -609,7 +609,7 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
             let runner = BatchRunner::new(config)?;
 
             // Check if it's a single script or a batch file
-            if script.extension().map_or(false, |e| e == "lua") {
+            if script.extension().is_some_and(|e| e == "lua") {
                 // Single Lua script
                 tracing::info!("Executing single script...");
 

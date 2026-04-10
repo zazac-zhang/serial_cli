@@ -241,7 +241,7 @@ impl DataFormat {
 
     /// Parse hex string to bytes
     pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>> {
-        let hex = hex.trim().replace(' ', "").replace('\n', "");
+        let hex = hex.trim().replace([' ', '\n'], "");
 
         if !hex.len().is_multiple_of(2) {
             return Err(SerialError::Config(
