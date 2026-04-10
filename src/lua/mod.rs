@@ -5,8 +5,10 @@
 pub mod bindings;
 pub mod engine;
 pub mod executor;
+pub mod pool;
 pub mod stdlib;
 
 pub use bindings::LuaBindings;
 pub use engine::LuaEngine;
 pub use executor::ScriptEngine;
+pub use pool::{LuaPool, LuaPoolConfig, PoolStats};
