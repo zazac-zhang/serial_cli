@@ -60,8 +60,9 @@ impl ScriptCache {
             let mut cache = self.cache.write().unwrap();
 
             // Evict oldest entries if cache is full
+            // Note: HashMap iteration order is non-deterministic, so eviction is effectively random
+            // For production use with predictable eviction, consider using an LRU cache library
             if cache.len() >= self.max_entries {
-                // Simple eviction: remove first entry
                 let key_to_remove = cache.keys().next().cloned();
                 if let Some(key) = key_to_remove {
                     cache.remove(&key);
@@ -122,6 +123,7 @@ impl ScriptCache {
             let mut cache = self.cache.write().unwrap();
 
             // Evict if necessary
+            // Note: HashMap iteration order is non-deterministic, so eviction is effectively random
             if cache.len() >= self.max_entries {
                 let key_to_remove = cache.keys().next().cloned();
                 if let Some(key) = key_to_remove {

@@ -269,10 +269,26 @@ impl ResourceMonitor {
         #[cfg(windows)]
         {
             // Use Windows-specific monitoring
-            if let Ok(mut win_monitor) = windows::WindowsPerformanceMonitor::new() {
-                if let Ok(metrics) = win_monitor.update_metrics() {
-                    self.memory_usage = metrics.working_set_size;
-                    self.cpu_usage = metrics.cpu_usage;
+            match windows::WindowsPerformanceMonitor::new() {
+                Ok(mut win_monitor) => {
+                    match win_monitor.update_metrics() {
+                        Ok(metrics) => {
+                            self.memory_usage = metrics.working_set_size;
+                            self.cpu_usage = metrics.cpu_usage;
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to update Windows metrics: {:?}", e);
+                            // Fallback to basic memory estimation
+                            self.memory_usage = 0;
+                            self.cpu_usage = 0.0;
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to create Windows performance monitor: {:?}", e);
+                    // Fallback values
+                    self.memory_usage = 0;
+                    self.cpu_usage = 0.0;
                 }
             }
             // On Windows, file descriptors are not directly accessible

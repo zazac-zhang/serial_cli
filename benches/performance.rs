@@ -75,8 +75,11 @@ fn bench_lua_cache(c: &mut Criterion) {
 
     // Cache hit (subsequent loads)
     group.bench_function("cache_hit", |b| {
-        let _ = cache.load_script("warmup".to_string(), script);
         b.iter(|| {
+            // Create fresh cache and populate for each iteration
+            let cache = ScriptCache::new();
+            let _ = cache.load_script("warmup".to_string(), script);
+            // Now benchmark the actual cache hit on subsequent access
             black_box(cache.get_script("warmup").unwrap())
         })
     });

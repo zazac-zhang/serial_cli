@@ -409,9 +409,21 @@ impl LuaBindings {
         &self.lua
     }
 
-    /// Helper function to register built-in protocols
-    #[allow(dead_code)]
-    async fn register_builtins(registry: &mut crate::protocol::ProtocolRegistry) {
+    /// Register all built-in protocols (line, at_command, modbus_rtu, modbus_ascii)
+    ///
+    /// This is a convenience function for initializing the protocol registry with
+    /// all standard protocols. It's typically called during application initialization
+    /// or when setting up a new protocol registry for Lua scripts.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use serial_cli::lua::LuaBindings;
+    /// # async fn example() {
+    /// let mut registry = serial_cli::protocol::ProtocolRegistry::new();
+    /// LuaBindings::register_builtins(&mut registry).await;
+    /// # }
+    /// ```
+    pub async fn register_builtins(registry: &mut crate::protocol::ProtocolRegistry) {
         use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
         use crate::protocol::registry::SimpleProtocolFactory;
         use std::sync::Arc;
