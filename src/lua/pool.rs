@@ -41,10 +41,7 @@ impl LuaPool {
     pub fn with_config(config: LuaPoolConfig) -> Result<Self> {
         let instances = Arc::new(Mutex::new(Vec::new()));
 
-        let pool = Self {
-            config,
-            instances,
-        };
+        let pool = Self { config, instances };
 
         // Initialize with some instances
         pool.initialize_instances()?;

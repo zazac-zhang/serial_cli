@@ -4,10 +4,10 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use serial_cli::lua::{ScriptCache, ScriptEngine};
-use serial_cli::protocol::{Protocol, ProtocolRegistry, registry::SimpleProtocolFactory};
 use serial_cli::protocol::built_in::LineProtocol;
-use serial_cli::task::{Task, TaskPriority, TaskType};
+use serial_cli::protocol::{registry::SimpleProtocolFactory, Protocol, ProtocolRegistry};
 use serial_cli::task::executor::TaskExecutor;
+use serial_cli::task::{Task, TaskPriority, TaskType};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -115,9 +115,7 @@ fn bench_protocol_operations(c: &mut Criterion) {
         let mut protocol = LineProtocol::new();
         let data = b"Hello, World!";
 
-        b.iter(|| {
-            black_box(protocol.encode(data).unwrap())
-        });
+        b.iter(|| black_box(protocol.encode(data).unwrap()));
     });
 
     // Line protocol parsing
@@ -125,9 +123,7 @@ fn bench_protocol_operations(c: &mut Criterion) {
         let mut protocol = LineProtocol::new();
         let data = b"Hello, World!\n";
 
-        b.iter(|| {
-            black_box(protocol.parse(data).unwrap())
-        });
+        b.iter(|| black_box(protocol.parse(data).unwrap()));
     });
 
     // Protocol registration
@@ -167,9 +163,7 @@ fn bench_protocol_operations(c: &mut Criterion) {
                 registry.register(factory).await;
             }
 
-            b.iter(|| {
-                black_box(registry.is_registered("lookup_proto_2"))
-            });
+            b.iter(|| black_box(registry.is_registered("lookup_proto_2")));
         });
     });
 
@@ -204,9 +198,7 @@ fn bench_task_executor(c: &mut Criterion) {
                 });
 
                 let executor_clone = executor.clone();
-                let handle = async move {
-                    executor_clone.submit(task, TaskPriority::Normal).await
-                };
+                let handle = async move { executor_clone.submit(task, TaskPriority::Normal).await };
                 black_box(handle.await.unwrap())
             });
         });

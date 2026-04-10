@@ -247,8 +247,8 @@ impl PortManager {
             port,
             config,
             protocol: None,
-            dtr_state: true,  // Default DTR enabled
-            rts_state: true,  // Default RTS enabled
+            dtr_state: true, // Default DTR enabled
+            rts_state: true, // Default RTS enabled
         };
 
         // Store handle
@@ -457,7 +457,11 @@ impl SerialPortHandle {
     /// code would be needed.
     #[cfg(unix)]
     fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!("Setting DTR signal to {} on port {} (Unix - ioctl would be used)", enable, self.name);
+        tracing::debug!(
+            "Setting DTR signal to {} on port {} (Unix - ioctl would be used)",
+            enable,
+            self.name
+        );
         self.dtr_state = enable;
         Ok(())
     }
@@ -465,7 +469,11 @@ impl SerialPortHandle {
     /// Platform-specific DTR control implementation (Windows)
     #[cfg(windows)]
     fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!("Setting DTR signal to {} on port {} (Windows - EscapeCommFunction would be used)", enable, self.name);
+        tracing::debug!(
+            "Setting DTR signal to {} on port {} (Windows - EscapeCommFunction would be used)",
+            enable,
+            self.name
+        );
         self.dtr_state = enable;
         Ok(())
     }
@@ -473,7 +481,11 @@ impl SerialPortHandle {
     /// Platform-specific DTR control implementation (fallback)
     #[cfg(not(any(unix, windows)))]
     fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!("Setting DTR signal to {} on port {} (platform not supported)", enable, self.name);
+        tracing::debug!(
+            "Setting DTR signal to {} on port {} (platform not supported)",
+            enable,
+            self.name
+        );
         self.dtr_state = enable;
         Ok(())
     }
@@ -486,7 +498,11 @@ impl SerialPortHandle {
     /// code would be needed.
     #[cfg(unix)]
     fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!("Setting RTS signal to {} on port {} (Unix - ioctl would be used)", enable, self.name);
+        tracing::debug!(
+            "Setting RTS signal to {} on port {} (Unix - ioctl would be used)",
+            enable,
+            self.name
+        );
         self.rts_state = enable;
         Ok(())
     }
@@ -494,7 +510,11 @@ impl SerialPortHandle {
     /// Platform-specific RTS control implementation (Windows)
     #[cfg(windows)]
     fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!("Setting RTS signal to {} on port {} (Windows - EscapeCommFunction would be used)", enable, self.name);
+        tracing::debug!(
+            "Setting RTS signal to {} on port {} (Windows - EscapeCommFunction would be used)",
+            enable,
+            self.name
+        );
         self.rts_state = enable;
         Ok(())
     }
@@ -502,7 +522,11 @@ impl SerialPortHandle {
     /// Platform-specific RTS control implementation (fallback)
     #[cfg(not(any(unix, windows)))]
     fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!("Setting RTS signal to {} on port {} (platform not supported)", enable, self.name);
+        tracing::debug!(
+            "Setting RTS signal to {} on port {} (platform not supported)",
+            enable,
+            self.name
+        );
         self.rts_state = enable;
         Ok(())
     }

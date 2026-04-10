@@ -71,7 +71,9 @@ impl ProtocolRegistry {
     /// Unregister a protocol by name
     pub async fn unregister(&mut self, name: &str) -> Result<()> {
         if self.factories.remove(name).is_none() {
-            return Err(SerialError::Protocol(ProtocolError::NotFound(name.to_string())));
+            return Err(SerialError::Protocol(ProtocolError::NotFound(
+                name.to_string(),
+            )));
         }
         tracing::info!("Unregistered protocol: {}", name);
         Ok(())

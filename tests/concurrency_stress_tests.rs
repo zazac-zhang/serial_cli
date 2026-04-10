@@ -3,12 +3,12 @@
 //! These tests verify thread safety and correctness under high concurrency.
 
 use serial_cli::lua::executor::ScriptEngine;
-use serial_cli::protocol::{ProtocolRegistry, registry::SimpleProtocolFactory};
 use serial_cli::protocol::built_in::LineProtocol;
-use serial_cli::task::{Task, executor::TaskExecutor, TaskPriority, TaskType};
+use serial_cli::protocol::{registry::SimpleProtocolFactory, ProtocolRegistry};
+use serial_cli::task::{executor::TaskExecutor, Task, TaskPriority, TaskType};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, Barrier};
+use tokio::sync::{Barrier, Mutex};
 use tokio::time::timeout;
 
 /// Test concurrent task submission from multiple threads
@@ -131,10 +131,7 @@ async fn test_high_load_task_execution() {
             data: format!("load_data_{}", i),
         });
 
-        executor
-            .submit(task, TaskPriority::Normal)
-            .await
-            .unwrap();
+        executor.submit(task, TaskPriority::Normal).await.unwrap();
     }
 
     // Wait for most tasks to complete
@@ -219,9 +216,13 @@ async fn test_concurrent_protocol_registry_access() {
     // Verify final state
     let final_reg = registry.lock().await;
     let final_protocols = final_reg.list_protocols().await;
-    assert_eq!(final_protocols.len(), num_threads * ops_per_thread,
+    assert_eq!(
+        final_protocols.len(),
+        num_threads * ops_per_thread,
         "All protocols should be registered, expected {} got {}",
-        num_threads * ops_per_thread, final_protocols.len());
+        num_threads * ops_per_thread,
+        final_protocols.len()
+    );
 }
 
 /// Test memory stability under concurrent load
@@ -231,18 +232,17 @@ async fn test_memory_stability_under_load() {
     executor.start().await.unwrap();
 
     // Run many cycles of task submission and completion
-    for cycle in 0..5 { // Reduced cycles for faster testing
+    for cycle in 0..5 {
+        // Reduced cycles for faster testing
         // Submit batch of tasks
-        for i in 0..20 { // Reduced batch size
+        for i in 0..20 {
+            // Reduced batch size
             let task = Task::new(TaskType::Custom {
                 name: format!("mem_test_{}_{}", cycle, i),
                 data: "x".repeat(512), // 512B data instead of 1KB
             });
 
-            executor
-                .submit(task, TaskPriority::Normal)
-                .await
-                .unwrap();
+            executor.submit(task, TaskPriority::Normal).await.unwrap();
         }
 
         // Wait for some to complete
@@ -282,10 +282,7 @@ async fn test_task_completion_tracking_consistency() {
         });
 
         let id = task.id();
-        executor
-            .submit(task, TaskPriority::Normal)
-            .await
-            .unwrap();
+        executor.submit(task, TaskPriority::Normal).await.unwrap();
         task_ids.push(id);
     }
 
@@ -334,7 +331,12 @@ async fn test_concurrent_lua_execution() {
                 );
 
                 let result = engine.execute_string(&script);
-                assert!(result.is_ok(), "Lua execution failed for thread {}, script {}", thread_id, script_id);
+                assert!(
+                    result.is_ok(),
+                    "Lua execution failed for thread {}, script {}",
+                    thread_id,
+                    script_id
+                );
             }
         });
 

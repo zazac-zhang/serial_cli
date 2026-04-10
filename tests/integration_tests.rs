@@ -5,16 +5,16 @@
 
 #[cfg(test)]
 mod signal_control_tests {
-    use serial_cli::serial_core::signals::{SignalState, PlatformSignals};
+    use serial_cli::serial_core::signals::{PlatformSignals, SignalState};
 
     #[test]
     fn test_signal_controller_creation() {
+        #[cfg(not(any(unix, windows)))]
+        use serial_cli::serial_core::signals::FallbackSignalController;
         #[cfg(unix)]
         use serial_cli::serial_core::signals::UnixSignalController;
         #[cfg(windows)]
         use serial_cli::serial_core::signals::WindowsSignalController;
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
 
         #[cfg(unix)]
         let controller = UnixSignalController::new();
@@ -28,12 +28,12 @@ mod signal_control_tests {
 
     #[test]
     fn test_dtr_state_management() {
+        #[cfg(not(any(unix, windows)))]
+        use serial_cli::serial_core::signals::FallbackSignalController;
         #[cfg(unix)]
         use serial_cli::serial_core::signals::UnixSignalController;
         #[cfg(windows)]
         use serial_cli::serial_core::signals::WindowsSignalController;
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
 
         #[cfg(unix)]
         let mut controller = UnixSignalController::new();
@@ -63,12 +63,12 @@ mod signal_control_tests {
 
     #[test]
     fn test_rts_state_management() {
+        #[cfg(not(any(unix, windows)))]
+        use serial_cli::serial_core::signals::FallbackSignalController;
         #[cfg(unix)]
         use serial_cli::serial_core::signals::UnixSignalController;
         #[cfg(windows)]
         use serial_cli::serial_core::signals::WindowsSignalController;
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
 
         #[cfg(unix)]
         let mut controller = UnixSignalController::new();
@@ -98,12 +98,12 @@ mod signal_control_tests {
 
     #[test]
     fn test_signal_toggle() {
+        #[cfg(not(any(unix, windows)))]
+        use serial_cli::serial_core::signals::FallbackSignalController;
         #[cfg(unix)]
         use serial_cli::serial_core::signals::UnixSignalController;
         #[cfg(windows)]
         use serial_cli::serial_core::signals::WindowsSignalController;
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
 
         #[cfg(unix)]
         let mut controller = UnixSignalController::new();
@@ -125,16 +125,16 @@ mod signal_control_tests {
 
     #[test]
     fn test_concurrent_signal_operations() {
+        use std::sync::Barrier;
         use std::sync::{Arc, Mutex};
         use std::thread;
-        use std::sync::Barrier;
 
+        #[cfg(not(any(unix, windows)))]
+        use serial_cli::serial_core::signals::FallbackSignalController;
         #[cfg(unix)]
         use serial_cli::serial_core::signals::UnixSignalController;
         #[cfg(windows)]
         use serial_cli::serial_core::signals::WindowsSignalController;
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
 
         #[cfg(unix)]
         let controller = Arc::new(Mutex::new(UnixSignalController::new()));
@@ -171,12 +171,12 @@ mod signal_control_tests {
 
     #[test]
     fn test_error_recovery() {
+        #[cfg(not(any(unix, windows)))]
+        use serial_cli::serial_core::signals::FallbackSignalController;
         #[cfg(unix)]
         use serial_cli::serial_core::signals::UnixSignalController;
         #[cfg(windows)]
         use serial_cli::serial_core::signals::WindowsSignalController;
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
 
         #[cfg(unix)]
         let mut controller = UnixSignalController::new();
@@ -200,12 +200,12 @@ mod signal_control_tests {
 
     #[test]
     fn test_platform_specific_behavior() {
+        #[cfg(not(any(unix, windows)))]
+        use serial_cli::serial_core::signals::FallbackSignalController;
         #[cfg(unix)]
         use serial_cli::serial_core::signals::UnixSignalController;
         #[cfg(windows)]
         use serial_cli::serial_core::signals::WindowsSignalController;
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
 
         #[cfg(unix)]
         let controller = UnixSignalController::new();
@@ -237,9 +237,9 @@ mod signal_control_tests {
 
 #[cfg(test)]
 mod protocol_lifecycle_tests {
-    use serial_cli::protocol::ProtocolRegistry;
-    use serial_cli::protocol::registry::SimpleProtocolFactory;
     use serial_cli::protocol::built_in::LineProtocol;
+    use serial_cli::protocol::registry::SimpleProtocolFactory;
+    use serial_cli::protocol::ProtocolRegistry;
     use std::sync::Arc;
     use tokio::sync::Mutex;
 

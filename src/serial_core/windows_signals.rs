@@ -9,9 +9,9 @@ use std::fs::File;
 use std::os::windows::io::AsRawHandle;
 
 #[cfg(windows)]
-use winapi::um::winbase::{EscapeCommFunction, SETDTR, CLRDTR, SETRTS, CLRRTS};
-#[cfg(windows)]
 use winapi::shared::ntdef::HANDLE;
+#[cfg(windows)]
+use winapi::um::winbase::{EscapeCommFunction, CLRDTR, CLRRTS, SETDTR, SETRTS};
 
 /// Windows signal control helper
 #[cfg(windows)]

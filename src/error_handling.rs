@@ -377,28 +377,34 @@ impl RecoveryHandler {
                     // The caller can choose to handle this appropriately (e.g., use default value)
                     tracing::warn!("Fallback recovery strategy used for error: {:?}", error);
                     Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                        format!("Operation failed - fallback mode activated for: {:?}", code)
+                        format!("Operation failed - fallback mode activated for: {:?}", code),
                     )))
                 }
                 RecoveryStrategy::Skip => {
                     // Skip strategy: Return a descriptive error that indicates operation was skipped
-                    tracing::info!("Skip recovery strategy used - operation skipped for error: {:?}", error);
+                    tracing::info!(
+                        "Skip recovery strategy used - operation skipped for error: {:?}",
+                        error
+                    );
                     Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                        format!("Operation skipped for: {:?}", code)
+                        format!("Operation skipped for: {:?}", code),
                     )))
                 }
                 RecoveryStrategy::Abort => {
                     // Abort strategy: Return a descriptive error
-                    tracing::error!("Abort recovery strategy used - operation aborted for error: {:?}", error);
+                    tracing::error!(
+                        "Abort recovery strategy used - operation aborted for error: {:?}",
+                        error
+                    );
                     Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                        format!("Operation aborted for: {:?}", code)
+                        format!("Operation aborted for: {:?}", code),
                     )))
                 }
             }
         } else {
             // No recovery strategy available
             Err(SerialError::Serial(crate::error::SerialPortError::IoError(
-                format!("No recovery strategy available for error: {:?}", code)
+                format!("No recovery strategy available for error: {:?}", code),
             )))
         }
     }

@@ -7,8 +7,8 @@ use crate::serial_core::PortManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tokio::time::{timeout, Duration};
 use tokio::task::JoinHandle;
+use tokio::time::{timeout, Duration};
 
 /// I/O event
 #[derive(Debug, Clone)]
@@ -355,9 +355,11 @@ mod tests {
 
         // Test event sender works
         let tx = io_loop.event_sender();
-        let result = tx.send(IoEvent::PortOpened {
-            port_id: "lifecycle_test".to_string(),
-        }).await;
+        let result = tx
+            .send(IoEvent::PortOpened {
+                port_id: "lifecycle_test".to_string(),
+            })
+            .await;
         assert!(result.is_ok());
 
         // Test shutdown

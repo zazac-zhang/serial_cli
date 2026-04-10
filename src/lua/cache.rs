@@ -70,11 +70,14 @@ impl ScriptCache {
                 }
             }
 
-            cache.insert(name.clone(), CachedScript {
-                content: script.to_string(),
-                modified_time: None,
-                source_path: None,
-            });
+            cache.insert(
+                name.clone(),
+                CachedScript {
+                    content: script.to_string(),
+                    modified_time: None,
+                    source_path: None,
+                },
+            );
 
             tracing::debug!("Script cache miss for: {}, cached content", name);
         }
@@ -131,11 +134,14 @@ impl ScriptCache {
                 }
             }
 
-            cache.insert(name.clone(), CachedScript {
-                content: script_content.clone(),
-                modified_time,
-                source_path: Some(path_ref.to_path_buf()),
-            });
+            cache.insert(
+                name.clone(),
+                CachedScript {
+                    content: script_content.clone(),
+                    modified_time,
+                    source_path: Some(path_ref.to_path_buf()),
+                },
+            );
 
             tracing::debug!("Script file cached: {}", name);
         }
@@ -221,11 +227,15 @@ mod tests {
             return add(5, 3)
         "#;
 
-        let result1 = cache.load_script("test_script".to_string(), script).unwrap();
+        let result1 = cache
+            .load_script("test_script".to_string(), script)
+            .unwrap();
         assert!(result1.contains("add"));
 
         // Second load should hit cache
-        let result2 = cache.load_script("test_script".to_string(), script).unwrap();
+        let result2 = cache
+            .load_script("test_script".to_string(), script)
+            .unwrap();
         assert_eq!(result1, result2);
 
         let stats = cache.stats();
@@ -256,7 +266,9 @@ mod tests {
 
         // Load a script
         let script = "return 42";
-        let _ = cache.load_script("temp_script".to_string(), script).unwrap();
+        let _ = cache
+            .load_script("temp_script".to_string(), script)
+            .unwrap();
 
         assert_eq!(cache.stats().entries, 1);
 
@@ -300,8 +312,8 @@ mod tests {
 
     #[test]
     fn test_cache_script_from_file() {
-        use tempfile::NamedTempFile;
         use std::io::Write;
+        use tempfile::NamedTempFile;
 
         let cache = ScriptCache::new();
 
@@ -318,14 +330,18 @@ mod tests {
         temp_file.flush().unwrap();
 
         // Load from file
-        let result = cache.load_script_from_file("file_script".to_string(), temp_file.path()).unwrap();
+        let result = cache
+            .load_script_from_file("file_script".to_string(), temp_file.path())
+            .unwrap();
         assert!(result.contains("multiply"));
 
         // Should be cached
         assert_eq!(cache.stats().entries, 1);
 
         // Second load should hit cache
-        let result2 = cache.load_script_from_file("file_script".to_string(), temp_file.path()).unwrap();
+        let result2 = cache
+            .load_script_from_file("file_script".to_string(), temp_file.path())
+            .unwrap();
         assert_eq!(result, result2);
 
         // Still only one entry
@@ -338,7 +354,9 @@ mod tests {
 
         // Load a script
         let script = "return 42";
-        let _ = cache1.load_script("clone_test".to_string(), script).unwrap();
+        let _ = cache1
+            .load_script("clone_test".to_string(), script)
+            .unwrap();
 
         // Clone cache
         let cache2 = cache1.clone();
@@ -347,7 +365,9 @@ mod tests {
         assert_eq!(cache2.stats().entries, 1);
 
         // Load from cloned cache should hit cache
-        let result = cache2.load_script("clone_test".to_string(), script).unwrap();
+        let result = cache2
+            .load_script("clone_test".to_string(), script)
+            .unwrap();
         assert_eq!(result, script);
     }
 }

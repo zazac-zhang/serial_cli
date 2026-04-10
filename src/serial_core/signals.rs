@@ -50,8 +50,8 @@ impl UnixSignalController {
     /// Create a new Unix signal controller
     pub fn new() -> Self {
         Self {
-            dtr_state: true,  // Default DTR enabled
-            rts_state: true,  // Default RTS enabled
+            dtr_state: true, // Default DTR enabled
+            rts_state: true, // Default RTS enabled
             platform_name: if cfg!(target_os = "linux") {
                 "linux"
             } else if cfg!(target_os = "macos") {
@@ -95,7 +95,10 @@ impl PlatformSignals for UnixSignalController {
         // Try to set the signal, but don't fail if it doesn't work
         // This allows the code to work in more scenarios
         if let Err(e) = self.set_modem_bit(libc::TIOCM_DTR, enable) {
-            tracing::warn!("Failed to set DTR signal: {}. State updated in memory only.", e);
+            tracing::warn!(
+                "Failed to set DTR signal: {}. State updated in memory only.",
+                e
+            );
             self.dtr_state = old_state; // Revert on failure
             return Ok(SignalState::Failed);
         }
@@ -111,7 +114,10 @@ impl PlatformSignals for UnixSignalController {
 
         // Try to set the signal, but don't fail if it doesn't work
         if let Err(e) = self.set_modem_bit(libc::TIOCM_RTS, enable) {
-            tracing::warn!("Failed to set RTS signal: {}. State updated in memory only.", e);
+            tracing::warn!(
+                "Failed to set RTS signal: {}. State updated in memory only.",
+                e
+            );
             self.rts_state = old_state; // Revert on failure
             return Ok(SignalState::Failed);
         }
@@ -215,9 +221,10 @@ impl UnixSignalController {
     ) -> Result<()> {
         // SAFETY CHECK: Validate fd before any unsafe operations
         if fd < 0 {
-            return Err(SerialError::Serial(SerialPortError::IoError(
-                format!("Invalid file descriptor: {}", fd),
-            )));
+            return Err(SerialError::Serial(SerialPortError::IoError(format!(
+                "Invalid file descriptor: {}",
+                fd
+            ))));
         }
 
         // Verify fd refers to a terminal device
@@ -294,8 +301,8 @@ impl WindowsSignalController {
     /// Create a new Windows signal controller
     pub fn new() -> Self {
         Self {
-            dtr_state: true,  // Default DTR enabled
-            rts_state: true,  // Default RTS enabled
+            dtr_state: true, // Default DTR enabled
+            rts_state: true, // Default RTS enabled
         }
     }
 
@@ -307,7 +314,7 @@ impl WindowsSignalController {
     /// The handle must have GENERIC_WRITE access.
     #[allow(dead_code)]
     unsafe fn set_dtr_on_handle(handle: winapi::um::winnt::HANDLE, enable: bool) -> Result<()> {
-        use winapi::um::winbase::{SETDTR, CLRDTR, EscapeCommFunction};
+        use winapi::um::winbase::{EscapeCommFunction, CLRDTR, SETDTR};
 
         let func = if enable { SETDTR } else { CLRDTR };
 
@@ -332,7 +339,7 @@ impl WindowsSignalController {
     /// The handle must have GENERIC_WRITE access.
     #[allow(dead_code)]
     unsafe fn set_rts_on_handle(handle: winapi::um::winnt::HANDLE, enable: bool) -> Result<()> {
-        use winapi::um::winbase::{SETRTS, CLRRTS, EscapeCommFunction};
+        use winapi::um::winbase::{EscapeCommFunction, CLRRTS, SETRTS};
 
         let func = if enable { SETRTS } else { CLRRTS };
 
@@ -411,13 +418,19 @@ impl FallbackSignalController {
 impl PlatformSignals for FallbackSignalController {
     fn set_dtr(&mut self, enable: bool) -> Result<SignalState> {
         self.dtr_state = enable;
-        tracing::debug!("DTR signal state updated to {} (fallback - no hardware control)", enable);
+        tracing::debug!(
+            "DTR signal state updated to {} (fallback - no hardware control)",
+            enable
+        );
         Ok(SignalState::NotSupported)
     }
 
     fn set_rts(&mut self, enable: bool) -> Result<SignalState> {
         self.rts_state = enable;
-        tracing::debug!("RTS signal state updated to {} (fallback - no hardware control)", enable);
+        tracing::debug!(
+            "RTS signal state updated to {} (fallback - no hardware control)",
+            enable
+        );
         Ok(SignalState::NotSupported)
     }
 

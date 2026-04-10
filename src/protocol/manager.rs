@@ -74,7 +74,9 @@ impl ProtocolManager {
     pub async fn unload_protocol(&mut self, name: &str) -> Result<()> {
         // Check if protocol exists
         if !self.custom_protocols.contains_key(name) {
-            return Err(SerialError::Protocol(ProtocolError::NotFound(name.to_string())));
+            return Err(SerialError::Protocol(ProtocolError::NotFound(
+                name.to_string(),
+            )));
         }
 
         // Remove from metadata

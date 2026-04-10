@@ -495,7 +495,7 @@ impl LuaBindings {
                             Ok(result)
                         }
                         "modbus_ascii" => Ok(data.clone()), // Pass through for ASCII
-                        _ => Ok(data),                                     // Default: pass through
+                        _ => Ok(data),                      // Default: pass through
                     }
                 })?;
 

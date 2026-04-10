@@ -8,13 +8,13 @@ use std::mem;
 #[cfg(windows)]
 use windows::Win32::Foundation::HANDLE;
 #[cfg(windows)]
+use windows::Win32::System::Diagnostics::Debug::ReadProcessMemory;
+#[cfg(windows)]
 use windows::Win32::System::ProcessStatus::{
     GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,
 };
 #[cfg(windows)]
 use windows::Win32::System::Threading::GetCurrentProcess;
-#[cfg(windows)]
-use windows::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 
 /// Windows-specific performance metrics
 #[derive(Debug, Clone)]
@@ -119,7 +119,8 @@ impl WindowsPerformanceMonitor {
                 self.process_handle,
                 &mut pmc as *mut PROCESS_MEMORY_COUNTERS_EX as *mut PROCESS_MEMORY_COUNTERS,
                 mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
-            ).is_ok()
+            )
+            .is_ok()
             {
                 metrics.working_set_size = pmc.WorkingSetSize as usize;
                 metrics.peak_working_set_size = pmc.PeakWorkingSetSize as usize;
@@ -130,7 +131,9 @@ impl WindowsPerformanceMonitor {
 
             // Get CPU times and calculate usage
             let current_time = std::time::Instant::now();
-            if let (Some((last_user, last_kernel)), Some(last_time)) = (self.last_cpu_time, self.last_update) {
+            if let (Some((last_user, last_kernel)), Some(last_time)) =
+                (self.last_cpu_time, self.last_update)
+            {
                 let elapsed = current_time.duration_since(last_time).as_secs_f64();
 
                 if elapsed > 0.0 {
@@ -174,7 +177,9 @@ impl WindowsPerformanceMonitor {
     /// Check if process is elevated (running as administrator)
     pub fn is_elevated(&self) -> Result<bool, crate::error::SerialError> {
         unsafe {
-            use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+            use windows::Win32::Security::{
+                GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+            };
             use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
             let mut token = HANDLE::default();
@@ -188,7 +193,8 @@ impl WindowsPerformanceMonitor {
                     Some(&mut elevation as *mut _ as *mut _),
                     mem::size_of::<TOKEN_ELEVATION>() as u32,
                     &mut size,
-                ).is_ok()
+                )
+                .is_ok()
                 {
                     return Ok(elevation.TokenIsElevated != 0);
                 }
@@ -359,10 +365,10 @@ mod tests {
     #[test]
     fn test_windows_metrics_format() {
         let metrics = WindowsMetrics {
-            working_set_size: 10_485_760, // 10 MB
+            working_set_size: 10_485_760,      // 10 MB
             peak_working_set_size: 20_971_520, // 20 MB
-            page_file_usage: 5_242_880, // 5 MB
-            peak_page_file_usage: 10_485_760, // 10 MB
+            page_file_usage: 5_242_880,        // 5 MB
+            peak_page_file_usage: 10_485_760,  // 10 MB
             page_fault_count: 100,
             cpu_usage: 25.5,
             handle_count: 50,
