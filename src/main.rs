@@ -449,7 +449,8 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
         }
         ProtocolCommand::Info { name } => {
             tracing::info!("Protocol: {}", name);
-            let descriptions = [(
+            let descriptions = [
+                (
                     "modbus_rtu",
                     "Modbus RTU protocol - Binary industrial communication protocol",
                 ),
@@ -461,7 +462,8 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
                 (
                     "line",
                     "Line-based protocol - Simple text line communication",
-                )];
+                ),
+            ];
 
             if let Some((_, desc)) = descriptions.iter().find(|(n, _)| *n == name) {
                 tracing::info!("Description: {}", desc);
