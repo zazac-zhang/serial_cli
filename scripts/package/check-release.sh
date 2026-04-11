@@ -60,7 +60,7 @@ echo "🏗️  Phase 2: Build Verification"
 echo "--------------------------------"
 
 check "Release build" "cargo build --release"
-check "Binary execution" "cargo run --release -- --version"
+check "Binary execution" "cargo run --release -- --help"
 
 echo ""
 echo "📚 Phase 3: Documentation Checks"
