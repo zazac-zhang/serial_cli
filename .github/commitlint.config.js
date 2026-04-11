@@ -10,7 +10,7 @@ module.exports = {
       'task', 'config', 'build', 'ci'
     ]],
     'type-case': [2, 'always', 'lower-case'],
-    'subject-case': [2, 'always', 'sentence-case'],
+    'subject-case': [0],
     'subject-empty': [2, 'never'],
     'subject-full-stop': [2, 'never', '.'],
     'header-max-length': [2, 'always', 100]
