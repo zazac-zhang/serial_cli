@@ -394,6 +394,7 @@ serial_cli/
 ├── examples/               # Lua script examples
 ├── tests/                  # Integration tests
 ├── docs/                   # Documentation
+│   └── GUIDE.md            # GUI application guide
 ├── justfile                # Build commands
 ├── Cargo.toml              # Package config
 └── README.md               # This file
@@ -493,8 +494,8 @@ xcode-select --install
 
 | Document | Description |
 |:---|:---|
-| **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development guide and contribution flow |
-| **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** | Detailed troubleshooting |
+| **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development guide for contributors |
+| **[docs/GUIDE.md](docs/GUIDE.md)** | GUI application user guide |
 
 ---
 

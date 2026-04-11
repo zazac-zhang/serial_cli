@@ -85,7 +85,7 @@ src/
 - **Async**: All I/O uses `tokio`
 - **Lua integration**: Scripts executed via LuaEngine
 - **Configuration**: TOML-based with fallback defaults
-- **Documentation**: Avoid creating .md files unless explicitly necessary
+- **Documentation**: Avoid creating .md files unless explicitly necessary. Keep docs minimal — README.md for users, DEVELOPMENT.md for contributors, docs/GUIDE.md for GUI users, CHANGELOG.md for version history, RELEASE.md for release process.
 
 ## GUI Subproject
 
