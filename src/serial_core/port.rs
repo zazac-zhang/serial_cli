@@ -606,4 +606,29 @@ mod tests {
             .await;
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_close_nonexistent_port() {
+        let manager = PortManager::new();
+        let result = manager.close_port("nonexistent_id").await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_custom_baudrate() {
+        let mut config = SerialConfig::default();
+        config.baudrate = 9600;
+        assert_eq!(config.baudrate, 9600);
+    }
+
+    #[test]
+    fn test_config_all_fields() {
+        let mut config = SerialConfig::default();
+        config.baudrate = 57600;
+        config.databits = 7;
+        config.parity = Parity::Even;
+        assert_eq!(config.baudrate, 57600);
+        assert_eq!(config.databits, 7);
+        assert!(matches!(config.parity, Parity::Even));
+    }
 }

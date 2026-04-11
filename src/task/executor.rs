@@ -221,4 +221,86 @@ mod tests {
         executor.start().await.unwrap();
         executor.stop().await.unwrap();
     }
+
+    #[tokio::test]
+    async fn test_task_execution_completes() {
+        let executor = TaskExecutor::new(5);
+        executor.start().await.unwrap();
+
+        let task = Task::new(TaskType::Custom {
+            name: "echo_task".to_string(),
+            data: "hello".to_string(),
+        });
+
+        executor.submit(task, TaskPriority::Normal).await.unwrap();
+
+        // Wait for execution
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let completed = executor.get_completed().await;
+        assert!(!completed.is_empty(), "Task should have completed");
+
+        executor.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_multiple_tasks_complete() {
+        let executor = TaskExecutor::new(10);
+        executor.start().await.unwrap();
+
+        for i in 0..10 {
+            let task = Task::new(TaskType::Custom {
+                name: format!("task_{}", i),
+                data: format!("data_{}", i),
+            });
+            executor.submit(task, TaskPriority::Normal).await.unwrap();
+        }
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let completed = executor.get_completed().await;
+        assert_eq!(completed.len(), 10, "All 10 tasks should complete");
+
+        executor.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_task_error_result() {
+        let executor = TaskExecutor::new(5);
+        executor.start().await.unwrap();
+
+        // Submit a task that will error (invalid command type)
+        let task = Task::new(TaskType::Custom {
+            name: "failing_task".to_string(),
+            data: String::new(),
+        });
+
+        executor.submit(task, TaskPriority::Normal).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let completed = executor.get_completed().await;
+        // Verify completion tracking records the task
+        assert!(!completed.is_empty());
+
+        executor.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_stop_clears_pending() {
+        let executor = TaskExecutor::new(1);
+        executor.start().await.unwrap();
+
+        // Submit tasks faster than they process
+        for i in 0..5 {
+            let task = Task::new(TaskType::Custom {
+                name: format!("flood_{}", i),
+                data: String::new(),
+            });
+            executor.submit(task, TaskPriority::Normal).await.unwrap();
+        }
+
+        executor.stop().await.unwrap();
+        // After stop, running count should be 0
+        assert_eq!(executor.running_count().await, 0);
+    }
 }

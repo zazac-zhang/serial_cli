@@ -185,4 +185,36 @@ mod tests {
         let second = queue.pop().await.unwrap();
         assert_eq!(second.id(), task1.id());
     }
+
+    #[tokio::test]
+    async fn test_pop_empty_queue() {
+        let queue: TaskQueue = TaskQueue::new(10);
+        let result = queue.pop().await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_push_multiple_pop_all() {
+        let queue = TaskQueue::new(10);
+
+        for i in 0..5 {
+            let task = Task::new(TaskType::Script {
+                name: format!("task_{}", i),
+                content: "".to_string(),
+            });
+            queue.push(task, TaskPriority::Normal).await.unwrap();
+        }
+
+        assert_eq!(queue.len().await, 5);
+        assert!(!queue.is_empty().await);
+
+        // Pop all tasks
+        for _ in 0..5 {
+            assert!(queue.pop().await.is_some());
+        }
+
+        // Queue should now be empty
+        assert!(queue.is_empty().await);
+        assert!(queue.pop().await.is_none());
+    }
 }

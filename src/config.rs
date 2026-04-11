@@ -458,4 +458,158 @@ mod tests {
         let toml_str = toml::to_string(&config).unwrap();
         assert!(toml_str.contains("baudrate"));
     }
+
+    #[test]
+    fn test_deserialize_config() {
+        let toml_str = r#"
+            [serial]
+            baudrate = 9600
+            databits = 7
+            stopbits = 2
+            parity = "even"
+            timeout_ms = 2000
+
+            [logging]
+            level = "debug"
+            format = "json"
+            file = "/tmp/test.log"
+
+            [lua]
+            memory_limit_mb = 256
+            timeout_seconds = 60
+            enable_sandbox = false
+
+            [task]
+            max_concurrent = 5
+            default_timeout_seconds = 30
+
+            [output]
+            json_pretty = false
+            show_timestamp = false
+        "#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.serial.baudrate, 9600);
+        assert_eq!(config.serial.databits, 7);
+        assert_eq!(config.serial.stopbits, 2);
+        assert_eq!(config.serial.parity, "even");
+        assert_eq!(config.logging.level, "debug");
+        assert!(!config.lua.enable_sandbox);
+    }
+
+    #[test]
+    fn test_config_from_invalid_toml() {
+        let result = load_config(Path::new("nonexistent.toml"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_malformed_content() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("malformed_config.toml");
+        std::fs::write(&path, "this is not [[valid toml {{{").unwrap();
+        let result = load_config(&path);
+        assert!(result.is_err());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_config_set_valid_keys() {
+        let manager = ConfigManager::new();
+        manager.set("serial.baudrate", "9600").unwrap();
+        manager.set("serial.databits", "7").unwrap();
+        manager.set("serial.parity", "even").unwrap();
+        manager.set("logging.level", "debug").unwrap();
+        manager.set("lua.memory_limit_mb", "256").unwrap();
+        manager.set("output.json_pretty", "false").unwrap();
+
+        let config = manager.get();
+        assert_eq!(config.serial.baudrate, 9600);
+        assert_eq!(config.serial.parity, "even");
+        assert_eq!(config.logging.level, "debug");
+        assert_eq!(config.lua.memory_limit_mb, 256);
+        assert!(!config.output.json_pretty);
+    }
+
+    #[test]
+    fn test_config_set_invalid_values() {
+        let manager = ConfigManager::new();
+        assert!(manager.set("serial.baudrate", "not_a_number").is_err());
+        assert!(manager.set("lua.memory_limit_mb", "abc").is_err());
+        assert!(manager.set("output.json_pretty", "yes").is_err());
+    }
+
+    #[test]
+    fn test_config_set_invalid_databits_out_of_range() {
+        let manager = ConfigManager::new();
+        // 99 is a valid u8, so set() succeeds — validation catches it
+        manager.set("serial.databits", "99").unwrap();
+        assert!(manager.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_set_unknown_key() {
+        let manager = ConfigManager::new();
+        assert!(manager.set("unknown.key", "value").is_err());
+    }
+
+    #[test]
+    fn test_config_reset() {
+        let manager = ConfigManager::new();
+        manager.set("serial.baudrate", "9600").unwrap();
+        manager.reset().unwrap();
+        let config = manager.get();
+        assert_eq!(config.serial.baudrate, 115200);
+    }
+
+    #[test]
+    fn test_config_validate_success() {
+        let manager = ConfigManager::new();
+        assert!(manager.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validate_zero_baudrate() {
+        let manager = ConfigManager::new();
+        manager.set("serial.baudrate", "0").unwrap();
+        assert!(manager.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_invalid_databits() {
+        let manager = ConfigManager::new();
+        manager.set("serial.databits", "4").unwrap();
+        assert!(manager.validate().is_err());
+        manager.set("serial.databits", "9").unwrap();
+        assert!(manager.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_invalid_stopbits() {
+        let manager = ConfigManager::new();
+        manager.set("serial.stopbits", "0").unwrap();
+        assert!(manager.validate().is_err());
+        manager.set("serial.stopbits", "3").unwrap();
+        assert!(manager.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_invalid_parity() {
+        let manager = ConfigManager::new();
+        manager.set("serial.parity", "mark").unwrap();
+        assert!(manager.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_invalid_log_level() {
+        let manager = ConfigManager::new();
+        manager.set("logging.level", "verbose").unwrap();
+        assert!(manager.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_zero_max_concurrent() {
+        let manager = ConfigManager::new();
+        manager.set("task.max_concurrent", "0").unwrap();
+        assert!(manager.validate().is_err());
+    }
 }

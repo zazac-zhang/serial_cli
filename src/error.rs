@@ -204,4 +204,95 @@ mod tests {
         };
         assert!(err.to_string().contains("Checksum mismatch"));
     }
+
+    #[test]
+    fn test_serial_port_error_variants() {
+        let not_found = SerialError::Serial(SerialPortError::PortNotFound("COM1".to_string()));
+        assert!(not_found.to_string().contains("COM1"));
+
+        let permission = SerialError::Serial(SerialPortError::permission_denied("/dev/ttyUSB0", Some("run as root")));
+        assert!(permission.to_string().contains("/dev/ttyUSB0"));
+
+        let timeout = SerialError::Serial(SerialPortError::Timeout("/dev/ttyS0".to_string()));
+        assert!(timeout.to_string().contains("timeout"));
+
+        let busy = SerialError::Serial(SerialPortError::port_busy("COM3", Some("close other app")));
+        assert!(busy.to_string().contains("already in use"));
+    }
+
+    #[test]
+    fn test_io_error_conversion() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let serial_err: SerialError = io_err.into();
+        assert!(serial_err.to_string().contains("I/O error"));
+    }
+
+    #[test]
+    fn test_protocol_error_variants() {
+        let not_found = ProtocolError::NotFound("unknown".to_string());
+        assert!(not_found.to_string().contains("unknown"));
+
+        let invalid_frame = ProtocolError::InvalidFrame("bad frame".to_string());
+        assert!(invalid_frame.to_string().contains("Invalid frame"));
+
+        let unexpected = ProtocolError::UnexpectedResponse("bad response".to_string());
+        assert!(unexpected.to_string().contains("Unexpected response"));
+
+        let timeout = ProtocolError::Timeout("read timeout".to_string());
+        assert!(timeout.to_string().contains("Protocol timeout"));
+
+        let invalid_state = ProtocolError::InvalidState("closed".to_string());
+        assert!(invalid_state.to_string().contains("Invalid protocol state"));
+    }
+
+    #[test]
+    fn test_script_error_variants() {
+        let path = PathBuf::from("test.lua");
+        let syntax = ScriptError::Syntax {
+            script: path.clone(),
+            line: 10,
+            message: "unexpected symbol".to_string(),
+        };
+        assert!(syntax.to_string().contains("test.lua:10"));
+
+        let runtime = ScriptError::Runtime {
+            script: path.clone(),
+            message: "attempt to call nil".to_string(),
+        };
+        assert!(runtime.to_string().contains("test.lua"));
+
+        let api = ScriptError::ApiError("invalid call".to_string());
+        assert!(api.to_string().contains("Script API error"));
+
+        let not_found = ScriptError::NotFound(PathBuf::from("missing.lua"));
+        assert!(not_found.to_string().contains("missing.lua"));
+
+        let sandbox = ScriptError::SandboxViolation("os.execute".to_string());
+        assert!(sandbox.to_string().contains("Sandbox violation"));
+
+        let limit = ScriptError::ResourceLimitExceeded("memory".to_string());
+        assert!(limit.to_string().contains("Resource limit exceeded"));
+    }
+
+    #[test]
+    fn test_task_error_variants() {
+        let timeout = TaskError::Timeout("task_1".to_string(), 30);
+        assert!(timeout.to_string().contains("task_1"));
+        assert!(timeout.to_string().contains("30s"));
+
+        let dep_failed = TaskError::DependencyFailed("dep_task".to_string());
+        assert!(dep_failed.to_string().contains("dep_task"));
+
+        let exhausted = TaskError::ResourceExhausted("memory".to_string());
+        assert!(exhausted.to_string().contains("Resource exhausted"));
+
+        let cancelled = TaskError::Cancelled("task_2".to_string());
+        assert!(cancelled.to_string().contains("cancelled"));
+
+        let deadlock = TaskError::Deadlock("task_3".to_string());
+        assert!(deadlock.to_string().contains("Deadlock"));
+
+        let invalid = TaskError::InvalidState("running".to_string());
+        assert!(invalid.to_string().contains("Invalid task state"));
+    }
 }

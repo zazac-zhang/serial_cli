@@ -51,3 +51,59 @@ impl Protocol for LineProtocol {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_adds_newline() {
+        let mut proto = LineProtocol::new();
+        let result = proto.encode(b"hello").unwrap();
+        assert_eq!(result, b"hello\n");
+    }
+
+    #[test]
+    fn test_encode_skips_existing_newline() {
+        let mut proto = LineProtocol::new();
+        let result = proto.encode(b"hello\n").unwrap();
+        assert_eq!(result, b"hello\n");
+    }
+
+    #[test]
+    fn test_encode_empty_data() {
+        let mut proto = LineProtocol::new();
+        let result = proto.encode(b"").unwrap();
+        assert_eq!(result, b"\n");
+    }
+
+    #[test]
+    fn test_encode_only_newline() {
+        let mut proto = LineProtocol::new();
+        let result = proto.encode(b"\n").unwrap();
+        assert_eq!(result, b"\n");
+    }
+
+    #[test]
+    fn test_parse_returns_data_as_is() {
+        let mut proto = LineProtocol::new();
+        let result = proto.parse(b"hello\n").unwrap();
+        assert_eq!(result, b"hello\n");
+    }
+
+    #[test]
+    fn test_custom_separator() {
+        let mut proto = LineProtocol::new().with_separator(vec![b'\r', b'\n']);
+        let encoded = proto.encode(b"cmd").unwrap();
+        assert_eq!(encoded, b"cmd\r\n");
+        // Should not duplicate
+        let encoded2 = proto.encode(b"cmd\r\n").unwrap();
+        assert_eq!(encoded2, b"cmd\r\n");
+    }
+
+    #[test]
+    fn test_name() {
+        let proto = LineProtocol::new();
+        assert_eq!(proto.name(), "line");
+    }
+}

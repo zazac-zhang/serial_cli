@@ -155,20 +155,13 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_monitor_creation() {
+    async fn test_monitor_counts() {
         let executor = Arc::new(TaskExecutor::new(10));
-        let monitor = TaskMonitor::new(executor);
+        let monitor = TaskMonitor::new(executor.clone());
 
         let stats = monitor.stats().await;
         assert_eq!(stats.total_completed, 0);
-    }
-
-    #[tokio::test]
-    async fn test_monitor_report() {
-        let executor = Arc::new(TaskExecutor::new(10));
-        let monitor = TaskMonitor::new(executor);
-
-        monitor.print_report().await;
-        // Just ensures it doesn't panic
+        assert_eq!(monitor.pending_count().await, 0);
+        assert_eq!(monitor.running_count().await, 0);
     }
 }

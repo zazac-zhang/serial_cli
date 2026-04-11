@@ -188,10 +188,26 @@ mod tests {
     }
 
     #[test]
-    fn test_config_from_env() {
+    fn test_config_from_env_with_verbose() {
+        std::env::set_var("RUST_LOG", "debug");
         let config = LoggingConfig::from_env(true);
         assert_eq!(config.level, "debug");
+        std::env::remove_var("RUST_LOG");
+    }
 
+    #[test]
+    fn test_config_from_env_without_verbose() {
+        std::env::set_var("RUST_LOG", "warn");
+        let config = LoggingConfig::from_env(false);
+        assert_eq!(config.level, "warn");
+        std::env::remove_var("RUST_LOG");
+    }
+
+    #[test]
+    fn test_config_from_env_falls_back_without_verbose() {
+        // Without env var set, should fall back to "info"
+        std::env::remove_var("RUST_LOG");
+        std::env::remove_var("LOG_LEVEL");
         let config = LoggingConfig::from_env(false);
         assert_eq!(config.level, "info");
     }

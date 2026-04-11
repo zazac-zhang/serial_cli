@@ -134,19 +134,17 @@ mod tests {
     #[cfg(windows)]
     fn test_set_dtr_by_name() {
         let control = WindowsSignalControl::new("COM1".to_string());
-        // This will likely fail if COM1 doesn't exist, but tests the API
-        let result = control.set_dtr_by_name(true);
-        // We don't assert success since COM1 may not exist
-        println!("set_dtr_by_name result: {:?}", result);
+        // This will fail if COM1 doesn't exist, but the call should not panic
+        let _ = control.set_dtr_by_name(true);
+        // API is callable and returns Result — we verify it doesn't crash
     }
 
     #[test]
     #[cfg(windows)]
     fn test_set_rts_by_name() {
         let control = WindowsSignalControl::new("COM1".to_string());
-        // This will likely fail if COM1 doesn't exist, but tests the API
-        let result = control.set_rts_by_name(true);
-        // We don't assert success since COM1 may not exist
-        println!("set_rts_by_name result: {:?}", result);
+        // This will fail if COM1 doesn't exist, but the call should not panic
+        let _ = control.set_rts_by_name(true);
+        // API is callable and returns Result — we verify it doesn't crash
     }
 }

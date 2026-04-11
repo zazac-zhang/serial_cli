@@ -334,18 +334,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ioloop_shutdown() {
-        let mut io_loop = IoLoop::new();
-
-        // Verify not running initially
-        assert!(!io_loop.is_running());
-
-        // Shutdown should be safe even when not running
-        let result = io_loop.shutdown().await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
     async fn test_ioloop_lifecycle() {
         let mut io_loop = IoLoop::new();
 

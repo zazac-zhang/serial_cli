@@ -84,4 +84,20 @@ mod tests {
         let watcher = ProtocolWatcher::new();
         assert!(watcher.is_ok());
     }
+
+    #[test]
+    fn test_watch_valid_path() {
+        let mut watcher = ProtocolWatcher::new().unwrap();
+        let result = watcher.watch(Path::new("tests/fixtures/protocols/test_valid.lua"));
+        // Should succeed since the file exists
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_watch_nonexistent_path() {
+        let mut watcher = ProtocolWatcher::new().unwrap();
+        // Watching a nonexistent directory should fail
+        let result = watcher.watch(Path::new("/nonexistent/path/file.lua"));
+        assert!(result.is_err());
+    }
 }

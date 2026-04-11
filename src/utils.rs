@@ -403,6 +403,30 @@ mod tests {
     }
 
     #[test]
+    fn test_hex_to_bytes_empty() {
+        let bytes = DataFormat::hex_to_bytes("").unwrap();
+        assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn test_hex_to_bytes_odd_length() {
+        let result = DataFormat::hex_to_bytes("0102F");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hex_to_bytes_invalid_chars() {
+        let result = DataFormat::hex_to_bytes("01GG03");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hex_to_bytes_with_mixed_case() {
+        let bytes = DataFormat::hex_to_bytes("aAbB01").unwrap();
+        assert_eq!(bytes, vec![0xAA, 0xBB, 0x01]);
+    }
+
+    #[test]
     fn test_escape_bytes() {
         let data = b"Hello\nWorld\t\x01";
         let escaped = DataFormat::escape_bytes(data);

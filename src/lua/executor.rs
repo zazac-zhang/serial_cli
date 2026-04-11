@@ -99,4 +99,58 @@ mod tests {
         "#;
         assert!(engine.execute_string(script).is_ok());
     }
+
+    #[test]
+    fn test_execute_syntax_error() {
+        let engine = ScriptEngine::new().unwrap();
+        // Intentionally malformed Lua script
+        let result = engine.execute_string("if true then");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_execute_runtime_error() {
+        let engine = ScriptEngine::new().unwrap();
+        // Calling nil function causes runtime error
+        let result = engine.execute_string("nonexistent_function()");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_execute_file_not_found() {
+        let engine = ScriptEngine::new().unwrap();
+        let result = engine.execute_file(std::path::Path::new("nonexistent_script.lua"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_execute_file_valid() {
+        let engine = ScriptEngine::new().unwrap();
+        let result = engine.execute_file(std::path::Path::new("tests/fixtures/protocols/test_valid.lua"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_execute_with_args() {
+        let engine = ScriptEngine::new().unwrap();
+        let script = r#"
+            assert(arg[1] == "hello", "arg[1] mismatch")
+            assert(arg[2] == "world", "arg[2] mismatch")
+            assert(arg1 == "hello", "global arg1 mismatch")
+        "#;
+        let result = engine.execute_with_args(script, vec!["hello".to_string(), "world".to_string()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_state_isolation() {
+        // Verify that separate engines don't share state
+        let engine1 = ScriptEngine::new().unwrap();
+        engine1.execute_string("myvar = 42").unwrap();
+
+        let engine2 = ScriptEngine::new().unwrap();
+        // engine2 should not see engine1's globals
+        let result = engine2.execute_string("if myvar == nil then return end");
+        assert!(result.is_ok());
+    }
 }

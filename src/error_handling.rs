@@ -465,4 +465,56 @@ mod tests {
             panic!("Expected Retry strategy");
         }
     }
+
+    #[test]
+    fn test_recovery_handler_unknown_error() {
+        let recovery = RecoveryHandler::new();
+        let strategy = recovery.get_strategy(ErrorCode::PortNotFound);
+        assert!(strategy.is_none());
+    }
+
+    #[test]
+    fn test_recovery_handler_multiple_strategies() {
+        let mut recovery = RecoveryHandler::new();
+        recovery.add_strategy(
+            ErrorCode::Timeout,
+            RecoveryStrategy::Retry {
+                attempts: 3,
+                delay_ms: 100,
+            },
+        );
+        recovery.add_strategy(ErrorCode::PortBusy, RecoveryStrategy::Abort);
+        recovery.add_strategy(ErrorCode::PortNotFound, RecoveryStrategy::Skip);
+
+        // Timeout should have Retry
+        match recovery.get_strategy(ErrorCode::Timeout).unwrap() {
+            RecoveryStrategy::Retry { attempts, delay_ms } => {
+                assert_eq!(*attempts, 3);
+                assert_eq!(*delay_ms, 100);
+            }
+            _ => panic!("Expected Retry for Timeout"),
+        }
+
+        // PortBusy should have Abort
+        assert!(matches!(
+            recovery.get_strategy(ErrorCode::PortBusy).unwrap(),
+            RecoveryStrategy::Abort
+        ));
+
+        // PortNotFound should have Skip
+        assert!(matches!(
+            recovery.get_strategy(ErrorCode::PortNotFound).unwrap(),
+            RecoveryStrategy::Skip
+        ));
+    }
+
+    #[test]
+    fn test_recovery_handler_fallback_strategy() {
+        let mut recovery = RecoveryHandler::new();
+        recovery.add_strategy(ErrorCode::ScriptError, RecoveryStrategy::Fallback);
+        assert!(matches!(
+            recovery.get_strategy(ErrorCode::ScriptError).unwrap(),
+            RecoveryStrategy::Fallback
+        ));
+    }
 }

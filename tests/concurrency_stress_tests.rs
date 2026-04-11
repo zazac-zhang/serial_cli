@@ -225,46 +225,6 @@ async fn test_concurrent_protocol_registry_access() {
     );
 }
 
-/// Test memory stability under concurrent load
-#[tokio::test]
-async fn test_memory_stability_under_load() {
-    let executor = TaskExecutor::new(20);
-    executor.start().await.unwrap();
-
-    // Run many cycles of task submission and completion
-    for cycle in 0..5 {
-        // Reduced cycles for faster testing
-        // Submit batch of tasks
-        for i in 0..20 {
-            // Reduced batch size
-            let task = Task::new(TaskType::Custom {
-                name: format!("mem_test_{}_{}", cycle, i),
-                data: "x".repeat(512), // 512B data instead of 1KB
-            });
-
-            executor.submit(task, TaskPriority::Normal).await.unwrap();
-        }
-
-        // Wait for some to complete
-        tokio::time::sleep(Duration::from_millis(20)).await;
-
-        // Clear completed tasks
-        executor.clear_completed().await;
-    }
-
-    // Final verification
-    let final_completed = executor.get_completed().await.len();
-    let final_running = executor.running_count().await;
-
-    // Should have processed tasks without hanging
-    assert!(
-        final_completed + final_running >= 0,
-        "Executor should remain stable under load"
-    );
-
-    executor.stop().await.unwrap();
-}
-
 /// Test race condition prevention in task completion tracking
 #[tokio::test]
 async fn test_task_completion_tracking_consistency() {
