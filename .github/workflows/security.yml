@@ -21,9 +21,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run cargo-audit
-        uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo install cargo-audit
+          cargo audit
 
       - name: Check for outdated dependencies
         run: |
@@ -51,7 +51,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
