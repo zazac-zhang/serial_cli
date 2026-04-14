@@ -126,7 +126,7 @@ impl WindowsPerformanceMonitor {
                 metrics.peak_working_set_size = pmc.PeakWorkingSetSize as usize;
                 metrics.page_file_usage = pmc.PagefileUsage as usize;
                 metrics.peak_page_file_usage = pmc.PeakPagefileUsage as usize;
-                metrics.page_fault_count = pmc.PageFaultCount;
+                metrics.page_fault_count = pmc.PageFaultCount as u64;
             }
 
             // Get CPU times and calculate usage

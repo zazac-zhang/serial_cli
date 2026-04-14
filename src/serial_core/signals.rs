@@ -323,7 +323,7 @@ impl WindowsSignalController {
         let func = if enable { SETDTR } else { CLRDTR };
 
         let result = EscapeCommFunction(handle, func);
-        if !result.as_bool() {
+        if result.is_err() {
             let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             return Err(SerialError::Serial(SerialPortError::IoError(format!(
                 "Failed to set DTR on Windows. Error code: {}",
@@ -352,7 +352,7 @@ impl WindowsSignalController {
         let func = if enable { SETRTS } else { CLRRTS };
 
         let result = EscapeCommFunction(handle, func);
-        if !result.as_bool() {
+        if result.is_err() {
             let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             return Err(SerialError::Serial(SerialPortError::IoError(format!(
                 "Failed to set RTS on Windows. Error code: {}",
