@@ -4,15 +4,21 @@
 
 - Rust toolchain installed
 - git-cliff: `cargo install git-cliff`
-- Write access to GitHub repository
+- Write access to GitHub Repository
 
 ## Release Process
 
 ### 1. Prepare Release
 
 ```bash
-# Prepare new version (e.g., v1.2.3)
-./scripts/package/prepare-release.sh v1.2.3
+# Check readiness
+./scripts/release.sh v1.2.3 --check-only
+
+# Prepare new version (runs checks then updates versions)
+./scripts/release.sh v1.2.3
+
+# Or skip checks if you already verified
+./scripts/release.sh v1.2.3 --no-checks
 
 # Review changes
 git diff
@@ -22,29 +28,21 @@ git status
 git commit -am "chore: prepare release v1.2.3"
 ```
 
-### 2. Run Verification
-
-```bash
-# Run release verification
-./scripts/package/verify-release.sh
-
-# Run integration tests
-./scripts/test/integration/test-release.sh
-```
-
-### 3. Create Release
+### 2. Create Release
 
 ```bash
 # Create and push tag
-./scripts/package/release.sh v1.2.3
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
 ```
 
 After pushing the tag, GitHub Actions will:
 1. Build binaries for all platforms
 2. Create GitHub Release
-3. Publish to crates.io
+3. Update Homebrew, Scoop, and AUR
+4. Publish to crates.io
 
-### 4. Verify Release
+### 3. Verify Release
 
 - [ ] GitHub Release created
 - [ ] All platform builds successful

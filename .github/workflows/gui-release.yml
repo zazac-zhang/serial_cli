@@ -108,8 +108,8 @@ jobs:
 
       - name: Run installation tests
         run: |
-          chmod +x scripts/gui/test-install.sh
-          scripts/gui/test-install.sh ./artifacts
+          chmod +x scripts/test-gui.sh
+          scripts/test-gui.sh ./artifacts
 
   create-gui-release:
     name: Create GUI Release

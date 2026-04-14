@@ -241,8 +241,8 @@ jobs:
         run: |
           cargo publish
 
-  homebrew-release:
-    name: Update Homebrew Tap
+  update-packages:
+    name: Update Package Managers
     needs: [build, release]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -253,75 +253,133 @@ jobs:
         id: release
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
+          VERSION_NUM=${VERSION#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_num=$VERSION_NUM" >> $GITHUB_OUTPUT
 
-      - name: Calculate SHA256
+      - name: Calculate SHA256 checksums
         id: sha
         run: |
-          curl -L "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64" \
-            -o serial-cli-linux
-          SHA256=$(sha256sum serial-cli-linux | awk '{print $1}')
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          curl -sL "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64" -o serial-cli-linux
+          curl -sL "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-windows-x86_64.exe" -o serial-cli.exe
+          curl -sL "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64.tar.gz" -o serial-cli.tar.gz || true
+          echo "linux=$(sha256sum serial-cli-linux | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "windows=$(sha256sum serial-cli.exe | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "source=$(sha256sum serial-cli.tar.gz 2>/dev/null || echo 'manual')" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew formula
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          scripts/package/update_homebrew.sh "${{ steps.release.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
-
-  scoop-release:
-    name: Update Scoop Bucket
-    needs: [build, release]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get release info
-        id: release
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Calculate SHA256
-        id: sha
-        run: |
-          curl -L "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-windows-x86_64.exe" \
-            -o serial-cli.exe
-          SHA256=$(sha256sum serial-cli.exe | awk '{print $1}')
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          TAP_REPO="https://github.com/zazac-zhang/serial-cli-homebrew.git"
+          TMP_DIR=$(mktemp -d)
+          git clone "$TAP_REPO" "$TMP_DIR"
+          cd "$TMP_DIR"
+          FORMULA_FILE="Formula/serial-cli.rb"
+          if [ -f "$FORMULA_FILE" ]; then
+            sed -i.bak "s/v{version}/${{ steps.release.outputs.version }}/g" "$FORMULA_FILE"
+            sed -i.bak "s/{sha256_from_release}/${{ steps.sha.outputs.linux }}/g" "$FORMULA_FILE"
+            rm -f "$FORMULA_FILE.bak"
+          else
+            mkdir -p Formula
+            cat > "$FORMULA_FILE" << 'RUBY'
+class SerialCli < Formula
+  desc "Universal serial port CLI tool optimized for AI interaction"
+  homepage "https://github.com/zazac-zhang/serial_cli"
+  url "https://github.com/zazac-zhang/serial_cli/archive/refs/tags/${VERSION}.tar.gz"
+  sha256 "${SHA256}"
+  license any_of: ["MIT", "Apache-2.0"]
+  depends_on "rust" => :build
+  def install
+    system "cargo", "install", "--path", "."
+  end
+  test do
+    system "#{bin}/serial-cli", "--version"
+  end
+end
+RUBY
+            sed -i "s/\${VERSION}/${{ steps.release.outputs.version }}/g" "$FORMULA_FILE"
+            sed -i "s/\${SHA256}/${{ steps.sha.outputs.linux }}/g" "$FORMULA_FILE"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FORMULA_FILE"
+          git commit -m "Bump to ${{ steps.release.outputs.version }}"
+          git push
+          rm -rf "$TMP_DIR"
 
       - name: Update Scoop manifest
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          scripts/package/update_scoop.sh "${{ steps.release.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
-
-  aur-prepare:
-    name: Prepare AUR Files
-    needs: [build, release]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get release info
-        id: release
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Calculate SHA256
-        id: sha
-        run: |
-          curl -L "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64.tar.gz" \
-            -o serial-cli.tar.gz || true
-          SHA256=$(sha256sum serial-cli.tar.gz 2>/dev/null || echo "manual")
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          BUCKET_REPO="https://github.com/zazac-zhang/serial-cli-scoop.git"
+          TMP_DIR=$(mktemp -d)
+          git clone "$BUCKET_REPO" "$TMP_DIR"
+          cd "$TMP_DIR"
+          mkdir -p bucket
+          cat > "bucket/serial-cli.json" << EOF
+{
+  "version": "${{ steps.release.outputs.version_num }}",
+  "description": "Universal serial port CLI tool",
+  "homepage": "https://github.com/zazac-zhang/serial_cli",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-windows-x86_64.exe",
+  "hash": "${{ steps.sha.outputs.windows }}",
+  "bin": "serial-cli.exe",
+  "post_install": [
+    "Write-Host \"Serial CLI ${{ steps.release.outputs.version_num }} installed successfully!\""
+  ]
+}
+EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "bucket/serial-cli.json"
+          git commit -m "Bump to ${{ steps.release.outputs.version_num }}"
+          git push
+          rm -rf "$TMP_DIR"
 
       - name: Generate AUR files
         run: |
-          scripts/package/generate_aur.sh "${{ steps.release.outputs.version }}" "${{ steps.sha.outputs.sha256 }}"
+          VERSION="${{ steps.release.outputs.version }}"
+          VERSION_NUM="${VERSION#v}"
+          SHA="${{ steps.sha.outputs.source }}"
+          mkdir -p aur
+          cat > "aur/PKGBUILD" << EOF
+pkgname=serial-cli
+pkgver=$VERSION_NUM
+pkgrel=1
+pkgdesc="Universal serial port CLI tool optimized for AI interaction"
+arch=('x86_64' 'aarch64')
+url="https://github.com/zazac-zhang/serial_cli"
+license=('MIT' 'Apache')
+depends=('gcc-libs')
+makedepends=('cargo')
+source=("\$pkgname-\$pkgver.tar.gz::https://github.com/zazac-zhang/serial_cli/archive/refs/tags/v\$pkgver.tar.gz")
+sha256sums=('$SHA')
+build() {
+  cd "\$pkgname-\$pkgver"
+  cargo build --release
+}
+package() {
+  cd "\$pkgname-\$pkgver"
+  install -Dm755 "target/release/serial-cli" "\$pkgdir/usr/bin/serial-cli"
+}
+EOF
+          cat > "aur/.SRCINFO" << EOF
+pkgbase = serial-cli
+pkgdesc = Universal serial port CLI tool optimized for AI interaction
+pkgver = $VERSION_NUM
+pkgrel = 1
+url = https://github.com/zazac-zhang/serial_cli
+arch = x86_64
+arch = aarch64
+license = MIT
+license = Apache
+depends = gcc-libs
+makedepends = cargo
+source = serial-cli-$VERSION_NUM.tar.gz::https://github.com/zazac-zhang/serial_cli/archive/refs/tags/v$VERSION_NUM.tar.gz
+sha256sums = $SHA
+EOF
 
       - name: Upload AUR files
         uses: actions/upload-artifact@v4
