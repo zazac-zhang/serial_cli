@@ -140,6 +140,50 @@ release: clean-all build-all
 # GUI Commands
 # =============================================================================
 
+# Check if Tauri CLI is installed
+_check-tauri-cli:
+    #!/usr/bin/env bash
+    if ! cargo tauri --help &> /dev/null 2>&1; then
+        echo "❌ Error: Tauri CLI not installed"
+        echo "Install with: cargo install tauri-cli --version '^2.0.0'"
+        echo "Or run: just install-deps"
+        exit 1
+    fi
+
+# Install all development dependencies
+install-deps:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Installing development dependencies..."
+
+    # Check and install cross
+    if ! command -v cross &> /dev/null; then
+        echo "Installing cross..."
+        cargo install cross
+    else
+        echo "✓ cross already installed"
+    fi
+
+    # Check and install Tauri CLI
+    if ! cargo tauri --help &> /dev/null 2>&1; then
+        echo "Installing Tauri CLI..."
+        cargo install tauri-cli --version '^2.0.0'
+    else
+        echo "✓ Tauri CLI already installed"
+    fi
+
+    # Install frontend dependencies
+    if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+        echo "Installing frontend dependencies..."
+        cd frontend && npm install
+        echo "✓ Frontend dependencies installed"
+    else
+        echo "⚠️  Frontend directory not found, skipping npm install"
+    fi
+
+    echo ""
+    echo "✓ All development dependencies installed"
+
 # Install GUI dependencies
 gui-deps:
     cd frontend && npm install
@@ -149,11 +193,11 @@ gui-dev-frontend:
     cd frontend && npm run dev
 
 # Start Tauri GUI development
-gui-dev:
+gui-dev: _check-tauri-cli
     cargo tauri dev
 
 # Build GUI application
-gui-build:
+gui-build: _check-tauri-cli
     cd frontend && npm run build
     cargo tauri build
 
