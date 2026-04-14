@@ -24,7 +24,7 @@ windows = { version = "0.52", features = ["Win32_Foundation", "Win32_System_Proc
 uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Lua integration
-mlua = { version = "0.9", features = ["luajit", "async"] }
+mlua = { version = "0.9", features = ["luajit", "async", "vendored"] }
 
 # Error handling
 thiserror = "1.0"
