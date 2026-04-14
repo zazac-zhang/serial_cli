@@ -391,10 +391,10 @@ mod tests {
         let runner = BatchRunner::new(BatchConfig::default()).unwrap();
 
         // Create a test script
-        let script_path = Path::new("/tmp/test_batch.lua");
-        std::fs::write(script_path, "print('test')").unwrap();
+        let script_path = std::env::temp_dir().join("test_batch.lua");
+        std::fs::write(&script_path, "print('test')").unwrap();
 
-        let result = runner.run_script(script_path).await;
+        let result = runner.run_script(&script_path).await;
         assert!(result.is_ok());
 
         // Cleanup
