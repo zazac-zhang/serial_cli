@@ -210,7 +210,10 @@ mod tests {
         let not_found = SerialError::Serial(SerialPortError::PortNotFound("COM1".to_string()));
         assert!(not_found.to_string().contains("COM1"));
 
-        let permission = SerialError::Serial(SerialPortError::permission_denied("/dev/ttyUSB0", Some("run as root")));
+        let permission = SerialError::Serial(SerialPortError::permission_denied(
+            "/dev/ttyUSB0",
+            Some("run as root"),
+        ));
         assert!(permission.to_string().contains("/dev/ttyUSB0"));
 
         let timeout = SerialError::Serial(SerialPortError::Timeout("/dev/ttyS0".to_string()));

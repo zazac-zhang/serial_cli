@@ -314,7 +314,10 @@ impl WindowsSignalController {
     /// The handle must have GENERIC_WRITE access.
     #[allow(dead_code)]
     #[cfg(windows)]
-    unsafe fn set_dtr_on_handle(handle: windows::Win32::Foundation::HANDLE, enable: bool) -> Result<()> {
+    unsafe fn set_dtr_on_handle(
+        handle: windows::Win32::Foundation::HANDLE,
+        enable: bool,
+    ) -> Result<()> {
         use windows::Win32::System::Comm::{EscapeCommFunction, CLRDTR, SETDTR};
 
         let func = if enable { SETDTR } else { CLRDTR };
@@ -340,7 +343,10 @@ impl WindowsSignalController {
     /// The handle must have GENERIC_WRITE access.
     #[allow(dead_code)]
     #[cfg(windows)]
-    unsafe fn set_rts_on_handle(handle: windows::Win32::Foundation::HANDLE, enable: bool) -> Result<()> {
+    unsafe fn set_rts_on_handle(
+        handle: windows::Win32::Foundation::HANDLE,
+        enable: bool,
+    ) -> Result<()> {
         use windows::Win32::System::Comm::{EscapeCommFunction, CLRRTS, SETRTS};
 
         let func = if enable { SETRTS } else { CLRRTS };

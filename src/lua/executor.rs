@@ -126,7 +126,9 @@ mod tests {
     #[test]
     fn test_execute_file_valid() {
         let engine = ScriptEngine::new().unwrap();
-        let result = engine.execute_file(std::path::Path::new("tests/fixtures/protocols/test_valid.lua"));
+        let result = engine.execute_file(std::path::Path::new(
+            "tests/fixtures/protocols/test_valid.lua",
+        ));
         assert!(result.is_ok());
     }
 
@@ -138,7 +140,8 @@ mod tests {
             assert(arg[2] == "world", "arg[2] mismatch")
             assert(arg1 == "hello", "global arg1 mismatch")
         "#;
-        let result = engine.execute_with_args(script, vec!["hello".to_string(), "world".to_string()]);
+        let result =
+            engine.execute_with_args(script, vec!["hello".to_string(), "world".to_string()]);
         assert!(result.is_ok());
     }
 
