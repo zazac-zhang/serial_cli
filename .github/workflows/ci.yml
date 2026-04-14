@@ -58,10 +58,6 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: brew install luajit
 
-      - name: Set LUA_PATH (Windows)
-        if: matrix.os == 'windows-latest'
-        run: echo "LUAJIT_NO_PKG_CONFIG=1" >> $env:GITHUB_ENV
-
       - name: Check formatting
         run: cargo fmt -- --check
 
