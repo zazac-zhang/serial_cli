@@ -116,7 +116,7 @@ impl PortManager {
                 ports
                     .into_iter()
                     .map(|p| {
-                        let info = SerialPortInfo {
+                        let mut info = SerialPortInfo {
                             port_name: p.port_name.clone(),
                             port_type: format!("{:?}", p.port_type),
                             friendly_name: None,

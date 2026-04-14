@@ -107,7 +107,7 @@ impl WindowsSignalControl {
         let file = self.open_port_handle()?;
         let handle = file.as_raw_handle();
 
-        unsafe { Self::set_dtr_handle(HANDLE(handle), enable) }
+        unsafe { Self::set_dtr_handle(HANDLE(handle as isize), enable) }
     }
 
     /// Set RTS signal by port name (convenience method)
@@ -119,7 +119,7 @@ impl WindowsSignalControl {
         let file = self.open_port_handle()?;
         let handle = file.as_raw_handle();
 
-        unsafe { Self::set_rts_handle(HANDLE(handle), enable) }
+        unsafe { Self::set_rts_handle(HANDLE(handle as isize), enable) }
     }
 }
 
