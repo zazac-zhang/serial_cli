@@ -368,7 +368,6 @@ impl WindowsSignalController {
 #[cfg(windows)]
 impl PlatformSignals for WindowsSignalController {
     fn set_dtr(&mut self, enable: bool) -> Result<SignalState> {
-        let old_state = self.dtr_state;
         self.dtr_state = enable;
 
         // Note: This updates the software state. For actual hardware control,
@@ -378,7 +377,6 @@ impl PlatformSignals for WindowsSignalController {
     }
 
     fn set_rts(&mut self, enable: bool) -> Result<SignalState> {
-        let old_state = self.rts_state;
         self.rts_state = enable;
 
         // Note: This updates the software state. For actual hardware control,

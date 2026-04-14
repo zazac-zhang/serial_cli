@@ -181,7 +181,7 @@ impl WindowsPerformanceMonitor {
             use windows::Win32::Security::{
                 GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
             };
-            use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+            use windows::Win32::System::Threading::OpenProcessToken;
 
             let mut token = HANDLE::default();
             if OpenProcessToken(self.process_handle, TOKEN_QUERY, &mut token).is_ok() {
