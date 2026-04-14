@@ -318,7 +318,7 @@ impl WindowsSignalController {
         handle: windows::Win32::Foundation::HANDLE,
         enable: bool,
     ) -> Result<()> {
-        use windows::Win32::System::Comm::{EscapeCommFunction, CLRDTR, SETDTR};
+        use windows::Win32::Devices::Communication::{EscapeCommFunction, CLRDTR, SETDTR};
 
         let func = if enable { SETDTR } else { CLRDTR };
 
@@ -347,7 +347,7 @@ impl WindowsSignalController {
         handle: windows::Win32::Foundation::HANDLE,
         enable: bool,
     ) -> Result<()> {
-        use windows::Win32::System::Comm::{EscapeCommFunction, CLRRTS, SETRTS};
+        use windows::Win32::Devices::Communication::{EscapeCommFunction, CLRRTS, SETRTS};
 
         let func = if enable { SETRTS } else { CLRRTS };
 

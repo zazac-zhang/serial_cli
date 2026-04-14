@@ -11,11 +11,11 @@ use std::fs::File;
 use std::os::windows::io::AsRawHandle;
 
 #[cfg(windows)]
+use windows::Win32::Devices::Communication::EscapeCommFunction;
+#[cfg(windows)]
+use windows::Win32::Devices::Communication::{CLRDTR, CLRRTS, SETDTR, SETRTS};
+#[cfg(windows)]
 use windows::Win32::Foundation::HANDLE;
-#[cfg(windows)]
-use windows::Win32::System::Comm::EscapeCommFunction;
-#[cfg(windows)]
-use windows::Win32::System::Comm::{CLRDTR, CLRRTS, SETDTR, SETRTS};
 
 /// Windows signal control helper
 #[cfg(windows)]
