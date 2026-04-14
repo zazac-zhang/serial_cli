@@ -5,13 +5,17 @@
 
 #[cfg(windows)]
 use crate::error::{Result, SerialError, SerialPortError};
+#[cfg(windows)]
 use std::fs::File;
+#[cfg(windows)]
 use std::os::windows::io::AsRawHandle;
 
 #[cfg(windows)]
-use winapi::shared::ntdef::HANDLE;
+use windows::Win32::Foundation::HANDLE;
 #[cfg(windows)]
-use winapi::um::winbase::{EscapeCommFunction, CLRDTR, CLRRTS, SETDTR, SETRTS};
+use windows::Win32::System::Comm::EscapeCommFunction;
+#[cfg(windows)]
+use windows::Win32::System::Comm::{CLRDTR, CLRRTS, SETDTR, SETRTS};
 
 /// Windows signal control helper
 #[cfg(windows)]
@@ -54,7 +58,7 @@ impl WindowsSignalControl {
         let func = if enable { SETDTR } else { CLRDTR };
 
         let result = EscapeCommFunction(handle, func);
-        if result == 0 {
+        if !result.as_bool() {
             let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             return Err(SerialError::Serial(SerialPortError::IoError(format!(
                 "Failed to set DTR on Windows. Error code: {}",
@@ -82,7 +86,7 @@ impl WindowsSignalControl {
         let func = if enable { SETRTS } else { CLRRTS };
 
         let result = EscapeCommFunction(handle, func);
-        if result == 0 {
+        if !result.as_bool() {
             let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             return Err(SerialError::Serial(SerialPortError::IoError(format!(
                 "Failed to set RTS on Windows. Error code: {}",

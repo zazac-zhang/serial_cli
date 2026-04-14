@@ -313,13 +313,14 @@ impl WindowsSignalController {
     /// This function requires a valid HANDLE to a COM port.
     /// The handle must have GENERIC_WRITE access.
     #[allow(dead_code)]
-    unsafe fn set_dtr_on_handle(handle: winapi::um::winnt::HANDLE, enable: bool) -> Result<()> {
-        use winapi::um::winbase::{EscapeCommFunction, CLRDTR, SETDTR};
+    #[cfg(windows)]
+    unsafe fn set_dtr_on_handle(handle: windows::Win32::Foundation::HANDLE, enable: bool) -> Result<()> {
+        use windows::Win32::System::Comm::{EscapeCommFunction, CLRDTR, SETDTR};
 
         let func = if enable { SETDTR } else { CLRDTR };
 
-        let result = EscapeCommFunction(handle as _, func);
-        if result == 0 {
+        let result = EscapeCommFunction(handle, func);
+        if !result.as_bool() {
             let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             return Err(SerialError::Serial(SerialPortError::IoError(format!(
                 "Failed to set DTR on Windows. Error code: {}",
@@ -338,13 +339,14 @@ impl WindowsSignalController {
     /// This function requires a valid HANDLE to a COM port.
     /// The handle must have GENERIC_WRITE access.
     #[allow(dead_code)]
-    unsafe fn set_rts_on_handle(handle: winapi::um::winnt::HANDLE, enable: bool) -> Result<()> {
-        use winapi::um::winbase::{EscapeCommFunction, CLRRTS, SETRTS};
+    #[cfg(windows)]
+    unsafe fn set_rts_on_handle(handle: windows::Win32::Foundation::HANDLE, enable: bool) -> Result<()> {
+        use windows::Win32::System::Comm::{EscapeCommFunction, CLRRTS, SETRTS};
 
         let func = if enable { SETRTS } else { CLRRTS };
 
-        let result = EscapeCommFunction(handle as _, func);
-        if result == 0 {
+        let result = EscapeCommFunction(handle, func);
+        if !result.as_bool() {
             let error_code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             return Err(SerialError::Serial(SerialPortError::IoError(format!(
                 "Failed to set RTS on Windows. Error code: {}",
