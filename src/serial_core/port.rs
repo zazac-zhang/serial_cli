@@ -116,6 +116,7 @@ impl PortManager {
                 ports
                     .into_iter()
                     .map(|p| {
+                        #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
                         let mut info = SerialPortInfo {
                             port_name: p.port_name.clone(),
                             port_type: format!("{:?}", p.port_type),
