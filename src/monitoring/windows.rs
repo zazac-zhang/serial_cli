@@ -123,10 +123,10 @@ impl WindowsPerformanceMonitor {
             )
             .is_ok()
             {
-                metrics.working_set_size = pmc.WorkingSetSize as usize;
-                metrics.peak_working_set_size = pmc.PeakWorkingSetSize as usize;
-                metrics.page_file_usage = pmc.PagefileUsage as usize;
-                metrics.peak_page_file_usage = pmc.PeakPagefileUsage as usize;
+                metrics.working_set_size = pmc.WorkingSetSize;
+                metrics.peak_working_set_size = pmc.PeakWorkingSetSize;
+                metrics.page_file_usage = pmc.PagefileUsage;
+                metrics.peak_page_file_usage = pmc.PeakPagefileUsage;
                 metrics.page_fault_count = pmc.PageFaultCount as u64;
             }
 
