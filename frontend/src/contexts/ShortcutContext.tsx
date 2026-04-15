@@ -18,7 +18,7 @@ const ShortcutContext = createContext<ShortcutContextType | undefined>(undefined
 export function ShortcutProvider({ children }: { children: React.ReactNode }) {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false)
-  const [shortcuts, setShortcuts] = useState<Map<string, Shortcut>>(new Map())
+  const [shortcuts, setShortcuts] = useState<Map<string, Omit<Shortcut, 'key'>>>(new Map())
 
   const openCommandPalette = useCallback(() => {
     setIsCommandPaletteOpen(true)
@@ -41,13 +41,13 @@ export function ShortcutProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const registerShortcut = useCallback((id: string, shortcut: Omit<Shortcut, 'key'>) => {
-    setShortcuts(prev => new Map(prev).set(id, shortcut as Shortcut))
+    setShortcuts(prev => new Map(prev).set(id, shortcut))
   }, [])
 
   const executeShortcut = useCallback((id: string) => {
     const shortcut = shortcuts.get(id)
-    if (shortcut) {
-      shortcut.action()
+    if (shortcut && 'action' in shortcut && typeof (shortcut as any).action === 'function') {
+      ;(shortcut as any).action()
     }
   }, [shortcuts])
 

@@ -1,9 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback } from 'react'
 import { settingsStorage, type Settings } from '@/lib/storage'
+
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]
+}
 
 interface SettingsContextType {
   settings: Settings
-  updateSettings: (updates: Partial<Settings>) => boolean
+  updateSettings: (updates: DeepPartial<Settings>) => boolean
   resetSettings: () => boolean
 }
 
@@ -12,21 +16,12 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings>(settingsStorage.get())
 
-  const updateSettings = useCallback((updates: Partial<Settings>) => {
-    const success = settingsStorage.update(updates)
+  const updateSettings = useCallback((updates: DeepPartial<Settings>) => {
+    const current = settingsStorage.get()
+    const merged = deepMerge(current, updates)
+    const success = settingsStorage.set(merged)
     if (success) {
-      setSettings(prev => {
-        const merged = { ...prev }
-        for (const key in updates) {
-          const value = updates[key as keyof Settings]
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            ;(merged as any)[key] = { ...prev[key as keyof Settings], ...value }
-          } else {
-            ;(merged as any)[key] = value
-          }
-        }
-        return merged
-      })
+      setSettings(merged)
     }
     return success
   }, [])
@@ -85,4 +80,28 @@ export function useSettings() {
     throw new Error('useSettings must be used within SettingsProvider')
   }
   return context
+}
+
+function deepMerge<T>(target: T, source: DeepPartial<T>): T {
+  const result = { ...target } as T
+
+  for (const key in source) {
+    const sourceValue = source[key as keyof T]
+    const targetValue = result[key as keyof T]
+
+    if (
+      sourceValue &&
+      typeof sourceValue === 'object' &&
+      !Array.isArray(sourceValue) &&
+      targetValue &&
+      typeof targetValue === 'object' &&
+      !Array.isArray(targetValue)
+    ) {
+      ;(result as any)[key] = deepMerge(targetValue, sourceValue)
+    } else if (sourceValue !== undefined) {
+      ;(result as any)[key] = sourceValue
+    }
+  }
+
+  return result
 }

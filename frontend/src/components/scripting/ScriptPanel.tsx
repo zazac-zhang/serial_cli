@@ -1,11 +1,12 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2, StopCircle, AlertCircle } from 'lucide-react'
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import Editor from '@monaco-editor/react'
 import { invoke } from '@tauri-apps/api/core'
 import { scriptsStorage } from '@/lib/storage'
 import { getErrorSolution } from '@/lib/errors'
+import { useScriptActions } from '@/contexts/ScriptActionContext'
 
 const DEFAULT_SCRIPT = `-- Lua Script for Serial CLI
 -- Use the serial API to communicate with devices
@@ -55,6 +56,7 @@ export function ScriptPanel() {
   const [error, setError] = useState<string | null>(null)
   const [errorDetails, setErrorDetails] = useState<ReturnType<typeof getErrorSolution> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { registerCallbacks } = useScriptActions()
 
   const activeScript = scripts.find(s => s.id === activeScriptId)
 
@@ -93,17 +95,16 @@ export function ScriptPanel() {
     await runScript()
   }
 
-  // Expose functions for global shortcuts
+  // Register callbacks for global shortcuts
   useEffect(() => {
-    // Make functions available globally for shortcuts
-    ;(window as any).createNewScript = createNewScript
-    ;(window as any).runCurrentScript = runCurrentScript
-
-    return () => {
-      delete (window as any).createNewScript
-      delete (window as any).runCurrentScript
-    }
-  }, [createNewScript, runCurrentScript, scriptContent])
+    const unregister = registerCallbacks({
+      createNewScript,
+      runCurrentScript: () => {
+        if (scriptContent.trim()) runScript()
+      },
+    })
+    return unregister
+  }, [registerCallbacks, createNewScript, scriptContent])
 
   const runScript = async () => {
     setIsRunning(true)
@@ -161,16 +162,6 @@ export function ScriptPanel() {
       setIsRunning(false)
     }
   }
-
-  // Register callbacks for global shortcuts
-  // Note: We'll implement global shortcuts later
-  // useEffect(() => {
-  //   const unregister = registerCallbacks({
-  //     createNewScript,
-  //     runCurrentScript: runScript,
-  //   })
-  //   return unregister
-  // }, [registerCallbacks])
 
   const deleteScript = (id: string) => {
     const updatedScripts = scripts.filter(s => s.id !== id)

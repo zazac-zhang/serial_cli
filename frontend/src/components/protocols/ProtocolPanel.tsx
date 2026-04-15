@@ -1,7 +1,7 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { Plus, FileCode, Settings, Play, Trash2, Upload, Check, AlertCircle } from 'lucide-react'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { protocolsStorage } from '@/lib/storage'
 
@@ -59,20 +59,52 @@ export function ProtocolPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load custom protocols from storage on mount
-  useState(() => {
+  useEffect(() => {
     const saved = protocolsStorage.get()
     if (saved.length > 0) {
       setCustomProtocols(saved)
     }
-  })
+  }, [])
 
   const activeProtocol = [...protocols, ...customProtocols].find(p => p.id === activeProtocolId)
 
-  const toggleProtocol = (id: string) => {
-    setProtocols(prev => prev.map(p => ({
-      ...p,
-      status: p.id === id ? (p.status === 'active' ? 'inactive' : 'active') : p.status,
-    })))
+  const toggleProtocol = async (id: string) => {
+    const allProtocols = [...protocols, ...customProtocols]
+    const target = allProtocols.find(p => p.id === id)
+    if (!target) return
+
+    try {
+      if (target.status === 'active') {
+        // Deactivate: unload protocol
+        await invoke('unload_protocol', { name: target.name })
+        if (target.type === 'built-in') {
+          setProtocols(prev => prev.map(p =>
+            p.id === id ? { ...p, status: 'inactive' } : p
+          ))
+        } else {
+          setCustomProtocols(prev => prev.map(p =>
+            p.id === id ? { ...p, status: 'inactive' } : p
+          ))
+        }
+      } else {
+        // Activate: load protocol
+        const path = target.type === 'custom'
+          ? `custom/${target.name}.lua`
+          : target.id
+        await invoke('load_protocol', { path })
+        if (target.type === 'built-in') {
+          setProtocols(prev => prev.map(p =>
+            p.id === id ? { ...p, status: 'active' } : p
+          ))
+        } else {
+          setCustomProtocols(prev => prev.map(p =>
+            p.id === id ? { ...p, status: 'active' } : p
+          ))
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle protocol')
+    }
   }
 
   const deleteCustomProtocol = (id: string) => {

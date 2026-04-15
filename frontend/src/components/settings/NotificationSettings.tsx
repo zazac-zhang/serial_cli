@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { useState } from 'react'
 
 export function NotificationSettings() {
-  const { settings, updateSettings, requestNotificationPermission } = useNotification()
+  const { settings, updateSettings, requestNotificationPermission, sendSystemNotification } = useNotification()
   const [isRequesting, setIsRequesting] = useState(false)
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unsupported'>(
     'Notification' in window ? Notification.permission : 'unsupported'
@@ -200,10 +200,11 @@ export function NotificationSettings() {
               onClick={() => {
                 updateSettings({ enabled: true })
                 requestNotificationPermission().then(() => {
-                  // This would trigger a test notification
-                  if (settings.enabled) {
-                    console.log('Test notification would be sent here')
-                  }
+                  sendSystemNotification({
+                    title: '测试通知',
+                    body: '这是一条测试通知，如果你看到了它说明功能正常。',
+                    type: 'info',
+                  })
                 })
               }}
               className="px-4 py-2 text-sm font-medium rounded-md bg-info/10 text-info border border-info/30 hover:bg-info/20 transition-colors"

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import type { DataPacket, DataEvent } from '../types/tauri'
+import { settingsStorage } from '@/lib/storage'
 
 interface DataContextType {
   packets: DataPacket[]
@@ -22,13 +23,14 @@ const MAX_PACKETS = 10000
 const CLEANUP_THRESHOLD = 12000
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const defaultSettings = settingsStorage.get()
   const [packets, setPackets] = useState<DataPacket[]>([])
   const [displayOptions, setDisplayOptions] = useState<{
     format: 'hex' | 'ascii'
     showTimestamp: boolean
   }>({
-    format: 'hex',
-    showTimestamp: true,
+    format: (defaultSettings.display.format === 'both' ? 'hex' : defaultSettings.display.format) as 'hex' | 'ascii',
+    showTimestamp: defaultSettings.display.showTimestamp,
   })
 
   const addPacket = useCallback((packet: DataPacket) => {

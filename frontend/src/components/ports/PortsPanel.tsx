@@ -225,6 +225,12 @@ export function PortsPanel() {
                           {isOpen && status ? (
                             <>
                               <button
+                                onClick={() => {
+                                  setConfiguringPort({
+                                    portName: status.port_name,
+                                    config: status.config,
+                                  })
+                                }}
                                 className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
                                 title="Port settings"
                               >

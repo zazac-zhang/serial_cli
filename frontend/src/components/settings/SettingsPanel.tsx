@@ -1,9 +1,11 @@
 import { NotificationSettings } from './NotificationSettings'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { Save, RotateCcw, Check, Download, Upload } from 'lucide-react'
 import { exportSettings, importSettings } from '@/lib/storage'
+import { useSettings } from '@/contexts/SettingsContext'
+import { useToast } from '@/contexts/ToastContext'
 
 type Tab = 'general' | 'serial' | 'data' | 'notifications'
 
@@ -23,27 +25,28 @@ interface DataConfig {
 }
 
 export function SettingsPanel() {
+  const { settings, updateSettings, resetSettings } = useSettings()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<Tab>('general')
-  const [hasChanges, setHasChanges] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Serial port defaults
-  const [serialConfig, setSerialConfig] = useState<SerialConfig>({
-    baudRate: 9600,
-    dataBits: 8,
-    stopBits: 1,
-    parity: 'none',
-    flowControl: 'none',
-  })
+  // Derived serial config from global settings
+  const serialConfig = useMemo(() => ({
+    baudRate: settings.serial.baudRate,
+    dataBits: settings.serial.dataBits,
+    stopBits: settings.serial.stopBits,
+    parity: settings.serial.parity,
+    flowControl: settings.serial.flowControl,
+  }), [settings.serial])
 
-  // Data display defaults
-  const [dataConfig, setDataConfig] = useState<DataConfig>({
-    displayFormat: 'hex',
-    showTimestamp: true,
-    maxPackets: 1000,
-    autoScroll: true,
-  })
+  // Derived data config from global settings
+  const dataConfig = useMemo(() => ({
+    displayFormat: settings.display.format,
+    showTimestamp: settings.display.showTimestamp,
+    maxPackets: settings.display.maxPackets,
+    autoScroll: settings.display.autoScroll,
+  }), [settings.display])
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'general', label: 'General', icon: () => null },
@@ -53,33 +56,20 @@ export function SettingsPanel() {
   ]
 
   const saveChanges = () => {
-    // Save settings to local storage or backend
-    setHasChanges(false)
+    toast.success('设置已保存')
   }
 
   const resetToDefaults = () => {
-    setSerialConfig({
-      baudRate: 9600,
-      dataBits: 8,
-      stopBits: 1,
-      parity: 'none',
-      flowControl: 'none',
-    })
-    setDataConfig({
-      displayFormat: 'hex',
-      showTimestamp: true,
-      maxPackets: 1000,
-      autoScroll: true,
-    })
-    setHasChanges(true)
+    resetSettings()
+    toast.info('已恢复默认设置')
   }
 
   const handleExport = () => {
     const success = exportSettings()
     if (success) {
-      alert('Settings exported successfully!')
+      toast.success('设置已导出')
     } else {
-      alert('Failed to export settings')
+      toast.error('导出设置失败')
     }
   }
 
@@ -90,13 +80,12 @@ export function SettingsPanel() {
     setIsImporting(true)
     try {
       await importSettings(file)
-      alert('Settings imported successfully! Page will reload.')
+      toast.success('设置已导入，页面将刷新')
       window.location.reload()
     } catch (error) {
-      alert('Failed to import settings: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      toast.error(`导入设置失败: ${error instanceof Error ? error.message : '未知错误'}`)
     } finally {
       setIsImporting(false)
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -145,13 +134,7 @@ export function SettingsPanel() {
           </button>
           <button
             onClick={saveChanges}
-            disabled={!hasChanges}
-            className={cn(
-              'flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-md border transition-colors',
-              hasChanges
-                ? 'bg-signal/10 text-signal border-signal/30 hover:bg-signal/20'
-                : 'bg-bg-elevated text-text-tertiary border-border cursor-not-allowed'
-            )}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors"
           >
             <Save size={14} strokeWidth={1.5} />
             Save
@@ -186,7 +169,10 @@ export function SettingsPanel() {
                 <div className="text-sm text-text-primary">Auto-check for updates</div>
                 <div className="text-xs text-text-tertiary">Check for new versions on startup</div>
               </div>
-              <ToggleSwitch defaultChecked />
+              <ToggleSwitch
+                checked={settings.general.autoCheckUpdates}
+                onChange={(v) => updateSettings({ general: { autoCheckUpdates: v } })}
+              />
             </div>
 
             <div className="flex items-center justify-between">
@@ -194,7 +180,10 @@ export function SettingsPanel() {
                 <div className="text-sm text-text-primary">Send usage analytics</div>
                 <div className="text-xs text-text-tertiary">Help improve the app with anonymous data</div>
               </div>
-              <ToggleSwitch />
+              <ToggleSwitch
+                checked={settings.general.sendAnalytics}
+                onChange={(v) => updateSettings({ general: { sendAnalytics: v } })}
+              />
             </div>
 
             <div className="flex items-center justify-between">
@@ -202,14 +191,21 @@ export function SettingsPanel() {
                 <div className="text-sm text-text-primary">Minimize to tray</div>
                 <div className="text-xs text-text-tertiary">Close button minimizes instead of quitting</div>
               </div>
-              <ToggleSwitch defaultChecked />
+              <ToggleSwitch
+                checked={settings.general.minimizeToTray}
+                onChange={(v) => updateSettings({ general: { minimizeToTray: v } })}
+              />
             </div>
 
             <div className="pt-4 border-t border-border">
               <div className="text-sm text-text-primary mb-2">Language</div>
-              <select className="w-full max-w-xs px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary">
-                <option>English</option>
-                <option>简体中文</option>
+              <select
+                value={settings.general.language}
+                onChange={(e) => updateSettings({ general: { language: e.target.value } })}
+                className="w-full max-w-xs px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary"
+              >
+                <option value="en">English</option>
+                <option value="zh">简体中文</option>
               </select>
             </div>
           </div>
@@ -226,10 +222,7 @@ export function SettingsPanel() {
                 </label>
                 <select
                   value={serialConfig.baudRate}
-                  onChange={(e) => {
-                    setSerialConfig({ ...serialConfig, baudRate: parseInt(e.target.value) })
-                    setHasChanges(true)
-                  }}
+                  onChange={(e) => updateSettings({ serial: { baudRate: parseInt(e.target.value) } })}
                   className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
                 >
                   <option value={1200}>1200</option>
@@ -252,10 +245,7 @@ export function SettingsPanel() {
                 </label>
                 <select
                   value={serialConfig.dataBits}
-                  onChange={(e) => {
-                    setSerialConfig({ ...serialConfig, dataBits: parseInt(e.target.value) })
-                    setHasChanges(true)
-                  }}
+                  onChange={(e) => updateSettings({ serial: { dataBits: parseInt(e.target.value) } })}
                   className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
                 >
                   <option value={5}>5</option>
@@ -271,10 +261,7 @@ export function SettingsPanel() {
                 </label>
                 <select
                   value={serialConfig.stopBits}
-                  onChange={(e) => {
-                    setSerialConfig({ ...serialConfig, stopBits: parseInt(e.target.value) })
-                    setHasChanges(true)
-                  }}
+                  onChange={(e) => updateSettings({ serial: { stopBits: parseInt(e.target.value) } })}
                   className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
                 >
                   <option value={1}>1</option>
@@ -288,10 +275,7 @@ export function SettingsPanel() {
                 </label>
                 <select
                   value={serialConfig.parity}
-                  onChange={(e) => {
-                    setSerialConfig({ ...serialConfig, parity: e.target.value as SerialConfig['parity'] })
-                    setHasChanges(true)
-                  }}
+                  onChange={(e) => updateSettings({ serial: { parity: e.target.value as SerialConfig['parity'] } })}
                   className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
                 >
                   <option value="none">None</option>
@@ -306,10 +290,7 @@ export function SettingsPanel() {
                 </label>
                 <select
                   value={serialConfig.flowControl}
-                  onChange={(e) => {
-                    setSerialConfig({ ...serialConfig, flowControl: e.target.value as SerialConfig['flowControl'] })
-                    setHasChanges(true)
-                  }}
+                  onChange={(e) => updateSettings({ serial: { flowControl: e.target.value as SerialConfig['flowControl'] } })}
                   className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
                 >
                   <option value="none">None</option>
@@ -326,7 +307,10 @@ export function SettingsPanel() {
                   <div className="text-sm text-text-primary">Auto-reconnect on disconnect</div>
                   <div className="text-xs text-text-tertiary">Automatically reconnect if connection is lost</div>
                 </div>
-                <ToggleSwitch defaultChecked />
+                <ToggleSwitch
+                  checked={settings.serial.autoReconnect ?? true}
+                  onChange={(v) => updateSettings({ serial: { autoReconnect: v } })}
+                />
               </div>
             </div>
           </div>
@@ -344,10 +328,7 @@ export function SettingsPanel() {
                 {(['hex', 'ascii', 'both'] as const).map((format) => (
                   <button
                     key={format}
-                    onClick={() => {
-                      setDataConfig({ ...dataConfig, displayFormat: format })
-                      setHasChanges(true)
-                    }}
+                    onClick={() => updateSettings({ display: { format } })}
                     className={cn(
                       'px-4 py-2 text-sm rounded-md border transition-colors',
                       dataConfig.displayFormat === format
@@ -367,11 +348,8 @@ export function SettingsPanel() {
                 <div className="text-xs text-text-tertiary">Display timestamp for each packet</div>
               </div>
               <ToggleSwitch
-                defaultChecked={dataConfig.showTimestamp}
-                onChange={(checked) => {
-                  setDataConfig({ ...dataConfig, showTimestamp: checked })
-                  setHasChanges(true)
-                }}
+                checked={dataConfig.showTimestamp}
+                onChange={(checked) => updateSettings({ display: { showTimestamp: checked } })}
               />
             </div>
 
@@ -381,11 +359,8 @@ export function SettingsPanel() {
                 <div className="text-xs text-text-tertiary">Automatically scroll to latest data</div>
               </div>
               <ToggleSwitch
-                defaultChecked={dataConfig.autoScroll}
-                onChange={(checked) => {
-                  setDataConfig({ ...dataConfig, autoScroll: checked })
-                  setHasChanges(true)
-                }}
+                checked={dataConfig.autoScroll}
+                onChange={(checked) => updateSettings({ display: { autoScroll: checked } })}
               />
             </div>
 
@@ -399,10 +374,7 @@ export function SettingsPanel() {
                 max="10000"
                 step="100"
                 value={dataConfig.maxPackets}
-                onChange={(e) => {
-                  setDataConfig({ ...dataConfig, maxPackets: parseInt(e.target.value) })
-                  setHasChanges(true)
-                }}
+                onChange={(e) => updateSettings({ display: { maxPackets: parseInt(e.target.value) } })}
                 className="w-full max-w-xs"
               />
               <div className="text-xs text-text-tertiary font-mono mt-1">
@@ -419,18 +391,14 @@ export function SettingsPanel() {
 }
 
 function ToggleSwitch({
-  defaultChecked = false,
+  checked,
   onChange,
 }: {
-  defaultChecked?: boolean
+  checked: boolean
   onChange?: (checked: boolean) => void
 }) {
-  const [checked, setChecked] = useState(defaultChecked)
-
   const handleChange = () => {
-    const newChecked = !checked
-    setChecked(newChecked)
-    onChange?.(newChecked)
+    onChange?.(!checked)
   }
 
   return (

@@ -83,6 +83,7 @@ export interface Settings {
     stopBits: number
     parity: 'none' | 'even' | 'odd'
     flowControl: 'none' | 'rts' | 'cts' | 'rtscts'
+    autoReconnect?: boolean
   }
   notifications: {
     enabled: boolean
