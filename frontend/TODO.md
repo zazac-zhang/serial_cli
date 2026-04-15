@@ -1,43 +1,7 @@
 # Frontend TODO
 
 > 最后更新: 2026-04-15
-> 当前完成度: ~95%（Phase 1-3 全部完成）
-
----
-
-## UI 存在但功能缺失（Bug 级）
-
-### 1. Auto-scroll 复选框纯装饰
-
-**文件**: `DataViewer.tsx:514-521`
-
-`autoScroll` 仅绑定 checkbox 状态，从未用于实际滚动行为。收到新数据包时不会自动滚动到底部。
-
-**修复**: 添加 `useRef` 指向数据列表容器，`packets` 变化时若 `autoScroll=true` 则 `scrollTo({ top: scrollHeight })`
-
-### 2. 协议验证状态不展示
-
-**文件**: `ProtocolPanel.tsx:58`
-
-`validationStatus` Map 在加载协议时设置 `'valid'` / `'invalid'`，但 JSX 从未读取。用户上传 `.lua` 后看不到验证反馈。
-
-**修复**: 在自定义协议列表卡片上显示验证状态 badge
-
-### 3. DataViewer 显示设置不写回 SettingsContext
-
-**文件**: `DataViewer.tsx:505-513`
-
-Timestamp checkbox 直接改 `DataContext.displayOptions`，不写回 `SettingsContext`。用户在 DataViewer 关时间戳 → 切到 Settings 看到仍是开启 → 刷新后丢失。
-
-**修复**: `setDisplayOptions` 时同步调用 `updateSettings({ display: { showTimestamp: checked } })`
-
-### 4. 导出格式偏好不持久化
-
-**文件**: `DataViewer.tsx:99-100`
-
-`exportFormat` 和 `exportOption` 每次打开重置为 `txt` / `all`，不记忆用户上次选择。
-
-**修复**: 从 localStorage 初始化或存入 Settings 的 display 字段
+> 当前完成度: ~98%
 
 ---
 

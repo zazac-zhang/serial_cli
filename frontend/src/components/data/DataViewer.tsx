@@ -4,7 +4,7 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft, Send, Play, AlertCircle } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import React from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { DataPacket } from '@/types/tauri'
@@ -92,17 +92,39 @@ type ExportOption = 'all' | 'rx-only' | 'tx-only'
 export const DataViewer = React.memo(function DataViewer() {
   const { packets, clearPackets, displayOptions, setDisplayOptions, maxPackets } = useData()
   const { activePorts } = usePorts()
-  const { settings } = useSettings()
+  const { settings, updateSettings } = useSettings()
   const [autoScroll, setAutoScroll] = useState(settings.display.autoScroll)
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('txt')
-  const [exportOption, setExportOption] = useState<ExportOption>('all')
+  const [exportFormat, setExportFormat] = useState<ExportFormat>(
+    (localStorage.getItem('serial-cli-export-format') as ExportFormat) || 'txt'
+  )
+  const [exportOption, setExportOption] = useState<ExportOption>(
+    (localStorage.getItem('serial-cli-export-option') as ExportOption) || 'all'
+  )
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const dataListRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when new packets arrive
+  useEffect(() => {
+    if (autoScroll && dataListRef.current && packets.length > 0) {
+      dataListRef.current.scrollTo({ top: dataListRef.current.scrollHeight })
+    }
+  }, [packets.length, autoScroll])
 
   // Data sending states
   const [sendData, setSendData] = useState('')
   const [sendFormat, setSendFormat] = useState<'hex' | 'ascii'>('hex')
   const [selectedPort, setSelectedPort] = useState<string>('')
   const [isSending, setIsSending] = useState(false)
+
+  const handleExportFormat = (fmt: ExportFormat) => {
+    setExportFormat(fmt)
+    localStorage.setItem('serial-cli-export-format', fmt)
+  }
+
+  const handleExportOption = (opt: ExportOption) => {
+    setExportOption(opt)
+    localStorage.setItem('serial-cli-export-option', opt)
+  }
 
   const warningThreshold = Math.floor(maxPackets * 0.8)
 
@@ -438,7 +460,7 @@ export const DataViewer = React.memo(function DataViewer() {
                         {(['txt', 'csv', 'json'] as ExportFormat[]).map((fmt) => (
                           <button
                             key={fmt}
-                            onClick={() => setExportFormat(fmt)}
+                            onClick={() => handleExportFormat(fmt)}
                             className={cn(
                               'flex-1 px-2 py-1 text-xs rounded-md border transition-colors',
                               exportFormat === fmt
@@ -459,7 +481,7 @@ export const DataViewer = React.memo(function DataViewer() {
                         {(['all', 'rx-only', 'tx-only'] as ExportOption[]).map((opt) => (
                           <button
                             key={opt}
-                            onClick={() => setExportOption(opt)}
+                            onClick={() => handleExportOption(opt)}
                             className={cn(
                               'flex-1 px-2 py-1 text-xs rounded-md border transition-colors',
                               exportOption === opt
@@ -506,7 +528,10 @@ export const DataViewer = React.memo(function DataViewer() {
               <input
                 type="checkbox"
                 checked={displayOptions.showTimestamp}
-                onChange={(e) => setDisplayOptions({ showTimestamp: e.target.checked })}
+                onChange={(e) => {
+                  setDisplayOptions({ showTimestamp: e.target.checked })
+                  updateSettings({ display: { showTimestamp: e.target.checked } })
+                }}
                 className="rounded border-border bg-bg-elevated text-signal focus:ring-signal/20"
               />
               <span>Timestamp</span>
@@ -515,7 +540,10 @@ export const DataViewer = React.memo(function DataViewer() {
               <input
                 type="checkbox"
                 checked={autoScroll}
-                onChange={(e) => setAutoScroll(e.target.checked)}
+                onChange={(e) => {
+                  setAutoScroll(e.target.checked)
+                  updateSettings({ display: { autoScroll: e.target.checked } })
+                }}
                 className="rounded border-border bg-bg-elevated text-signal focus:ring-signal/20"
               />
               <span>Auto-scroll</span>
@@ -531,7 +559,7 @@ export const DataViewer = React.memo(function DataViewer() {
         </div>
 
         {/* Data table */}
-        <div className="space-y-1 flex-1 overflow-y-auto pr-2 scrollbar-thin" style={{ maxHeight: 'calc(100vh - 400px)' }}>
+        <div ref={dataListRef} className="space-y-1 flex-1 overflow-y-auto pr-2 scrollbar-thin" style={{ maxHeight: 'calc(100vh - 400px)' }}>
           {packets.length === 0 ? (
             <div className="py-16 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-bg-elevated mb-4">

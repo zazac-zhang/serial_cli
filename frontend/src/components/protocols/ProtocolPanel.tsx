@@ -299,6 +299,16 @@ export function ProtocolPanel() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {validationStatus.get(protocol.name) && (
+                        <span className={cn(
+                          'px-1.5 py-0.5 text-[10px] rounded font-medium',
+                          validationStatus.get(protocol.name) === 'valid'
+                            ? 'bg-signal/10 text-signal'
+                            : 'bg-alert/10 text-alert'
+                        )}>
+                          {validationStatus.get(protocol.name) === 'valid' ? '✓ Valid' : '✗ Invalid'}
+                        </span>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
