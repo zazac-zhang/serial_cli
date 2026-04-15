@@ -19,7 +19,7 @@ struct Cli {
     verbose: bool,
 
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -391,30 +391,35 @@ async fn main() -> Result<()> {
 
     // Execute command
     match cli.command {
-        Commands::ListPorts => {
+        Some(Commands::ListPorts) => {
             list_ports()?;
         }
-        Commands::Send { port, data } => {
+        Some(Commands::Send { port, data }) => {
             send_data(&port, &data).await?;
         }
-        Commands::Interactive => {
+        Some(Commands::Interactive) => {
             let mut shell = InteractiveShell::new();
             shell.run().await?;
         }
-        Commands::Run { script, args } => {
+        Some(Commands::Run { script, args }) => {
             run_lua_script(PathBuf::from(script), args).await?;
         }
-        Commands::Protocol { protocol_command } => {
+        Some(Commands::Protocol { protocol_command }) => {
             handle_protocol_command(protocol_command)?;
         }
-        Commands::Sniff { sniff_command } => {
+        Some(Commands::Sniff { sniff_command }) => {
             handle_sniff_command(sniff_command).await?;
         }
-        Commands::Batch { batch_command } => {
+        Some(Commands::Batch { batch_command }) => {
             handle_batch_command(batch_command).await?;
         }
-        Commands::Config { config_command } => {
+        Some(Commands::Config { config_command }) => {
             handle_config_command(config_command)?;
+        }
+        None => {
+            // No command specified, default to interactive mode
+            let mut shell = InteractiveShell::new();
+            shell.run().await?;
         }
     }
 
