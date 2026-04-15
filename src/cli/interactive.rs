@@ -26,9 +26,10 @@ impl InteractiveShell {
     /// Run the interactive shell
     pub async fn run(&mut self) -> Result<()> {
         self.running = true;
-        tracing::info!("Serial CLI Interactive Shell");
-        tracing::info!("Type 'help' for available commands, 'quit' to exit");
-        tracing::info!("");
+        tracing::info!("Starting interactive shell");
+        println!("Serial CLI Interactive Shell");
+        println!("Type 'help' for available commands, 'quit' to exit");
+        println!();
 
         while self.running {
             tracing::trace!("serial> ");
@@ -43,7 +44,7 @@ impl InteractiveShell {
             }
 
             if let Err(e) = self.execute_command(line).await {
-                tracing::info!("Error: {}", e);
+                eprintln!("Error: {}", e);
             }
         }
 
@@ -69,11 +70,11 @@ impl InteractiveShell {
             "dtr" => self.cmd_dtr(&parts[1..]).await?,
             "rts" => self.cmd_rts(&parts[1..]).await?,
             "quit" | "exit" => {
-                tracing::info!("Goodbye!");
+                println!("Goodbye!");
                 self.running = false;
             }
-            _ => tracing::info!(
-                "Unknown command: {}. Type 'help' for available commands.",
+            _ => println!(
+                "Unknown command: '{}'. Type 'help' for available commands.",
                 parts[0]
             ),
         }
@@ -125,7 +126,7 @@ impl InteractiveShell {
     /// Open port command
     async fn cmd_open(&mut self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
-            tracing::info!("Usage: open <port>");
+            println!("Usage: open <port>");
             return Ok(());
         }
 
@@ -133,12 +134,12 @@ impl InteractiveShell {
 
         // Close current port if open
         if let Some(ref port_id) = self.current_port_id {
-            tracing::info!("Closing current port...");
+            println!("Closing current port...");
             self.manager.close_port(port_id).await?;
             self.current_port_id = None;
         }
 
-        tracing::info!("Opening port: {}", port_name);
+        tracing::info!("Opening serial port {}", port_name);
 
         // Use default configuration
         let config = SerialConfig::default();
@@ -146,12 +147,12 @@ impl InteractiveShell {
         // Open the port
         match self.manager.open_port(port_name, config).await {
             Ok(port_id) => {
-                tracing::info!("Port opened successfully");
-                tracing::info!("Port ID: {}", port_id);
+                println!("Port opened successfully");
+                println!("Port ID: {}", port_id);
                 self.current_port_id = Some(port_id);
             }
             Err(e) => {
-                tracing::info!("Failed to open port: {}", e);
+                eprintln!("Failed to open port: {}", e);
             }
         }
 
@@ -165,8 +166,8 @@ impl InteractiveShell {
             if let Some(ref id) = self.current_port_id {
                 id.clone()
             } else {
-                tracing::info!("No port is currently open");
-                tracing::info!("Usage: close <port_id>");
+                println!("No port is currently open");
+                println!("Usage: close <port_id>");
                 return Ok(());
             }
         } else {
@@ -176,13 +177,13 @@ impl InteractiveShell {
 
         match self.manager.close_port(&port_id).await {
             Ok(_) => {
-                tracing::info!("Port closed successfully");
+                println!("Port closed successfully");
                 if self.current_port_id.as_ref() == Some(&port_id) {
                     self.current_port_id = None;
                 }
             }
             Err(e) => {
-                tracing::info!("Failed to close port: {}", e);
+                eprintln!("Failed to close port: {}", e);
             }
         }
 
@@ -192,20 +193,20 @@ impl InteractiveShell {
     /// Send command
     async fn cmd_send(&mut self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
-            tracing::info!("Usage: send <data>");
+            println!("Usage: send <data>");
             return Ok(());
         }
 
         if self.current_port_id.is_none() {
-            tracing::info!("No port is currently open");
-            tracing::info!("Use 'open <port>' first");
+            println!("No port is currently open");
+            println!("Use 'open <port>' first");
             return Ok(());
         }
 
         let data = args.join(" ");
         let port_id = self.current_port_id.as_ref().unwrap();
 
-        tracing::info!("Sending: {}", data);
+        tracing::info!("Sending data to port {}", port_id);
 
         // Get the port handle
         let port_handle = self.manager.get_port(port_id).await?;
@@ -214,10 +215,10 @@ impl InteractiveShell {
         // Send data
         match handle.write(data.as_bytes()) {
             Ok(n) => {
-                tracing::info!("Sent {} bytes", n);
+                println!("Sent {} bytes", n);
             }
             Err(e) => {
-                tracing::info!("Failed to send data: {}", e);
+                eprintln!("Failed to send data: {}", e);
             }
         }
 
@@ -233,12 +234,12 @@ impl InteractiveShell {
         };
 
         if self.current_port_id.is_none() {
-            tracing::info!("No port is currently open");
-            tracing::info!("Use 'open <port>' first");
+            println!("No port is currently open");
+            println!("Use 'open <port>' first");
             return Ok(());
         }
 
-        tracing::info!("Reading up to {} bytes...", n);
+        println!("Reading up to {} bytes...", n);
 
         let port_id = self.current_port_id.as_ref().unwrap();
 
@@ -255,18 +256,18 @@ impl InteractiveShell {
 
                     // Try to display as string
                     if let Ok(text) = String::from_utf8(buffer.clone()) {
-                        tracing::info!("Received ({} bytes as text): {}", bytes_read, text);
+                        println!("Received ({} bytes as text): {}", bytes_read, text);
                     } else {
                         // Display as hex
                         let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
-                        tracing::info!("Received ({} bytes as hex): {}", bytes_read, hex);
+                        println!("Received ({} bytes as hex): {}", bytes_read, hex);
                     }
                 } else {
-                    tracing::info!("No data available");
+                    println!("No data available");
                 }
             }
             Err(e) => {
-                tracing::info!("Failed to read data: {}", e);
+                eprintln!("Failed to read data: {}", e);
             }
         }
 
@@ -322,8 +323,8 @@ impl InteractiveShell {
                 "set" => {
                     // Set protocol for current port
                     if args.len() < 2 {
-                        tracing::info!("Usage: protocol set <protocol_name>");
-                        tracing::info!("Available protocols:");
+                        println!("Usage: protocol set <protocol_name>");
+                        println!("Available protocols:");
                         self.list_protocols().await?;
                     } else {
                         self.set_port_protocol(args[1]).await?;
