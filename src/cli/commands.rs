@@ -58,11 +58,12 @@ impl CommandExecutor {
         match handle.read(&mut buffer) {
             Ok(n) if n > 0 => {
                 buffer.truncate(n);
+                // Output response data directly to stdout
                 if let Ok(text) = String::from_utf8(buffer.clone()) {
-                    tracing::info!("Response: {}", text);
+                    println!("Response: {}", text);
                 } else {
                     let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
-                    tracing::info!("Response (hex): {}", hex);
+                    println!("Response (hex): {}", hex);
                 }
             }
             Ok(_) => tracing::info!("No response"),
@@ -101,13 +102,15 @@ impl CommandExecutor {
                         "bytes_read": n,
                         "data": hex_data,
                     });
-                    tracing::info!("{}", serde_json::to_string_pretty(&output).unwrap());
+                    // Output JSON data directly to stdout
+                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
                 } else {
+                    // Output received data directly to stdout
                     if let Ok(text) = String::from_utf8(buffer.clone()) {
-                        tracing::info!("Received ({} bytes): {}", n, text);
+                        println!("Received ({} bytes): {}", n, text);
                     } else {
                         let hex: String = buffer.iter().map(|b| format!("{:02x} ", b)).collect();
-                        tracing::info!("Received ({} bytes): {}", n, hex);
+                        println!("Received ({} bytes): {}", n, hex);
                     }
                 }
             }
@@ -128,10 +131,12 @@ impl CommandExecutor {
                 "port": self.port,
                 "status": "closed",
             });
-            tracing::info!("{}", serde_json::to_string_pretty(&output).unwrap());
+            // Output JSON data directly to stdout
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
         } else {
-            tracing::info!("Port: {}", self.port);
-            tracing::info!("Status: closed");
+            // Output status directly to stdout
+            println!("Port: {}", self.port);
+            println!("Status: closed");
         }
 
         Ok(())
