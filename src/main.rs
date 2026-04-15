@@ -428,23 +428,17 @@ fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
             println!("Available protocols:");
             if verbose {
                 println!("Built-in protocols:");
-                println!(
-                    "  modbus_rtu      - Modbus RTU protocol (Industrial communication)"
-                );
-                println!(
-                    "  modbus_ascii    - Modbus ASCII protocol (Industrial communication)"
-                );
+                println!("  modbus_rtu      - Modbus RTU protocol (Industrial communication)");
+                println!("  modbus_ascii    - Modbus ASCII protocol (Industrial communication)");
                 println!("  at_command      - AT Command protocol (Modem control)");
-                println!(
-                    "  line            - Line-based protocol (Text-based communication)"
-                );
+                println!("  line            - Line-based protocol (Text-based communication)");
             } else {
                 println!("  modbus_rtu");
                 println!("  modbus_ascii");
                 println!("  at_command");
                 println!("  line");
             }
-            println!("");
+            println!();
             println!("Custom protocols can be loaded via Lua scripts");
         }
         ProtocolCommand::Info { name } => {
@@ -587,7 +581,7 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
         BatchCommand::Run { script, concurrent } => {
             println!("Running batch script: {}", script.display());
             println!("Max concurrent tasks: {}", concurrent);
-            println!("");
+            println!();
 
             // Check if script exists
             if !script.exists() {
@@ -647,7 +641,7 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                 // Run scripts in sequence
                 match runner.run_scripts(script_paths).await {
                     Ok(result) => {
-                        println!("");
+                        println!();
                         println!("Batch execution completed:");
                         println!("  Total scripts: {}", result.results.len());
 
@@ -658,7 +652,7 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                         println!("  Failed: {}", failed);
 
                         if failed > 0 {
-                            println!("");
+                            println!();
                             println!("Failed scripts:");
                             for result in result.results.iter().filter(|r| !r.success) {
                                 println!("  - {}", result.script);
@@ -689,7 +683,7 @@ async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
 
             if !found {
                 println!("  No batch scripts found");
-                println!("");
+                println!();
                 println!("Create a batch script file with one Lua script per line:");
                 println!("  # Comments start with #");
                 println!("  script1.lua");
@@ -716,35 +710,35 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
             } else {
                 // Output configuration display directly to stdout
                 println!("Current configuration:");
-                println!("");
+                println!();
                 println!("[serial]");
                 println!("  baudrate = {}", config.serial.baudrate);
                 println!("  databits = {}", config.serial.databits);
                 println!("  stopbits = {}", config.serial.stopbits);
                 println!("  parity = \"{}\"", config.serial.parity);
                 println!("  timeout_ms = {}", config.serial.timeout_ms);
-                println!("");
+                println!();
                 println!("[logging]");
                 println!("  level = \"{}\"", config.logging.level);
                 println!("  format = \"{}\"", config.logging.format);
                 println!("  file = \"{}\"", config.logging.file);
-                println!("");
+                println!();
                 println!("[lua]");
                 println!("  memory_limit_mb = {}", config.lua.memory_limit_mb);
                 println!("  timeout_seconds = {}", config.lua.timeout_seconds);
                 println!("  enable_sandbox = {}", config.lua.enable_sandbox);
-                println!("");
+                println!();
                 println!("[task]");
                 println!("  max_concurrent = {}", config.task.max_concurrent);
                 println!(
                     "  default_timeout_seconds = {}",
                     config.task.default_timeout_seconds
                 );
-                println!("");
+                println!();
                 println!("[output]");
                 println!("  json_pretty = {}", config.output.json_pretty);
                 println!("  show_timestamp = {}", config.output.show_timestamp);
-                println!("");
+                println!();
                 println!("Use 'config set <key> <value>' to modify configuration");
                 println!("Use 'config save [path]' to save configuration to file");
                 println!("Use 'config reset' to reset to defaults");
@@ -766,7 +760,7 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 }
                 Err(e) => {
                     println!("✗ Failed to set configuration: {}", e);
-                    println!("");
+                    println!();
                     println!("Valid configuration keys:");
                     println!("  serial.baudrate              - Baud rate (e.g., 115200)");
                     println!("  serial.databits              - Data bits (5-8)");

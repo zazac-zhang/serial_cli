@@ -89,22 +89,20 @@ impl InteractiveShell {
         println!("  open <port>       - Open a serial port");
         println!("  close [port_id]   - Close a serial port (closes current if no ID given)");
         println!("  send <data>       - Send data to the current port");
-        println!(
-            "  recv [n]          - Receive data from the current port (default: 64 bytes)"
-        );
+        println!("  recv [n]          - Receive data from the current port (default: 64 bytes)");
         println!("  status            - Show port status");
-        println!("");
+        println!();
         println!("Protocol commands:");
         println!("  protocol          - Show current protocol and available protocols");
         println!("  protocol list     - List all available protocols");
         println!("  protocol set <name>  - Set protocol for current port");
         println!("  protocol clear    - Clear protocol from current port");
         println!("  protocol show     - Show protocol status");
-        println!("");
+        println!();
         println!("Hardware control commands:");
         println!("  dtr [on|off]      - Get or set DTR signal state");
         println!("  rts [on|off]      - Get or set RTS signal state");
-        println!("");
+        println!();
         println!("  quit/exit         - Exit the shell");
     }
 
@@ -355,7 +353,7 @@ impl InteractiveShell {
             match self.manager.get_port_protocol(port_id).await {
                 Ok(Some(protocol)) => {
                     println!("Current protocol: {}", protocol);
-                    println!("");
+                    println!();
                     println!("Protocol commands:");
                     println!("  protocol list          - List all available protocols");
                     println!("  protocol set <name>    - Set protocol for current port");
@@ -364,10 +362,10 @@ impl InteractiveShell {
                 }
                 Ok(None) => {
                     println!("Current protocol: (none)");
-                    println!("");
+                    println!();
                     println!("Available protocols:");
                     self.list_protocols().await?;
-                    println!("");
+                    println!();
                     println!("Use 'protocol set <name>' to attach a protocol to this port");
                 }
                 Err(e) => {
@@ -389,7 +387,7 @@ impl InteractiveShell {
         println!("  - modbus_ascii    - Modbus ASCII protocol");
         println!("  - at_command      - AT Command protocol");
         println!("  - line            - Line-based protocol");
-        println!("");
+        println!();
         println!("Custom protocols can be loaded with 'protocol_load' in Lua scripts");
 
         Ok(())
@@ -407,7 +405,7 @@ impl InteractiveShell {
         let valid_protocols = ["modbus_rtu", "modbus_ascii", "at_command", "line"];
         if !valid_protocols.contains(&protocol_name) {
             println!("Unknown protocol: {}", protocol_name);
-            println!("");
+            println!();
             println!("Available protocols:");
             self.list_protocols().await?;
             return Ok(());
@@ -471,7 +469,7 @@ impl InteractiveShell {
                 Ok(state) => println!("DTR signal: {}", if state { "ON" } else { "OFF" }),
                 Err(e) => println!("Error getting DTR state: {}", e),
             }
-            println!("");
+            println!();
             println!("Usage: dtr on|off");
             return Ok(());
         }
@@ -515,7 +513,7 @@ impl InteractiveShell {
                 Ok(state) => println!("RTS signal: {}", if state { "ON" } else { "OFF" }),
                 Err(e) => println!("Error getting RTS state: {}", e),
             }
-            println!("");
+            println!();
             println!("Usage: rts on|off");
             return Ok(());
         }
