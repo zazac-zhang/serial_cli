@@ -2,7 +2,7 @@ import { NotificationSettings } from './NotificationSettings'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { useState, useRef, useMemo } from 'react'
-import { Save, RotateCcw, Check, Download, Upload } from 'lucide-react'
+import { Save, RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell } from 'lucide-react'
 import { exportSettings, importSettings } from '@/lib/storage'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -49,10 +49,10 @@ export function SettingsPanel() {
   }), [settings.display])
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'general', label: 'General', icon: () => null },
-    { id: 'serial', label: 'Serial', icon: () => null },
-    { id: 'data', label: 'Data', icon: () => null },
-    { id: 'notifications', label: 'Notifications', icon: () => null },
+    { id: 'general', label: 'General', icon: Settings },
+    { id: 'serial', label: 'Serial', icon: Radio },
+    { id: 'data', label: 'Data', icon: BarChart3 },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
   ]
 
   const saveChanges = () => {
@@ -144,20 +144,24 @@ export function SettingsPanel() {
 
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 border-b border-border">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              activeTab === tab.id
-                ? 'border-signal text-signal'
-                : 'border-transparent text-text-tertiary hover:text-text-secondary'
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const TabIcon = tab.icon
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                activeTab === tab.id
+                  ? 'border-signal text-signal'
+                  : 'border-transparent text-text-tertiary hover:text-text-secondary'
+              )}
+            >
+              <TabIcon size={14} strokeWidth={1.5} />
+              {tab.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Tab Content */}

@@ -5,6 +5,7 @@ import { settingsStorage } from '@/lib/storage'
 
 interface DataContextType {
   packets: DataPacket[]
+  maxPackets: number
   displayOptions: {
     format: 'hex' | 'ascii'
     showTimestamp: boolean
@@ -17,7 +18,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
 // Maximum number of packets to keep in memory
-const MAX_PACKETS = 10000
+const CLEANUP_MULTIPLIER = 1.2
 
 // Auto-cleanup threshold (when to start removing old packets)
 const CLEANUP_THRESHOLD = 12000
@@ -32,20 +33,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     format: (defaultSettings.display.format === 'both' ? 'hex' : defaultSettings.display.format) as 'hex' | 'ascii',
     showTimestamp: defaultSettings.display.showTimestamp,
   })
+  const maxPackets = defaultSettings.display.maxPackets
 
   const addPacket = useCallback((packet: DataPacket) => {
     setPackets(prev => {
       const newPackets = [...prev, packet]
 
-      // Auto-cleanup when approaching limit
-      if (newPackets.length > CLEANUP_THRESHOLD) {
-        // Keep only the most recent MAX_PACKETS
-        return newPackets.slice(-MAX_PACKETS)
+      const cleanupThreshold = Math.floor(maxPackets * CLEANUP_MULTIPLIER)
+      if (newPackets.length > cleanupThreshold) {
+        return newPackets.slice(-maxPackets)
       }
 
       return newPackets
     })
-  }, [])
+  }, [maxPackets])
 
   const clearPackets = useCallback(() => {
     setPackets([])
@@ -55,16 +56,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       setPackets(prev => {
-        if (prev.length > MAX_PACKETS) {
-          console.log(`Auto-cleanup: removing ${prev.length - MAX_PACKETS} old packets`)
-          return prev.slice(-MAX_PACKETS)
+        if (prev.length > maxPackets) {
+          console.log(`Auto-cleanup: removing ${prev.length - maxPackets} old packets`)
+          return prev.slice(-maxPackets)
         }
         return prev
       })
     }, 30000) // Check every 30 seconds
 
     return () => clearInterval(cleanupInterval)
-  }, [])
+  }, [maxPackets])
 
   // Listen for data-received events
   useEffect(() => {
@@ -101,6 +102,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   return (
     <DataContext.Provider value={{
       packets,
+      maxPackets,
       displayOptions,
       addPacket,
       clearPackets,

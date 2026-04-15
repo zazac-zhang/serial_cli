@@ -1,5 +1,6 @@
 import { useData } from '@/contexts/DataContext'
 import { usePorts } from '@/contexts/PortContext'
+import { useSettings } from '@/contexts/SettingsContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { Trash2, Download, Settings2, ArrowUpRight, ArrowDownLeft, Send, Play, AlertCircle } from 'lucide-react'
@@ -7,10 +8,6 @@ import { useState, useMemo } from 'react'
 import React from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { DataPacket } from '@/types/tauri'
-
-// Maximum packets constant (should match DataContext)
-const MAX_PACKETS = 10000
-const WARNING_THRESHOLD = 8000
 
 // Utility functions for data formatting
 export function formatData(data: number[], format: 'hex' | 'ascii'): string {
@@ -93,9 +90,10 @@ type ExportFormat = 'txt' | 'csv' | 'json'
 type ExportOption = 'all' | 'rx-only' | 'tx-only'
 
 export const DataViewer = React.memo(function DataViewer() {
-  const { packets, clearPackets, displayOptions, setDisplayOptions } = useData()
+  const { packets, clearPackets, displayOptions, setDisplayOptions, maxPackets } = useData()
   const { activePorts } = usePorts()
-  const [autoScroll, setAutoScroll] = useState(true)
+  const { settings } = useSettings()
+  const [autoScroll, setAutoScroll] = useState(settings.display.autoScroll)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('txt')
   const [exportOption, setExportOption] = useState<ExportOption>('all')
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -106,13 +104,15 @@ export const DataViewer = React.memo(function DataViewer() {
   const [selectedPort, setSelectedPort] = useState<string>('')
   const [isSending, setIsSending] = useState(false)
 
+  const warningThreshold = Math.floor(maxPackets * 0.8)
+
   // Memoized calculations
   const packetStats = useMemo(() => ({
     total: packets.length,
     rx: packets.filter(p => p.direction === 'rx').length,
     tx: packets.filter(p => p.direction === 'tx').length,
-    memoryUsagePercent: (packets.length / MAX_PACKETS) * 100,
-  }), [packets.length])
+    memoryUsagePercent: (packets.length / maxPackets) * 100,
+  }), [packets.length, maxPackets])
 
   const exportData = () => {
     const filteredPackets = packets.filter(p => {
@@ -261,7 +261,7 @@ export const DataViewer = React.memo(function DataViewer() {
             <div>
               <p className="text-xs text-text-tertiary uppercase tracking-wider">Memory Usage</p>
               <p className="text-lg font-mono font-semibold text-text-primary mt-1">
-                {packetStats.total}/{MAX_PACKETS}
+                {packetStats.total}/{maxPackets}
               </p>
             </div>
             {packetStats.memoryUsagePercent > 80 && (
