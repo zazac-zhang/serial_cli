@@ -5,27 +5,39 @@
 
 ---
 
-## 已完成 (Phase 1-3)
+## UI 存在但功能缺失（Bug 级）
 
-| # | 修复 | 状态 |
-|---|------|------|
-| 1 | ToggleSwitch 改为受控组件 | ✅ |
-| 2 | SettingsPanel 连接 SettingsContext | ✅ |
-| 3 | DataContext 初始化读取 settings | ✅ |
-| 4 | ProtocolPanel useState→useEffect | ✅ |
-| 5 | ProtocolPanel toggleProtocol 调后端 | ✅ |
-| 6 | ScriptPanel 启用 ScriptActionContext | ✅ |
-| 7 | useGlobalShortcuts 使用 Context | ✅ |
-| 8 | shortcuts.ts 改为纯数据 | ✅ |
-| 9 | 测试按钮调真实通知 | ✅ |
-| 10 | SettingsPanel alert→Toast | ✅ |
-| 11 | 活跃端口设置按钮 | ✅ |
-| 12 | DataViewer autoScroll/maxPackets 从 settings 读取 | ✅ |
-| 13 | 移除未使用的 sonner 依赖 | ✅ |
-| 14 | SettingsPanel tab 添加图标 | ✅ |
-| 15 | 导航持久化到 localStorage | ✅ |
+### 1. Auto-scroll 复选框纯装饰
 
-5/5 核心用户路径全部打通。
+**文件**: `DataViewer.tsx:514-521`
+
+`autoScroll` 仅绑定 checkbox 状态，从未用于实际滚动行为。收到新数据包时不会自动滚动到底部。
+
+**修复**: 添加 `useRef` 指向数据列表容器，`packets` 变化时若 `autoScroll=true` 则 `scrollTo({ top: scrollHeight })`
+
+### 2. 协议验证状态不展示
+
+**文件**: `ProtocolPanel.tsx:58`
+
+`validationStatus` Map 在加载协议时设置 `'valid'` / `'invalid'`，但 JSX 从未读取。用户上传 `.lua` 后看不到验证反馈。
+
+**修复**: 在自定义协议列表卡片上显示验证状态 badge
+
+### 3. DataViewer 显示设置不写回 SettingsContext
+
+**文件**: `DataViewer.tsx:505-513`
+
+Timestamp checkbox 直接改 `DataContext.displayOptions`，不写回 `SettingsContext`。用户在 DataViewer 关时间戳 → 切到 Settings 看到仍是开启 → 刷新后丢失。
+
+**修复**: `setDisplayOptions` 时同步调用 `updateSettings({ display: { showTimestamp: checked } })`
+
+### 4. 导出格式偏好不持久化
+
+**文件**: `DataViewer.tsx:99-100`
+
+`exportFormat` 和 `exportOption` 每次打开重置为 `txt` / `all`，不记忆用户上次选择。
+
+**修复**: 从 localStorage 初始化或存入 Settings 的 display 字段
 
 ---
 
@@ -34,15 +46,12 @@
 ### 数据过滤/搜索
 
 **涉及**: `DataViewer.tsx`
-**缺失**:
-- 按端口过滤（只看某个端口的数据）
-- 按方向过滤（只看 RX 或 TX）
-- 数据内容搜索/高亮
+**缺失**: 按端口/方向过滤、内容搜索/高亮
 
 ### 快捷发送预设管理
 
 **涉及**: `DataViewer.tsx`
-**现状**: 硬编码 3 个按钮（Hello / AT / CRLF）
+**现状**: 硬编码 3 个按钮
 **建议**: 可自定义预设列表，持久化到 localStorage
 
 ### 多端口同时发送
@@ -54,17 +63,16 @@
 ### 协议编码/解码 UI
 
 **涉及**: `DataViewer.tsx`, `ProtocolPanel.tsx`
-**缺失**: 后端有 `protocol_encode` / `protocol_decode`，前端无入口
-**建议**: 在发送面板添加"使用当前协议编码"按钮
+**缺失**: 后端有 `protocol_encode` / `protocol_decode`
+**建议**: 发送面板添加"使用当前协议编码"按钮
 
 ### 脚本预检（validate_script）
 
 **涉及**: `ScriptPanel.tsx`
-**缺失**: 后端有 `validate_script`，前端只在运行时才报错误
-**建议**: 运行前自动预检，给出语法错误提示
+**缺失**: 后端有 `validate_script`
+**建议**: 运行前自动预检
 
 ### 窗口状态持久化
 
 **涉及**: `useWindow.ts`, `App.tsx`
-**问题**: `windowStateStorage` 已定义但从未被使用
-**建议**: 在窗口变化时保存尺寸/位置，启动时恢复
+**问题**: `windowStateStorage` 已定义但从未使用

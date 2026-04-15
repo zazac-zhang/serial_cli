@@ -86,6 +86,7 @@ src/
 - **Lua integration**: Scripts executed via LuaEngine
 - **Configuration**: TOML-based with fallback defaults
 - **Documentation**: Avoid creating .md files unless explicitly necessary. Keep docs minimal — README.md for users, DEVELOPMENT.md for contributors, docs/GUIDE.md for GUI users, CHANGELOG.md for version history, RELEASE.md for release process.
+- **TODO tracking**: 发现或修复问题后，同步更新 `frontend/TODO.md` 中的待办/已完成列表。
 
 ## GUI Subproject
 
