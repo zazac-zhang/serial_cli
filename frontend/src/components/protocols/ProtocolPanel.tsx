@@ -108,6 +108,7 @@ export function ProtocolPanel() {
   }
 
   const deleteCustomProtocol = (id: string) => {
+    const protocol = customProtocols.find(p => p.id === id)
     const updated = customProtocols.filter(p => p.id !== id)
     setCustomProtocols(updated)
     protocolsStorage.set(updated.map(p => ({
@@ -117,6 +118,14 @@ export function ProtocolPanel() {
 
     if (activeProtocolId === id) {
       setActiveProtocolId('line-based')
+    }
+
+    if (protocol) {
+      setValidationStatus(prev => {
+        const next = new Map(prev)
+        next.delete(protocol.name)
+        return next
+      })
     }
   }
 

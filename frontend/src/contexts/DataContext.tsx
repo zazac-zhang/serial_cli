@@ -33,7 +33,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     format: (defaultSettings.display.format === 'both' ? 'hex' : defaultSettings.display.format) as 'hex' | 'ascii',
     showTimestamp: defaultSettings.display.showTimestamp,
   })
-  const maxPackets = defaultSettings.display.maxPackets
+  const [maxPackets, setMaxPackets] = useState(defaultSettings.display.maxPackets)
+
+  // Sync maxPackets from storage
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+      const current = settingsStorage.get()
+      if (current.display.maxPackets !== maxPackets) {
+        setMaxPackets(current.display.maxPackets)
+      }
+    }, 1000)
+    return () => clearInterval(checkInterval)
+  }, [maxPackets])
 
   const addPacket = useCallback((packet: DataPacket) => {
     setPackets(prev => {

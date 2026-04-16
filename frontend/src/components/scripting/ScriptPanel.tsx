@@ -96,17 +96,23 @@ export function ScriptPanel() {
   }
 
   // Register callbacks for global shortcuts
+  const scriptContentRef = useRef(scriptContent)
+  useEffect(() => {
+    scriptContentRef.current = scriptContent
+  }, [scriptContent])
+
   useEffect(() => {
     const unregister = registerCallbacks({
       createNewScript,
       runCurrentScript: () => {
-        if (scriptContent.trim()) runScript()
+        if (scriptContentRef.current.trim()) runScript()
       },
     })
     return unregister
-  }, [registerCallbacks, createNewScript, scriptContent])
+  }, [registerCallbacks, createNewScript])
 
   const runScript = async () => {
+    if (isRunning) return
     setIsRunning(true)
     setError(null)
     setOutput(prev => {

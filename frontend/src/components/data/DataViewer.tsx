@@ -33,9 +33,10 @@ export function formatTimestamp(timestamp: number): string {
 }
 
 // Memoized data packet row component
-const DataPacketRow = React.memo(({ packet, displayFormat }: {
+const DataPacketRow = React.memo(({ packet, displayFormat, showTimestamp }: {
   packet: DataPacket
   displayFormat: 'hex' | 'ascii'
+  showTimestamp: boolean
 }) => {
   return (
     <div
@@ -47,7 +48,7 @@ const DataPacketRow = React.memo(({ packet, displayFormat }: {
       )}
     >
       {/* Timestamp */}
-      {true && (
+      {showTimestamp && (
         <span className="text-text-tertiary w-24 flex-shrink-0">
           {formatTimestamp(packet.timestamp)}
         </span>
@@ -418,7 +419,13 @@ export const DataViewer = React.memo(function DataViewer() {
               AT
             </button>
             <button
-              onClick={() => setSendData('\\r\\n')}
+              onClick={() => {
+                if (sendFormat === 'hex') {
+                  setSendData('0D 0A')
+                } else {
+                  setSendData('\r\n')
+                }
+              }}
               className="px-2 py-1 text-xs rounded border border-border hover:bg-bg-elevated transition-colors"
               disabled={!selectedPort}
             >
@@ -574,6 +581,7 @@ export const DataViewer = React.memo(function DataViewer() {
                 key={`${packet.timestamp}-${index}`}
                 packet={packet}
                 displayFormat={displayOptions.format}
+                showTimestamp={displayOptions.showTimestamp}
               />
             ))
           )}

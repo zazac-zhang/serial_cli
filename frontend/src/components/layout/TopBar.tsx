@@ -1,14 +1,18 @@
 import { usePorts } from '@/contexts/PortContext'
 import { useData } from '@/contexts/DataContext'
 import { Activity, Radio, Zap } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
+
+const TRAFFIC_TIMEOUT_MS = 3000
 
 export function TopBar() {
   const { availablePorts, activePorts } = usePorts()
   const { packets } = useData()
   const [dataFlowRate, setDataFlowRate] = useState(0)
   const [lastPacketCount, setLastPacketCount] = useState(0)
+  const [isTrafficActive, setIsTrafficActive] = useState(false)
+  const trafficTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activePortsCount = availablePorts.length
   const totalPackets = packets.length
@@ -20,9 +24,18 @@ export function TopBar() {
       const packetsPerSecond = currentCount - lastPacketCount
       setDataFlowRate(packetsPerSecond)
       setLastPacketCount(currentCount)
+
+      if (packetsPerSecond > 0) {
+        setIsTrafficActive(true)
+        if (trafficTimerRef.current) clearTimeout(trafficTimerRef.current)
+        trafficTimerRef.current = setTimeout(() => setIsTrafficActive(false), TRAFFIC_TIMEOUT_MS)
+      }
     }, 1000)
 
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      if (trafficTimerRef.current) clearTimeout(trafficTimerRef.current)
+    }
   }, [packets.length, lastPacketCount])
 
   return (
@@ -50,7 +63,7 @@ export function TopBar() {
         </div>
 
         {/* Data flow indicator */}
-        {packets.length > 0 && (
+        {isTrafficActive && (
           <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((i) => (
               <div

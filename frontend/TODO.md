@@ -1,7 +1,23 @@
 # Frontend TODO
 
 > 最后更新: 2026-04-15
-> 当前完成度: ~98%
+> 当前完成度: 100% (Phase 3 bug fixes complete)
+
+---
+
+## Phase 3 — Bug fixes (completed 2026-04-15)
+
+- [x] CRLF 快捷按钮发送字面 `\r\n` → 改为 `'\r\n'` / `'0D 0A'`
+- [x] Timestamp 列硬编码 `true` → 检查 `displayOptions.showTimestamp`
+- [x] NotificationSettings 设置不持久化 → `updateSettings` 中同步写回 `settingsStorage`
+- [x] ToastContext `toast` 对象每帧重建 → `useMemo` + `useCallback`
+- [x] ScriptPanel `scriptContent` 依赖导致频繁注销/注册 → `useRef` 保存
+- [x] ScriptPanel `runScript` 无并发保护 → 顶部加 `if (isRunning) return`
+- [x] SettingsPanel Save 按钮空操作 → 移除
+- [x] ProtocolPanel 验证状态 Map 不释放 → `deleteCustomProtocol` 中清理
+- [x] PortsPanel 错误提示永不消失 → 添加 Dismiss 按钮 + `clearError`
+- [x] TopBar 流量指示器收到包就永远闪烁 → `lastPacketTime` 超时控制
+- [x] DataContext `maxPackets` 不响应设置变更 → 轮询 `settingsStorage`
 
 ---
 

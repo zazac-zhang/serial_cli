@@ -2,7 +2,7 @@ import { NotificationSettings } from './NotificationSettings'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { useState, useRef, useMemo } from 'react'
-import { Save, RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell } from 'lucide-react'
+import { RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell } from 'lucide-react'
 import { exportSettings, importSettings } from '@/lib/storage'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -54,10 +54,6 @@ export function SettingsPanel() {
     { id: 'data', label: 'Data', icon: BarChart3 },
     { id: 'notifications', label: 'Notifications', icon: Bell },
   ]
-
-  const saveChanges = () => {
-    toast.success('设置已保存')
-  }
 
   const resetToDefaults = () => {
     resetSettings()
@@ -131,13 +127,6 @@ export function SettingsPanel() {
           >
             <RotateCcw size={14} strokeWidth={1.5} />
             Reset
-          </button>
-          <button
-            onClick={saveChanges}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors"
-          >
-            <Save size={14} strokeWidth={1.5} />
-            Save
           </button>
         </div>
       </div>

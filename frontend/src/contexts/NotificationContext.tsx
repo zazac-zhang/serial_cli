@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { useToast as useToastUI } from './ToastContext'
 import type { ToastType } from './ToastContext'
 import { isTauri } from '@/lib/utils'
+import { settingsStorage } from '@/lib/storage'
 
 export interface SystemNotificationOptions {
   title: string
@@ -160,7 +161,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }
 
   const updateSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }))
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings }
+      settingsStorage.update({ notifications: updated })
+      return updated
+    })
   }, [])
 
   return (

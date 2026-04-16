@@ -102,6 +102,10 @@ export function PortsPanel() {
     }
   }, [closePort])
 
+  const clearError = useCallback(() => {
+    setErrorDetails(null)
+  }, [])
+
   const getPortStatus = useCallback((portName: string) => {
     for (const [_, status] of activePorts) {
       if (status.port_name === portName) {
@@ -119,14 +123,24 @@ export function PortsPanel() {
         variant="signal"
         className="w-full"
         actions={
-          <button
-            onClick={listPorts}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw size={14} strokeWidth={1.5} className={isLoading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
+          <>
+            {errorDetails && (
+              <button
+                onClick={clearError}
+                className="px-2 py-1 text-xs rounded border border-alert/30 text-alert hover:bg-alert/10 transition-colors"
+              >
+                Dismiss Error
+              </button>
+            )}
+            <button
+              onClick={listPorts}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw size={14} strokeWidth={1.5} className={isLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </>
         }
       >
         <div className="space-y-4">
