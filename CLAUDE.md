@@ -85,8 +85,10 @@ src/
 - **Async**: All I/O uses `tokio`
 - **Lua integration**: Scripts executed via LuaEngine
 - **Configuration**: TOML-based with fallback defaults
-- **Documentation**: Avoid creating .md files unless explicitly necessary. Keep docs minimal — README.md for users, DEVELOPMENT.md for contributors, docs/GUIDE.md for GUI users, CHANGELOG.md for version history, RELEASE.md for release process.
-- **TODO tracking**: 发现或修复问题后，同步更新 `frontend/TODO.md` 中的待办/已完成列表。
+- **Documentation**: Keep docs minimal and well-organized
+  - Root level: README.md, CHANGELOG.md, RELEASE.md (essential user-facing docs)
+  - Avoid creating new .md files unless they serve a clear, ongoing purpose
+- **TODO tracking**: 发现或修复问题后，同步更新 `docs/user/TODO.md` 中的待办/已完成列表。
 
 ## GUI Subproject
 
