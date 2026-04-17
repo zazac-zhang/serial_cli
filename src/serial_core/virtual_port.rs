@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
+use tokio::time::Duration;
 
 /// Virtual serial port configuration
 #[derive(Debug, Clone)]
@@ -143,13 +144,16 @@ impl VirtualSerialPair {
 
         tracing::info!("Creating virtual serial port pair with backend: {:?}", config.backend);
 
+        let running = Arc::new(AtomicBool::new(true));
+
         // Create the virtual pair based on backend
-        let (port_a, port_b, master_fds, bridge_task, error_tx, stats) =
+        let (port_a, port_b, master_fds, bridge_task, error_rx, stats) =
             match config.backend {
                 VirtualBackend::Pty => Self::create_pty_pair(
                     config.bridge_buffer_size,
                     config.monitor,
                     config.max_packets,
+                    Arc::clone(&running),
                 )?,
                 VirtualBackend::NamedPipe => {
                     return Err(SerialError::VirtualPort(
@@ -167,8 +171,6 @@ impl VirtualSerialPair {
         let created_at = SystemTime::now();
 
         tracing::info!("Created virtual pair: A={}, B={}, ID={}", port_a, port_b, id);
-
-        let (error_tx, error_rx) = mpsc::channel(10);
 
         // Spawn error monitoring task
         let stats_clone = Arc::clone(&stats);
@@ -188,7 +190,7 @@ impl VirtualSerialPair {
             port_b,
             backend: config.backend,
             sniffer: None,
-            running: Arc::new(AtomicBool::new(true)),
+            running,
             created_at,
             stats,
             #[cfg(unix)]
@@ -203,12 +205,13 @@ impl VirtualSerialPair {
         buffer_size: usize,
         _monitor: bool,
         _max_packets: usize,
+        running: Arc<AtomicBool>,
     ) -> Result<(
         String,
         String,
         Option<(std::os::fd::RawFd, std::os::fd::RawFd)>,
         JoinHandle<()>,
-        mpsc::Sender<String>,
+        mpsc::Receiver<String>,
         Arc<Mutex<VirtualPairStats>>,
     )> {
         use libc::{grantpt, posix_openpt, ptsname, unlockpt, O_NOCTTY, O_RDWR};
@@ -340,7 +343,7 @@ impl VirtualSerialPair {
         }
 
         // Create channels for bridge communication
-        let (error_tx, _error_rx) = mpsc::channel(10);
+        let (error_tx, error_rx) = mpsc::channel(10);
         let stats = Arc::new(Mutex::new(VirtualPairStats::default()));
 
         // Spawn improved bridge task with proper error handling
@@ -353,6 +356,10 @@ impl VirtualSerialPair {
             let mut buffer = vec![0u8; buffer_size];
 
             loop {
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
+
                 // Small sleep to prevent busy-waiting but much shorter than before
                 tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 
@@ -447,7 +454,7 @@ impl VirtualSerialPair {
             slave2_path,
             Some((master1_fd, master2_fd)),
             bridge_task,
-            error_tx,
+            error_rx,
             stats,
         ))
     }
@@ -458,13 +465,14 @@ impl VirtualSerialPair {
         _buffer_size: usize,
         _monitor: bool,
         _max_packets: usize,
+        _running: Arc<AtomicBool>,
     ) -> Result<
         (
             String,
             String,
             Option<()>,
             JoinHandle<()>,
-            mpsc::Sender<String>,
+            mpsc::Receiver<String>,
             Arc<Mutex<VirtualPairStats>>,
         ),
     > {
@@ -525,12 +533,19 @@ impl VirtualSerialPair {
     pub async fn stop(mut self) -> Result<()> {
         tracing::info!("Stopping virtual pair: {}", self.id);
 
-        // Set running flag to false
+        // Set running flag to false to signal graceful shutdown
         self.running.store(false, Ordering::SeqCst);
 
-        // Stop bridge task if active
+        // Give the bridge task a chance to exit gracefully
         if let Some(bridge_task) = self.bridge_task.take() {
-            bridge_task.abort();
+            match tokio::time::timeout(Duration::from_millis(100), bridge_task).await {
+                Ok(_) => tracing::debug!("Bridge task exited gracefully"),
+                Err(_) => {
+                    tracing::debug!("Bridge task did not exit within timeout, aborting");
+                    // Bridge task is already consumed by the timeout future,
+                    // so we don't need to explicitly abort here.
+                }
+            }
         }
 
         // Platform-specific cleanup
