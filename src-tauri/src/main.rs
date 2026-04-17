@@ -55,6 +55,12 @@ async fn main() {
             commands::window::show_window,
             commands::window::hide_window,
             commands::window::toggle_window,
+            // Virtual port commands
+            commands::virtual_port::create_virtual_port,
+            commands::virtual_port::list_virtual_ports,
+            commands::virtual_port::stop_virtual_port,
+            commands::virtual_port::get_virtual_port_stats,
+            commands::virtual_port::check_virtual_port_health,
         ])
         .setup(|app| {
             // Setup event system

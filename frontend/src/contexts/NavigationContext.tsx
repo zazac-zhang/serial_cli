@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 
-type View = 'ports' | 'data' | 'scripts' | 'protocols' | 'settings'
+type View = 'ports' | 'data' | 'scripts' | 'protocols' | 'settings' | 'virtual'
 
 const VIEW_STORAGE_KEY = 'serial-cli-view'
 
@@ -15,7 +15,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const savedView = ((): View => {
     try {
       const item = window.localStorage.getItem(VIEW_STORAGE_KEY)
-      if (item && ['ports', 'data', 'scripts', 'protocols', 'settings'].includes(item)) {
+      if (item && ['ports', 'data', 'scripts', 'protocols', 'settings', 'virtual'].includes(item)) {
         return item as View
       }
     } catch { /* ignore */ }

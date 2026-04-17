@@ -6,14 +6,16 @@ import {
   FileCode2,
   Cpu,
   Settings,
+  Network,
 } from 'lucide-react'
 
 const navItems = [
   { id: 'ports', label: 'Ports', icon: Plug, shortcut: '⌘1' },
-  { id: 'data', label: 'Data Monitor', icon: BarChart3, shortcut: '⌘2' },
-  { id: 'scripts', label: 'Scripts', icon: FileCode2, shortcut: '⌘3' },
-  { id: 'protocols', label: 'Protocols', icon: Cpu, shortcut: '⌘4' },
-  { id: 'settings', label: 'Settings', icon: Settings, shortcut: '⌘5' },
+  { id: 'virtual', label: 'Virtual Ports', icon: Network, shortcut: '⌘2' },
+  { id: 'data', label: 'Data Monitor', icon: BarChart3, shortcut: '⌘3' },
+  { id: 'scripts', label: 'Scripts', icon: FileCode2, shortcut: '⌘4' },
+  { id: 'protocols', label: 'Protocols', icon: Cpu, shortcut: '⌘5' },
+  { id: 'settings', label: 'Settings', icon: Settings, shortcut: '⌘6' },
 ] as const
 
 export function Sidebar() {

@@ -7,10 +7,10 @@
 // except according to those terms.
 
 use serial_cli::protocol::{ProtocolManager, ProtocolRegistry};
-use serial_cli::serial_core::PortManager;
+use serial_cli::serial_core::{PortManager, VirtualSerialPair};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
 /// Data sniffer for monitoring serial port data
@@ -32,6 +32,8 @@ pub struct AppState {
     pub protocol_manager: Arc<Mutex<ProtocolManager>>,
     /// Active data sniffers per port (port_id -> DataSniffer)
     pub active_sniffers: Arc<Mutex<HashMap<String, DataSniffer>>>,
+    /// Virtual port registry (id -> VirtualSerialPair)
+    pub virtual_port_registry: Arc<RwLock<HashMap<String, VirtualSerialPair>>>,
 }
 
 impl AppState {
@@ -46,6 +48,7 @@ impl AppState {
             protocol_registry,
             protocol_manager,
             active_sniffers: Arc::new(Mutex::new(HashMap::new())),
+            virtual_port_registry: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }

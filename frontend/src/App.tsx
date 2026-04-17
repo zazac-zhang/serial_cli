@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext'
 import { PortProvider } from './contexts/PortContext'
+import { VirtualPortProvider } from './contexts/VirtualPortContext'
 import { DataProvider } from './contexts/DataContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ShortcutProvider } from './contexts/ShortcutContext'
@@ -11,6 +12,7 @@ import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
 import { PortsPanel } from './components/ports/PortsPanel'
+import { VirtualPortsPanel } from './components/virtual/VirtualPortsPanel'
 import { DataViewer } from './components/data/DataViewer'
 import { ScriptPanel } from './components/scripting/ScriptPanel'
 import { ProtocolPanel } from './components/protocols/ProtocolPanel'
@@ -35,6 +37,7 @@ function AppContent() {
 
   const viewComponents: Record<string, React.ComponentType> = {
     ports: PortsPanel,
+    virtual: VirtualPortsPanel,
     data: DataViewer,
     scripts: ScriptPanel,
     protocols: ProtocolPanel,
@@ -76,9 +79,11 @@ function App() {
               <SettingsProvider>
                 <NavigationProvider>
                   <PortProvider>
-                    <DataProvider>
-                      <AppContent />
-                    </DataProvider>
+                    <VirtualPortProvider>
+                      <DataProvider>
+                        <AppContent />
+                      </DataProvider>
+                    </VirtualPortProvider>
                   </PortProvider>
                 </NavigationProvider>
               </SettingsProvider>

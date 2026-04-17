@@ -28,6 +28,21 @@ pub fn setup_event_system(app: AppHandle) -> Result<(), Box<dyn std::error::Erro
         debug!("Port status changed: {:?}", event);
     });
 
+    // Listen for virtual port created events
+    app.listen("virtual-port-created", move |event| {
+        debug!("Virtual port created: {:?}", event);
+    });
+
+    // Listen for virtual port stopped events
+    app.listen("virtual-port-stopped", move |event| {
+        debug!("Virtual port stopped: {:?}", event);
+    });
+
+    // Listen for virtual port stats updated events
+    app.listen("virtual-port-stats-updated", move |event| {
+        debug!("Virtual port stats updated: {:?}", event);
+    });
+
     // Listen for errors
     app.listen("error-occurred", move |event| {
         error!("Error occurred: {:?}", event);
@@ -94,5 +109,51 @@ pub async fn emit_error(app: AppHandle, error: String) -> Result<(), Box<dyn std
     });
 
     app.emit("error-occurred", payload)?;
+    Ok(())
+}
+
+/// Emit a virtual port created event
+pub async fn emit_virtual_port_created(
+    app: AppHandle,
+    port_id: String,
+    port_info: serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let payload = serde_json::json!({
+        "port_id": port_id,
+        "port_info": port_info,
+        "timestamp": chrono::Utc::now().timestamp_millis(),
+    });
+
+    app.emit("virtual-port-created", payload)?;
+    Ok(())
+}
+
+/// Emit a virtual port stopped event
+pub async fn emit_virtual_port_stopped(
+    app: AppHandle,
+    port_id: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let payload = serde_json::json!({
+        "port_id": port_id,
+        "timestamp": chrono::Utc::now().timestamp_millis(),
+    });
+
+    app.emit("virtual-port-stopped", payload)?;
+    Ok(())
+}
+
+/// Emit a virtual port stats updated event
+pub async fn emit_virtual_port_stats_updated(
+    app: AppHandle,
+    port_id: String,
+    stats: serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let payload = serde_json::json!({
+        "port_id": port_id,
+        "stats": stats,
+        "timestamp": chrono::Utc::now().timestamp_millis(),
+    });
+
+    app.emit("virtual-port-stats-updated", payload)?;
     Ok(())
 }

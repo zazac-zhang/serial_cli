@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   PROTOCOLS: 'serial-cli-protocols',
   RECENT_PORTS: 'serial-cli-recent-ports',
   WINDOW_STATE: 'serial-cli-window-state',
+  VIRTUAL_PORTS: 'serial-cli-virtual-ports',
 } as const
 
 /**
@@ -280,6 +281,48 @@ export const windowStateStorage = {
 }
 
 /**
+ * Virtual port configuration persistence
+ */
+export interface VirtualPortConfigEntry {
+  id: string
+  name?: string
+  backend: 'pty' | 'named_pipe' | 'socat'
+  buffer_size: number
+  monitor: boolean
+  lastUsed: number
+}
+
+export const virtualPortsStorage = {
+  get: (): VirtualPortConfigEntry[] => {
+    return storage.get<VirtualPortConfigEntry[]>(STORAGE_KEYS.VIRTUAL_PORTS, [])
+  },
+
+  set: (configs: VirtualPortConfigEntry[]): boolean => {
+    // Keep only last 10 configs
+    const sorted = configs.sort((a, b) => b.lastUsed - a.lastUsed).slice(0, 10)
+    return storage.set(STORAGE_KEYS.VIRTUAL_PORTS, sorted)
+  },
+
+  add: (config: VirtualPortConfigEntry): boolean => {
+    const configs = virtualPortsStorage.get()
+    // Remove existing entry with same id
+    const filtered = configs.filter(c => c.id !== config.id)
+    filtered.push(config)
+    return virtualPortsStorage.set(filtered)
+  },
+
+  remove: (id: string): boolean => {
+    const configs = virtualPortsStorage.get()
+    const filtered = configs.filter(c => c.id !== id)
+    return virtualPortsStorage.set(filtered)
+  },
+
+  clear: (): boolean => {
+    return storage.set(STORAGE_KEYS.VIRTUAL_PORTS, [])
+  },
+}
+
+/**
  * Deep merge utility
  */
 function deepMerge<T>(target: T, source: Partial<T>): T {
@@ -323,6 +366,7 @@ export const exportSettings = () => {
       scripts,
       recentPorts,
       protocols,
+      virtualPorts: virtualPortsStorage.get(),
     }
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
@@ -375,6 +419,11 @@ export const importSettings = (file: File): Promise<boolean> => {
         // Import protocols
         if (data.protocols && Array.isArray(data.protocols)) {
           protocolsStorage.set(data.protocols)
+        }
+
+        // Import virtual ports
+        if (data.virtualPorts && Array.isArray(data.virtualPorts)) {
+          storage.set(STORAGE_KEYS.VIRTUAL_PORTS, data.virtualPorts)
         }
 
         resolve(true)

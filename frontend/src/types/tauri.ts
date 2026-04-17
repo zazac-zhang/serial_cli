@@ -54,3 +54,34 @@ export interface ScriptResult {
   output: string
   error?: string
 }
+
+// Virtual serial port types
+export interface VirtualPortConfig {
+  name?: string
+  backend: 'pty' | 'named_pipe' | 'socat'
+  buffer_size?: number
+  monitor?: boolean
+}
+
+export interface VirtualPortInfo {
+  id: string
+  port_a: string
+  port_b: string
+  backend: string
+  created_at: string
+  uptime_secs: number
+  running: boolean
+}
+
+export interface VirtualPortStats {
+  id: string
+  port_a: string
+  port_b: string
+  backend: string
+  running: boolean
+  uptime_secs: number
+  bytes_bridged: number
+  packets_bridged: number
+  bridge_errors: number
+  last_error: string | null
+}
