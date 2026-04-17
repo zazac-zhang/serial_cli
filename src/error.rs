@@ -46,6 +46,10 @@ pub enum SerialError {
     /// Lua errors
     #[error("Lua error: {0}")]
     Lua(#[from] mlua::Error),
+
+    /// Virtual port errors
+    #[error("Virtual port error: {0}")]
+    VirtualPort(String),
 }
 
 /// Serial port specific errors

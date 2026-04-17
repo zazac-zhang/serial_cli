@@ -1,0 +1,64 @@
+# Serial CLI Configuration Example
+# This file demonstrates the configuration options for virtual serial ports
+
+# Serial port configuration
+[serial]
+baudrate = 115200
+databits = 8
+stopbits = 1
+parity = "none"
+timeout_ms = 1000
+
+# Logging configuration
+[logging]
+level = "info"
+format = "text"
+file = ""
+
+# Lua runtime configuration
+[lua]
+memory_limit_mb = 128
+timeout_seconds = 300
+enable_sandbox = true
+
+# Task scheduler configuration
+[task]
+max_concurrent = 10
+default_timeout_seconds = 60
+
+# Output configuration
+[output]
+json_pretty = true
+show_timestamp = true
+
+# Virtual serial port configuration
+[virtual]
+# Default backend type: "pty", "socat", or "namedpipe"
+backend = "pty"
+
+# Enable monitoring by default
+monitor = false
+
+# Monitoring output format: "hex" or "raw"
+monitor_format = "hex"
+
+# Auto-cleanup virtual ports on exit
+auto_cleanup = true
+
+# Maximum packets to capture (0 = unlimited)
+max_packets = 0
+
+# Buffer size for data bridge (bytes)
+bridge_buffer_size = 8192
+
+# Bridge poll interval (milliseconds)
+bridge_poll_interval_ms = 10
+
+# Protocol configuration
+[protocols]
+# Custom protocols can be defined here
+# Example:
+# [protocols.custom.my_protocol]
+# name = "my_protocol"
+# path = "/path/to/protocol.lua"
+# version = 1

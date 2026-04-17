@@ -133,6 +133,42 @@ impl ConfigManager {
                     .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
                 config.output.show_timestamp = show;
             }
+            ["virtual", "backend"] => {
+                config.virtual_ports.backend = value.to_string();
+            }
+            ["virtual", "monitor"] => {
+                let monitor = value
+                    .parse::<bool>()
+                    .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
+                config.virtual_ports.monitor = monitor;
+            }
+            ["virtual", "monitor_format"] => {
+                config.virtual_ports.monitor_format = value.to_string();
+            }
+            ["virtual", "auto_cleanup"] => {
+                let cleanup = value
+                    .parse::<bool>()
+                    .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
+                config.virtual_ports.auto_cleanup = cleanup;
+            }
+            ["virtual", "max_packets"] => {
+                let max = value
+                    .parse::<usize>()
+                    .map_err(|_| SerialError::Config(format!("Invalid max packets: {}", value)))?;
+                config.virtual_ports.max_packets = max;
+            }
+            ["virtual", "bridge_buffer_size"] => {
+                let size = value
+                    .parse::<usize>()
+                    .map_err(|_| SerialError::Config(format!("Invalid buffer size: {}", value)))?;
+                config.virtual_ports.bridge_buffer_size = size;
+            }
+            ["virtual", "bridge_poll_interval_ms"] => {
+                let interval = value
+                    .parse::<u64>()
+                    .map_err(|_| SerialError::Config(format!("Invalid poll interval: {}", value)))?;
+                config.virtual_ports.bridge_poll_interval_ms = interval;
+            }
             _ => {
                 return Err(SerialError::Config(format!(
                     "Unknown configuration key: {}",
@@ -261,6 +297,9 @@ pub struct Config {
     /// Protocol configuration
     #[serde(default)]
     pub protocols: ProtocolsConfig,
+    /// Virtual serial port configuration
+    #[serde(default)]
+    pub virtual_ports: VirtualPortsConfig,
 }
 
 /// Serial port configuration
@@ -389,6 +428,45 @@ pub struct ProtocolsConfig {
     /// Custom protocols
     #[serde(default)]
     pub custom: HashMap<String, CustomProtocolConfig>,
+}
+
+/// Virtual serial port configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VirtualPortsConfig {
+    /// Default backend type (pty/socat/namedpipe)
+    pub backend: String,
+
+    /// Enable monitoring by default
+    pub monitor: bool,
+
+    /// Monitoring output format (hex/raw)
+    pub monitor_format: String,
+
+    /// Auto-cleanup on exit
+    pub auto_cleanup: bool,
+
+    /// Maximum packets to capture (0 = unlimited)
+    pub max_packets: usize,
+
+    /// Buffer size for bridge (bytes)
+    pub bridge_buffer_size: usize,
+
+    /// Bridge poll interval (milliseconds)
+    pub bridge_poll_interval_ms: u64,
+}
+
+impl Default for VirtualPortsConfig {
+    fn default() -> Self {
+        Self {
+            backend: "pty".to_string(),
+            monitor: false,
+            monitor_format: "hex".to_string(),
+            auto_cleanup: true,
+            max_packets: 0,
+            bridge_buffer_size: 8192,
+            bridge_poll_interval_ms: 10,
+        }
+    }
 }
 
 /// Load configuration from a file

@@ -114,6 +114,10 @@ impl LuaBindings {
         self.register_protocol_reload()?;
         self.register_protocol_validate()?;
 
+        // Virtual serial port APIs
+        self.register_virtual_create()?;
+        self.register_virtual_stop()?;
+
         Ok(())
     }
 
@@ -401,6 +405,80 @@ impl LuaBindings {
         })?;
 
         self.lua.globals().set("serial_list", list)?;
+        Ok(())
+    }
+
+    /// Register virtual_create API
+    pub fn register_virtual_create(&self) -> Result<()> {
+        self.ensure_runtime()?;
+
+        let create = self.lua.create_function(move |lua, (backend, monitor): (Option<String>, Option<bool>)| {
+            use crate::serial_core::{VirtualBackend, VirtualConfig, VirtualSerialPair};
+
+            let backend_type = match backend.as_deref() {
+                Some("pty") => VirtualBackend::Pty,
+                Some("namedpipe") => VirtualBackend::NamedPipe,
+                Some("socat") => VirtualBackend::Socat,
+                None => VirtualBackend::default_for_platform(),
+                Some(other) => {
+                    return Err(mlua::Error::RuntimeError(format!(
+                        "Unknown backend: {}. Available: pty, namedpipe, socat",
+                        other
+                    )))
+                }
+            };
+
+            let config = VirtualConfig {
+                backend: backend_type,
+                monitor: monitor.unwrap_or(false),
+                monitor_output: None,
+                max_packets: 0,
+                bridge_buffer_size: 8192,
+            };
+
+            // We need to spawn this in a runtime since create is async
+            let rt = tokio::runtime::Runtime::new()
+                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
+
+            let pair = rt.block_on(VirtualSerialPair::create(config))
+                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create virtual pair: {}", e)))?;
+
+            // Clone the values we need before creating the result table
+            let id = pair.id.clone();
+            let port_a = pair.port_a.clone();
+            let port_b = pair.port_b.clone();
+            let backend = format!("{:?}", pair.backend);
+            let running = pair.is_running();
+
+            // Return result as Lua table
+            let result = lua.create_table()?;
+            result.set("id", id)?;
+            result.set("port_a", port_a)?;
+            result.set("port_b", port_b)?;
+            result.set("backend", backend)?;
+            result.set("running", running)?;
+
+            // Note: We're intentionally dropping the pair here to clean up resources
+            // In a real implementation, you'd want to store it somewhere for later use
+            tracing::warn!("Virtual pair created but not stored. Resources will be cleaned up immediately.");
+
+            Ok(result)
+        })?;
+
+        self.lua.globals().set("virtual_create", create)?;
+        Ok(())
+    }
+
+    /// Register virtual_stop API
+    pub fn register_virtual_stop(&self) -> Result<()> {
+        let stop = self.lua.create_function(move |_, _id: String| {
+            // Note: This is a simplified implementation
+            // In a real implementation, you'd need to manage virtual pair lifecycle
+            tracing::warn!("virtual_stop called but virtual pair management not implemented in Lua");
+            Ok(true)
+        })?;
+
+        self.lua.globals().set("virtual_stop", stop)?;
         Ok(())
     }
 
@@ -941,6 +1019,34 @@ mod tests {
             assert(info.name == "lines")
             assert(type(info.description) == "string")
             assert(info.type == "built-in")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_virtual_create_lua() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_virtual_create().unwrap();
+
+        // Note: This test may not work on all systems due to PTY requirements
+        // We'll just verify the API exists
+        let script = r#"
+            -- Test that the function exists
+            assert(type(virtual_create) == "function", "virtual_create should be a function")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_virtual_stop_lua() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_virtual_stop().unwrap();
+
+        let script = r#"
+            -- Test that the function exists
+            assert(type(virtual_stop) == "function", "virtual_stop should be a function")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());

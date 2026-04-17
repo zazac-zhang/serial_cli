@@ -73,6 +73,12 @@ enum Commands {
         #[command(subcommand)]
         config_command: ConfigCommand,
     },
+
+    /// Virtual serial port commands
+    Virtual {
+        #[command(subcommand)]
+        virtual_command: VirtualCommand,
+    },
 }
 
 /// Protocol subcommands
@@ -95,6 +101,44 @@ enum ProtocolCommand {
     Validate {
         /// Path to protocol script
         path: PathBuf,
+    },
+}
+
+/// Virtual serial port subcommands
+#[derive(Subcommand)]
+enum VirtualCommand {
+    /// Create a virtual serial port pair
+    Create {
+        /// Backend type (pty/socat/namedpipe)
+        #[arg(long, default_value = "pty")]
+        backend: String,
+
+        /// Enable traffic monitoring
+        #[arg(long)]
+        monitor: bool,
+
+        /// Output monitoring to file
+        #[arg(long)]
+        output: Option<PathBuf>,
+
+        /// Maximum packets to capture (0 = unlimited)
+        #[arg(long, default_value = "0")]
+        max_packets: usize,
+    },
+
+    /// List active virtual port pairs
+    List,
+
+    /// Stop a virtual port pair
+    Stop {
+        /// Virtual port pair ID
+        id: String,
+    },
+
+    /// Show statistics for a virtual port pair
+    Stats {
+        /// Virtual port pair ID
+        id: String,
     },
 }
 
@@ -415,6 +459,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Config { config_command }) => {
             handle_config_command(config_command)?;
+        }
+        Some(Commands::Virtual { virtual_command }) => {
+            handle_virtual_command(virtual_command).await?;
         }
         None => {
             // No command specified, default to interactive mode
@@ -744,6 +791,15 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 println!("  json_pretty = {}", config.output.json_pretty);
                 println!("  show_timestamp = {}", config.output.show_timestamp);
                 println!();
+                println!("[virtual]");
+                println!("  backend = \"{}\"", config.virtual_ports.backend);
+                println!("  monitor = {}", config.virtual_ports.monitor);
+                println!("  monitor_format = \"{}\"", config.virtual_ports.monitor_format);
+                println!("  auto_cleanup = {}", config.virtual_ports.auto_cleanup);
+                println!("  max_packets = {}", config.virtual_ports.max_packets);
+                println!("  bridge_buffer_size = {}", config.virtual_ports.bridge_buffer_size);
+                println!("  bridge_poll_interval_ms = {}", config.virtual_ports.bridge_poll_interval_ms);
+                println!();
                 println!("Use 'config set <key> <value>' to modify configuration");
                 println!("Use 'config save [path]' to save configuration to file");
                 println!("Use 'config reset' to reset to defaults");
@@ -784,6 +840,13 @@ fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                     println!("  task.default_timeout_seconds - Default task timeout");
                     println!("  output.json_pretty           - Pretty print JSON");
                     println!("  output.show_timestamp        - Show timestamps");
+                    println!("  virtual.backend              - Virtual port backend (pty/socat/namedpipe)");
+                    println!("  virtual.monitor              - Enable monitoring by default");
+                    println!("  virtual.monitor_format       - Monitor format (hex/raw)");
+                    println!("  virtual.auto_cleanup         - Auto-cleanup on exit");
+                    println!("  virtual.max_packets          - Max packets to capture");
+                    println!("  virtual.bridge_buffer_size   - Bridge buffer size");
+                    println!("  virtual.bridge_poll_interval_ms - Bridge poll interval");
                     return Err(e);
                 }
             }
@@ -903,6 +966,229 @@ async fn send_data(port: &str, data: &str) -> Result<()> {
     drop(handle);
     manager.close_port(&port_id).await?;
     tracing::info!("Port closed");
+
+    Ok(())
+}
+
+/// Handle virtual serial port commands
+async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
+    use serial_cli::serial_core::{VirtualBackend, VirtualConfig, VirtualSerialPair};
+    use std::sync::Arc;
+    use std::collections::HashMap;
+    use tokio::sync::RwLock;
+
+    // Global registry for active virtual pairs
+    // Managed with proper cleanup to prevent memory leaks
+    static VIRTUAL_REGISTRY: once_cell::sync::Lazy<
+        Arc<RwLock<HashMap<String, VirtualSerialPair>>>,
+    > = once_cell::sync::Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
+
+    match cmd {
+        VirtualCommand::Create {
+            backend,
+            monitor,
+            output,
+            max_packets,
+        } => {
+            tracing::info!("Creating virtual serial port pair...");
+
+            // Load configuration for defaults
+            let config_manager = serial_cli::config::ConfigManager::load_with_fallback();
+            let app_config = config_manager.get();
+
+            // Use backend from config if not explicitly set
+            let backend_str = if backend == "pty" {
+                &app_config.virtual_ports.backend
+            } else {
+                &backend
+            };
+
+            // Parse backend type
+            let backend_type = match backend_str.as_str() {
+                "pty" => VirtualBackend::Pty,
+                "namedpipe" => VirtualBackend::NamedPipe,
+                "socat" => VirtualBackend::Socat,
+                _ => {
+                    tracing::error!("Unknown backend: {}", backend_str);
+                    tracing::info!("Available backends: pty, namedpipe, socat");
+                    return Err(serial_cli::error::SerialError::VirtualPort(format!(
+                        "Unknown backend: {}",
+                        backend_str
+                    )));
+                }
+            };
+
+            // Use monitor from config if not explicitly set
+            let monitor_enabled = if !monitor {
+                app_config.virtual_ports.monitor
+            } else {
+                monitor
+            };
+
+            // Use max_packets from config if not explicitly set
+            let max_packets_count = if max_packets == 0 {
+                app_config.virtual_ports.max_packets
+            } else {
+                max_packets
+            };
+
+            // Use bridge_buffer_size from config
+            let bridge_buffer_size_value = app_config.virtual_ports.bridge_buffer_size;
+
+            // Create configuration
+            let config = VirtualConfig {
+                backend: backend_type,
+                monitor: monitor_enabled,
+                monitor_output: output,
+                max_packets: max_packets_count,
+                bridge_buffer_size: bridge_buffer_size_value,
+            };
+
+            tracing::info!("Configuration: backend={:?}, monitor={}, max_packets={}, buffer_size={}",
+                config.backend, config.monitor, config.max_packets, config.bridge_buffer_size);
+
+            // Create virtual pair
+            let pair = match VirtualSerialPair::create(config).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!("✗ Failed to create virtual pair: {}", e);
+                    return Err(e);
+                }
+            };
+
+            let id = pair.id.clone();
+            let port_a = pair.port_a.clone();
+            let port_b = pair.port_b.clone();
+
+            tracing::info!("✓ Virtual pair created successfully");
+            tracing::info!("  ID: {}", id);
+            tracing::info!("  Port A: {}", port_a);
+            tracing::info!("  Port B: {}", port_b);
+            tracing::info!("  Backend: {:?}", pair.backend);
+            tracing::info!("");
+            tracing::info!("Usage examples:");
+            tracing::info!("  Terminal 1: serial-cli interactive --port {}", port_a);
+            tracing::info!("  Terminal 2: serial-cli interactive --port {}", port_b);
+            tracing::info!("");
+            tracing::info!("To stop the pair:");
+            tracing::info!("  serial-cli virtual stop {}", id);
+
+            // Store in registry
+            {
+                let mut registry = VIRTUAL_REGISTRY.write().await;
+                registry.insert(id.clone(), pair);
+            }
+
+            // Wait for Ctrl+C to keep it running
+            tracing::info!("");
+            tracing::info!("Press Ctrl+C to stop the virtual pair...");
+
+            let cleanup_result = tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("\nStopping virtual pair...");
+                    let mut registry = VIRTUAL_REGISTRY.write().await;
+                    if let Some(pair) = registry.remove(&id) {
+                        pair.stop().await
+                    } else {
+                        Ok(())
+                    }
+                }
+            };
+
+            // Ensure cleanup result is handled
+            match cleanup_result {
+                Ok(_) => tracing::info!("✓ Virtual pair stopped"),
+                Err(e) => {
+                    tracing::error!("⚠ Error during cleanup: {}", e);
+                    // Return error to ensure user knows something went wrong
+                    return Err(e);
+                }
+            }
+        }
+
+        VirtualCommand::List => {
+            let registry = VIRTUAL_REGISTRY.read().await;
+
+            if registry.is_empty() {
+                tracing::info!("No active virtual port pairs");
+                tracing::info!("");
+                tracing::info!("Create a virtual pair with:");
+                tracing::info!("  serial-cli virtual create");
+            } else {
+                tracing::info!("Active virtual port pairs:");
+                tracing::info!("");
+                for (id, pair) in registry.iter() {
+                    let stats = pair.stats().await;
+                    tracing::info!("  ID: {}", id);
+                    tracing::info!("    Port A: {}", stats.port_a);
+                    tracing::info!("    Port B: {}", stats.port_b);
+                    tracing::info!("    Backend: {:?}", stats.backend);
+                    tracing::info!("    Uptime: {}s", stats.uptime_secs);
+                    tracing::info!("    Status: {}", if stats.running { "Running" } else { "Stopped" });
+                    tracing::info!("    Bytes bridged: {}", stats.bytes_bridged);
+                    tracing::info!("    Packets bridged: {}", stats.packets_bridged);
+                    if stats.bridge_errors > 0 {
+                        tracing::info!("    Bridge errors: {}", stats.bridge_errors);
+                    }
+                    tracing::info!("");
+                }
+            }
+        }
+
+        VirtualCommand::Stop { id } => {
+            let mut registry = VIRTUAL_REGISTRY.write().await;
+
+            if let Some(pair) = registry.remove(&id) {
+                tracing::info!("Stopping virtual pair: {}", id);
+                let stop_result = pair.stop().await;
+
+                match stop_result {
+                    Ok(_) => tracing::info!("✓ Virtual pair stopped"),
+                    Err(e) => {
+                        tracing::error!("⚠ Error stopping virtual pair: {}", e);
+                        // Still return error since stop failed
+                        return Err(e);
+                    }
+                }
+            } else {
+                tracing::error!("✗ Virtual pair not found: {}", id);
+                tracing::info!("Use 'serial-cli virtual list' to see active pairs");
+                return Err(serial_cli::error::SerialError::VirtualPort(format!(
+                    "Virtual pair not found: {}",
+                    id
+                )));
+            }
+        }
+
+        VirtualCommand::Stats { id } => {
+            let registry = VIRTUAL_REGISTRY.read().await;
+
+            if let Some(pair) = registry.get(&id) {
+                let stats = pair.stats().await;
+                tracing::info!("Virtual pair statistics:");
+                tracing::info!("  ID: {}", stats.id);
+                tracing::info!("  Port A: {}", stats.port_a);
+                tracing::info!("  Port B: {}", stats.port_b);
+                tracing::info!("  Backend: {:?}", stats.backend);
+                tracing::info!("  Status: {}", if stats.running { "Running" } else { "Stopped" });
+                tracing::info!("  Uptime: {}s", stats.uptime_secs);
+                tracing::info!("  Bytes bridged: {}", stats.bytes_bridged);
+                tracing::info!("  Packets bridged: {}", stats.packets_bridged);
+                tracing::info!("  Bridge errors: {}", stats.bridge_errors);
+
+                if let Some(ref error) = stats.last_error {
+                    tracing::info!("  Last error: {}", error);
+                }
+            } else {
+                tracing::error!("✗ Virtual pair not found: {}", id);
+                tracing::info!("Use 'serial-cli virtual list' to see active pairs");
+                return Err(serial_cli::error::SerialError::VirtualPort(format!(
+                    "Virtual pair not found: {}",
+                    id
+                )));
+            }
+        }
+    }
 
     Ok(())
 }
