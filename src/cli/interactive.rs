@@ -23,6 +23,11 @@ impl InteractiveShell {
         }
     }
 
+    /// Set the current port ID
+    pub fn set_current_port(&mut self, port_id: String) {
+        self.current_port_id = Some(port_id);
+    }
+
     /// Run the interactive shell
     pub async fn run(&mut self) -> Result<()> {
         self.running = true;
@@ -52,7 +57,7 @@ impl InteractiveShell {
     }
 
     /// Execute a command
-    async fn execute_command(&mut self, line: &str) -> Result<()> {
+    pub async fn execute_command(&mut self, line: &str) -> Result<()> {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.is_empty() {
             return Ok(());

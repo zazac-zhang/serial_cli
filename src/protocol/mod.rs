@@ -7,6 +7,7 @@ pub mod loader;
 pub mod lua_ext;
 pub mod manager;
 pub mod registry;
+pub mod registration;
 pub mod validator;
 pub mod watcher;
 
@@ -16,6 +17,7 @@ pub use manager::{CustomProtocol, ProtocolManager};
 pub use registry::{ProtocolFactory, ProtocolInfo, ProtocolRegistry};
 pub use validator::{ProtocolValidator, ValidationResult};
 pub use watcher::ProtocolWatcher;
+pub use registration::register_all_built_in;
 
 // Export Lua protocol for external use
 pub use lua_ext::{create_lua_protocol, LuaProtocol};

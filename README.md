@@ -9,7 +9,7 @@
 
   **A Universal Serial Port Tool with CLI & GUI - Optimized for AI Interaction**
 
-  [Quick Start](#-quick-start) • [Features](#-features) • [GUI Application](#-gui-application) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
+  [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Features](#-features) • [GUI Application](#-gui-application) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
 
 </div>
 
@@ -52,19 +52,49 @@ just test
 
 ```bash
 # List available serial ports
-serial-cli list-ports
+serial-cli list
 
-# Start interactive mode
-serial-cli interactive
+# Interactive mode (open port directly)
+serial-cli open /dev/ttyUSB0
 
-# Send data to a port
-serial-cli send --port=/dev/ttyUSB0 "AT+CMD"
+# One-shot command
+serial-cli exec /dev/ttyUSB0 "send AT; sleep 100; recv 64"
 
-# Send hex data
-serial-cli send --port=/dev/ttyUSB0 "0102030405"
+# Run Lua script
+serial-cli run script.lua
 
-# Run a Lua script
-serial-cli run script.lua --port=/dev/ttyUSB0
+# Data formats: text, hex (0x...), base64 (base64:...)
+serial-cli exec /dev/ttyUSB0 "send 0x01020304"
+serial-cli exec /dev/ttyUSB0 "send base64:SGVsbG8="
+```
+
+---
+
+## 📖 Usage Examples
+
+### Interactive Shell
+
+```bash
+$ serial-cli
+Serial CLI Interactive Shell
+Type 'help' for available commands, 'quit' to exit
+
+serial> list
+Available serial ports:
+  - /dev/ttyUSB0 (UsbPort)
+  - /dev/ttyACM0 (AcmPort)
+
+serial> open /dev/ttyUSB0
+Port opened successfully
+Port ID: /dev/ttyUSB0-abc123
+
+serial> send AT
+Sent 2 bytes
+
+serial> recv 64
+Received (4 bytes): OK
+
+serial> quit
 ```
 
 ---
@@ -103,87 +133,98 @@ serial-cli run script.lua --port=/dev/ttyUSB0
 
 ---
 
-## 📖 Examples
-
-### Interactive Mode
+### One-Shot Commands
 
 ```bash
-$ serial-cli interactive
-Serial CLI Interactive Shell
-Type 'help' for available commands, 'quit' to exit
+# Send command and receive response
+serial-cli exec /dev/ttyUSB0 "send AT; sleep 100; recv 64"
 
-serial> list
-Available ports:
-  /dev/ttyUSB0 - USB Serial Port
+# With custom baud rate
+serial-cli exec /dev/ttyUSB0 --baudrate 9600 "send data"
 
-serial> open /dev/ttyUSB0 --baudrate=115200
-✓ Opened port: uuid-12345678
+# With protocol
+serial-cli exec /dev/ttyUSB0 --protocol modbus_rtu "send 0x010300000001"
 
-serial> send "AT\r\n"
-✓ Sent 3 bytes
+# Hex data
+serial-cli exec /dev/ttyUSB0 "send 0x01020304"
 
-serial> recv
-Received: "OK"
-
-serial> quit
+# Base64 data
+serial-cli exec /dev/ttyUSB0 "send base64:SGVsbG8="
 ```
 
 ### Lua Scripting - Modbus RTU
 
 ```lua
-local modbus = require('serial.protocols.modbus')
+-- modbus_read.lua
+local port_name = "/dev/ttyUSB0"
+local slave_id = 1
+local start_addr = 0
+local reg_count = 10
 
--- Open port with Modbus-friendly settings
-local port = serial.open("/dev/ttyUSB0", {
-    baudrate = 9600,
-    parity = "even",
-    stop_bits = 1
+-- Open port with Modbus settings
+local port = serial_open(port_name, {
+  baudrate = 19200,
+  databits = 8,
+  parity = "even",
+  stopbits = 1
 })
 
--- Create Modbus handler
-local client = modbus.new(port, {
-    device_id = 1,
-    timeout = 1000
-})
+-- Build Modbus request (function 0x03 = Read Holding Registers)
+local request = string.char(
+  slave_id, 0x03,
+  (start_addr >> 8) & 0xFF, start_addr & 0xFF,
+  (reg_count >> 8) & 0xFF, reg_count & 0xFF
+)
 
--- Read holding registers
-local registers = client:read_holding_registers(0x0000, 10)
-print(string.format("Read %d registers", #registers))
+-- Calculate CRC
+local crc = 0xFFFF
+for i = 1, #request do
+  crc = crc ~ string.byte(request, i)
+  for j = 1, 8 do
+    if (crc & 0x0001) ~= 0 then
+      crc = (crc >> 1) ~ 0xA001
+    else
+      crc = crc >> 1
+    end
+  end
+end
+request = request .. string.char(crc & 0xFF, (crc >> 8) & 0xFF)
 
--- Write single register
-client:write_single_register(0x0001, 0x0042)
+-- Send and receive
+serial_send(port, request)
+sleep(100)
+local response = serial_recv(port, 256)
 
-client:close()
-port:close()
+print("Response: " .. hex_encode(response))
+serial_close(port)
 ```
 
-### Lua Scripting - Custom Protocol
+**Run:** `serial-cli run modbus_read.lua`
+
+### Data Logging
 
 ```lua
--- Custom protocol implementation
-local port = serial.open("/dev/ttyUSB0", {
-    baudrate = 115200,
-    timeout = 1000
-})
+-- data_logger.lua
+local port = serial_open("/dev/ttyUSB0", {baudrate = 115200})
+local file = io.open("log.txt", "w")
 
--- Build custom frame
-local function build_frame(cmd, data)
-    local frame = string.char(0xAA, cmd, #data) .. data
-    local crc = calculate_crc(frame)
-    return frame .. string.char(crc, 0x55)
+file:write("# Data log started at " .. os.date() .. "\n")
+
+for i = 1, 100 do
+  local data = serial_recv(port, 1024)
+  if #data > 0 then
+    file:write(data)
+    file:flush()
+    print("Received " .. #data .. " bytes")
+  end
+  sleep(50)
 end
 
--- Send command
-port:write(build_frame(0x01, "ping"))
-
--- Parse response
-local response = port:read(256)
-if validate_frame(response) then
-    log_info("Valid response received")
-end
-
-port:close()
+file:close()
+serial_close(port)
 ```
+
+**Run:** `serial-cli run data_logger.lua`
 
 ---
 
