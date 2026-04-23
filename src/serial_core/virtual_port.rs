@@ -5,12 +5,67 @@
 
 use crate::error::{Result, SerialError};
 use crate::serial_core::sniffer::{SerialSniffer, SnifferConfig};
+use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
+use tokio::io::unix::AsyncFd;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
+
+/// A single captured packet from the bridge
+#[derive(Debug, Clone)]
+pub struct CapturedPacket {
+    /// Direction of data flow: A→B or B→A
+    pub direction: PacketDirection,
+    /// Payload bytes
+    pub data: Vec<u8>,
+    /// Capture timestamp
+    pub timestamp: SystemTime,
+}
+
+/// Direction of a captured packet
+#[derive(Debug, Clone, Copy)]
+pub enum PacketDirection {
+    /// Data flowed from port A to port B
+    AtoB,
+    /// Data flowed from port B to port A
+    BtoA,
+}
+
+/// Shared packet capture buffer
+#[derive(Debug, Default)]
+pub struct PacketCapture {
+    packets: Vec<CapturedPacket>,
+    max_packets: usize,
+    total_packets: u64,
+    total_bytes: u64,
+}
+
+impl PacketCapture {
+    fn new(max_packets: usize) -> Self {
+        Self {
+            packets: Vec::new(),
+            max_packets,
+            total_packets: 0,
+            total_bytes: 0,
+        }
+    }
+
+    fn record(&mut self, direction: PacketDirection, data: &[u8]) {
+        self.total_packets += 1;
+        self.total_bytes += data.len() as u64;
+
+        if self.max_packets == 0 || self.packets.len() < self.max_packets {
+            self.packets.push(CapturedPacket {
+                direction,
+                data: data.to_vec(),
+                timestamp: SystemTime::now(),
+            });
+        }
+    }
+}
 
 /// Virtual serial port configuration
 #[derive(Debug, Clone)]
@@ -88,6 +143,20 @@ impl VirtualBackend {
     }
 }
 
+#[cfg(unix)]
+#[cfg(unix)]
+type PtyMasters = (Arc<AsyncFd<OwnedFd>>, Arc<AsyncFd<OwnedFd>>);
+
+#[cfg(unix)]
+type PtyPairResult = (
+    String,
+    String,
+    Option<PtyMasters>,
+    JoinHandle<()>,
+    mpsc::Receiver<String>,
+    Arc<Mutex<VirtualPairStats>>,
+);
+
 /// Virtual serial port pair
 pub struct VirtualSerialPair {
     /// Unique identifier for this pair
@@ -114,9 +183,12 @@ pub struct VirtualSerialPair {
     /// Statistics
     stats: Arc<Mutex<VirtualPairStats>>,
 
+    /// Packet capture buffer (when monitoring is enabled)
+    capture: Option<Arc<Mutex<PacketCapture>>>,
+
     /// Master file descriptors for PTY (platform-specific)
     #[cfg(unix)]
-    master_fds: Option<(std::os::fd::RawFd, std::os::fd::RawFd)>,
+    master_fds: Option<PtyMasters>,
 
     /// Bridge task handle
     bridge_task: Option<JoinHandle<()>>,
@@ -146,14 +218,19 @@ impl VirtualSerialPair {
 
         let running = Arc::new(AtomicBool::new(true));
 
+        let capture = if config.monitor {
+            Some(Arc::new(Mutex::new(PacketCapture::new(config.max_packets))))
+        } else {
+            None
+        };
+
         // Create the virtual pair based on backend
         let (port_a, port_b, master_fds, bridge_task, error_rx, stats) =
             match config.backend {
                 VirtualBackend::Pty => Self::create_pty_pair(
                     config.bridge_buffer_size,
-                    config.monitor,
-                    config.max_packets,
                     Arc::clone(&running),
+                    capture.clone(),
                 )?,
                 VirtualBackend::NamedPipe => {
                     return Err(SerialError::VirtualPort(
@@ -193,61 +270,44 @@ impl VirtualSerialPair {
             running,
             created_at,
             stats,
+            capture,
             #[cfg(unix)]
             master_fds,
             bridge_task: Some(bridge_task),
         })
     }
 
-    /// Create a PTY pair with improved error handling and macOS support
+    /// Create a PTY pair with event-driven bridge using AsyncFd
     #[cfg(unix)]
     fn create_pty_pair(
         buffer_size: usize,
-        _monitor: bool,
-        _max_packets: usize,
         running: Arc<AtomicBool>,
-    ) -> Result<(
-        String,
-        String,
-        Option<(std::os::fd::RawFd, std::os::fd::RawFd)>,
-        JoinHandle<()>,
-        mpsc::Receiver<String>,
-        Arc<Mutex<VirtualPairStats>>,
-    )> {
+        capture: Option<Arc<Mutex<PacketCapture>>>,
+    ) -> Result<PtyPairResult> {
         use libc::{grantpt, posix_openpt, ptsname, unlockpt, O_NOCTTY, O_RDWR};
         use std::ffi::CStr;
-        use std::os::fd::RawFd;
+        use std::os::fd::OwnedFd;
 
         // Create first PTY master
-        //
-        // SAFETY: posix_openpt is a libc function that returns a file descriptor or -1 on error.
-        // We check for -1 return value and handle errors appropriately.
-        let master1_fd: RawFd = unsafe { posix_openpt(O_RDWR | O_NOCTTY) };
-
+        let master1_fd = unsafe { posix_openpt(O_RDWR | O_NOCTTY) };
         if master1_fd == -1 {
             return Err(SerialError::VirtualPort(
                 "Failed to open first PTY master".to_string(),
             ));
         }
-
-        // Grant slave PTY
         if unsafe { grantpt(master1_fd) } == -1 {
             unsafe { libc::close(master1_fd) };
             return Err(SerialError::VirtualPort(
                 "Failed to grant first PTY".to_string(),
             ));
         }
-
-        // Unlock slave PTY
         if unsafe { unlockpt(master1_fd) } == -1 {
             unsafe { libc::close(master1_fd) };
             return Err(SerialError::VirtualPort(
                 "Failed to unlock first PTY".to_string(),
             ));
         }
-
-        // Get first slave PTY name
-        let slave1_name = unsafe {
+        let slave1_path = unsafe {
             let ptr = ptsname(master1_fd);
             if ptr.is_null() {
                 libc::close(master1_fd);
@@ -256,21 +316,18 @@ impl VirtualSerialPair {
                 ));
             }
             CStr::from_ptr(ptr)
-        };
-
-        let slave1_path = slave1_name.to_string_lossy().to_string();
+        }
+        .to_string_lossy()
+        .to_string();
 
         // Create second PTY master
-        let master2_fd: RawFd = unsafe { posix_openpt(O_RDWR | O_NOCTTY) };
-
+        let master2_fd = unsafe { posix_openpt(O_RDWR | O_NOCTTY) };
         if master2_fd == -1 {
             unsafe { libc::close(master1_fd) };
             return Err(SerialError::VirtualPort(
                 "Failed to open second PTY master".to_string(),
             ));
         }
-
-        // Grant second slave PTY
         if unsafe { grantpt(master2_fd) } == -1 {
             unsafe { libc::close(master1_fd) };
             unsafe { libc::close(master2_fd) };
@@ -278,8 +335,6 @@ impl VirtualSerialPair {
                 "Failed to grant second PTY".to_string(),
             ));
         }
-
-        // Unlock second slave PTY
         if unsafe { unlockpt(master2_fd) } == -1 {
             unsafe { libc::close(master1_fd) };
             unsafe { libc::close(master2_fd) };
@@ -287,9 +342,7 @@ impl VirtualSerialPair {
                 "Failed to unlock second PTY".to_string(),
             ));
         }
-
-        // Get second slave PTY name
-        let slave2_name = unsafe {
+        let slave2_path = unsafe {
             let ptr = ptsname(master2_fd);
             if ptr.is_null() {
                 libc::close(master1_fd);
@@ -299,9 +352,9 @@ impl VirtualSerialPair {
                 ));
             }
             CStr::from_ptr(ptr)
-        };
-
-        let slave2_path = slave2_name.to_string_lossy().to_string();
+        }
+        .to_string_lossy()
+        .to_string();
 
         tracing::debug!(
             "PTY pair created: slave1={}, slave2={}",
@@ -309,140 +362,179 @@ impl VirtualSerialPair {
             slave2_path
         );
 
-        // Set non-blocking mode for both masters (CRITICAL for all Unix including macOS)
-        use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
+        // SAFETY: we own these fds and will close them exactly once via OwnedFd
+        let master1_owned = unsafe { OwnedFd::from_raw_fd(master1_fd) };
+        let master2_owned = unsafe { OwnedFd::from_raw_fd(master2_fd) };
 
-        for (fd, name) in [
-            (master1_fd, "first PTY"),
-            (master2_fd, "second PTY"),
-        ] {
-            let flags = unsafe { fcntl(fd, F_GETFL, 0) };
-            if flags == -1 {
-                unsafe {
-                    libc::close(master1_fd);
-                    libc::close(master2_fd);
-                };
-                return Err(SerialError::VirtualPort(format!(
-                    "Failed to get {} flags",
-                    name
-                )));
-            }
-
-            if unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) } == -1 {
-                unsafe {
-                    libc::close(master1_fd);
-                    libc::close(master2_fd);
-                };
-                return Err(SerialError::VirtualPort(format!(
-                    "Failed to set {} non-blocking",
-                    name
-                )));
-            }
-
-            tracing::debug!("Set {} to non-blocking mode", name);
-        }
+        let master1_async = AsyncFd::new(master1_owned).map_err(|e| {
+            SerialError::VirtualPort(format!("Failed to register first PTY with epoll: {e}"))
+        })?;
+        let master2_async = AsyncFd::new(master2_owned).map_err(|e| {
+            SerialError::VirtualPort(format!("Failed to register second PTY with epoll: {e}"))
+        })?;
 
         // Create channels for bridge communication
         let (error_tx, error_rx) = mpsc::channel(10);
         let stats = Arc::new(Mutex::new(VirtualPairStats::default()));
 
-        // Spawn improved bridge task with proper error handling
+        // Wrap in Arc for shared ownership across select branches
+        let m1 = Arc::new(master1_async);
+        let m2 = Arc::new(master2_async);
+
+        // Spawn event-driven bridge task
         let stats_clone = Arc::clone(&stats);
         let error_tx_clone = error_tx.clone();
+        let m1_bridge = Arc::clone(&m1);
+        let m2_bridge = Arc::clone(&m2);
 
         let bridge_task = tokio::spawn(async move {
-            tracing::debug!("PTY bridge task started");
+            tracing::debug!("PTY bridge task started (event-driven)");
 
             let mut buffer = vec![0u8; buffer_size];
 
             loop {
-                if !running.load(Ordering::SeqCst) {
-                    break;
-                }
+                let m1_readable = Arc::clone(&m1_bridge);
+                let m2_readable = Arc::clone(&m2_bridge);
+                let m1_read = Arc::clone(&m1_bridge);
+                let m2_write = Arc::clone(&m2_bridge);
+                let m2_read = Arc::clone(&m2_bridge);
+                let m1_write = Arc::clone(&m1_bridge);
 
-                // Small sleep to prevent busy-waiting but much shorter than before
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-
-                // Try to read from master1 and write to master2
-                let n1 = unsafe {
-                    libc::read(
-                        master1_fd,
-                        buffer.as_mut_ptr() as *mut libc::c_void,
-                        buffer.len(),
-                    )
-                };
-
-                if n1 > 0 {
-                    let mut written: isize = 0;
-                    while written < n1 {
-                        let n = unsafe {
-                            libc::write(
-                                master2_fd,
-                                buffer.as_ptr().add(written as usize) as *const libc::c_void,
-                                (n1 - written) as usize,
-                            )
+                tokio::select! {
+                    // Wait for master1 to become readable
+                    result = m1_readable.readable() => {
+                        if !running.load(Ordering::SeqCst) { break; }
+                        let mut guard = match result {
+                            Ok(g) => g,
+                            Err(e) => {
+                                let error = format!("master1 readable() failed: {e}");
+                                tracing::error!("{}", error);
+                                let _ = error_tx_clone.send(error).await;
+                                break;
+                            }
                         };
+                        let fd = m1_read.as_raw_fd();
+                        let n1 = guard.try_io(|_| Ok(unsafe {
+                            libc::read(
+                                fd,
+                                buffer.as_mut_ptr() as *mut libc::c_void,
+                                buffer.len(),
+                            )
+                        }));
 
-                        if n > 0 {
-                            written += n;
-                        } else {
-                            // Handle write error properly
-                            let error = format!(
-                                "Partial write failed: {} bytes remaining, error: {}",
-                                n1 - written,
-                                std::io::Error::last_os_error()
-                            );
-                            tracing::error!("{}", error);
-                            let _ = error_tx_clone.send(error).await;
-                            break;
+                        match n1 {
+                            Ok(Ok(n)) if n > 0 => {
+                                let n1_usize = n as usize;
+                                if let Some(ref capture) = capture {
+                                    let mut cap = capture.lock().await;
+                                    cap.record(PacketDirection::AtoB, &buffer[..n1_usize]);
+                                }
+                                let fd2 = m2_write.as_raw_fd();
+                                let mut written: isize = 0;
+                                while written < n1_usize as isize {
+                                    let n = unsafe {
+                                        libc::write(
+                                            fd2,
+                                            buffer.as_ptr().add(written as usize) as *const libc::c_void,
+                                            (n1_usize as isize - written) as usize,
+                                        )
+                                    };
+                                    if n > 0 {
+                                        written += n;
+                                    } else {
+                                        let error = format!(
+                                            "Partial write failed: {} bytes remaining, error: {}",
+                                            n1_usize as isize - written,
+                                            std::io::Error::last_os_error()
+                                        );
+                                        tracing::error!("{}", error);
+                                        let _ = error_tx_clone.send(error).await;
+                                        break;
+                                    }
+                                }
+                                let mut s = stats_clone.lock().await;
+                                s.bytes_bridged += n1_usize as u64;
+                                s.packets_bridged += 1;
+                            }
+                            Ok(Ok(_)) => {} // EOF or spurious
+                            Ok(Err(e)) => {
+                                let error = format!("master1 read failed: {e}");
+                                tracing::error!("{}", error);
+                                let _ = error_tx_clone.send(error).await;
+                            }
+                            Err(_) => break,
                         }
                     }
 
-                    // Update statistics
-                    let mut stats = stats_clone.lock().await;
-                    stats.bytes_bridged += n1 as u64;
-                    stats.packets_bridged += 1;
-                }
-
-                // Try to read from master2 and write to master1
-                let n2 = unsafe {
-                    libc::read(
-                        master2_fd,
-                        buffer.as_mut_ptr() as *mut libc::c_void,
-                        buffer.len(),
-                    )
-                };
-
-                if n2 > 0 {
-                    let mut written: isize = 0;
-                    while written < n2 {
-                        let n = unsafe {
-                            libc::write(
-                                master1_fd,
-                                buffer.as_ptr().add(written as usize) as *const libc::c_void,
-                                (n2 - written) as usize,
-                            )
+                    // Wait for master2 to become readable
+                    result = m2_readable.readable() => {
+                        if !running.load(Ordering::SeqCst) { break; }
+                        let mut guard = match result {
+                            Ok(g) => g,
+                            Err(e) => {
+                                let error = format!("master2 readable() failed: {e}");
+                                tracing::error!("{}", error);
+                                let _ = error_tx_clone.send(error).await;
+                                break;
+                            }
                         };
+                        let fd = m2_read.as_raw_fd();
+                        let n2 = guard.try_io(|_| Ok(unsafe {
+                            libc::read(
+                                fd,
+                                buffer.as_mut_ptr() as *mut libc::c_void,
+                                buffer.len(),
+                            )
+                        }));
 
-                        if n > 0 {
-                            written += n;
-                        } else {
-                            // Handle write error properly
-                            let error = format!(
-                                "Partial write failed: {} bytes remaining, error: {}",
-                                n2 - written,
-                                std::io::Error::last_os_error()
-                            );
-                            tracing::error!("{}", error);
-                            let _ = error_tx_clone.send(error).await;
-                            break;
+                        match n2 {
+                            Ok(Ok(n)) if n > 0 => {
+                                let n2_usize = n as usize;
+                                if let Some(ref capture) = capture {
+                                    let mut cap = capture.lock().await;
+                                    cap.record(PacketDirection::BtoA, &buffer[..n2_usize]);
+                                }
+                                let fd1 = m1_write.as_raw_fd();
+                                let mut written: isize = 0;
+                                while written < n2_usize as isize {
+                                    let n = unsafe {
+                                        libc::write(
+                                            fd1,
+                                            buffer.as_ptr().add(written as usize) as *const libc::c_void,
+                                            (n2_usize as isize - written) as usize,
+                                        )
+                                    };
+                                    if n > 0 {
+                                        written += n;
+                                    } else {
+                                        let error = format!(
+                                            "Partial write failed: {} bytes remaining, error: {}",
+                                            n2_usize as isize - written,
+                                            std::io::Error::last_os_error()
+                                        );
+                                        tracing::error!("{}", error);
+                                        let _ = error_tx_clone.send(error).await;
+                                        break;
+                                    }
+                                }
+                                let mut s = stats_clone.lock().await;
+                                s.bytes_bridged += n2_usize as u64;
+                                s.packets_bridged += 1;
+                            }
+                            Ok(Ok(_)) => {}
+                            Ok(Err(e)) => {
+                                let error = format!("master2 read failed: {e}");
+                                tracing::error!("{}", error);
+                                let _ = error_tx_clone.send(error).await;
+                            }
+                            Err(_) => break,
                         }
                     }
 
-                    // Update statistics
-                    let mut stats = stats_clone.lock().await;
-                    stats.bytes_bridged += n2 as u64;
-                    stats.packets_bridged += 1;
+                    // Exit signal
+                    _ = tokio::time::sleep(Duration::from_millis(100)) => {
+                        if !running.load(Ordering::SeqCst) { break; }
+                    }
                 }
             }
 
@@ -452,7 +544,7 @@ impl VirtualSerialPair {
         Ok((
             slave1_path,
             slave2_path,
-            Some((master1_fd, master2_fd)),
+            Some((m1, m2)),
             bridge_task,
             error_rx,
             stats,
@@ -463,9 +555,8 @@ impl VirtualSerialPair {
     #[cfg(not(unix))]
     fn create_pty_pair(
         _buffer_size: usize,
-        _monitor: bool,
-        _max_packets: usize,
         _running: Arc<AtomicBool>,
+        _capture: Option<Arc<Mutex<PacketCapture>>>,
     ) -> Result<
         (
             String,
@@ -494,16 +585,15 @@ impl VirtualSerialPair {
     ) -> Result<()> {
         tracing::info!("Starting monitoring for virtual pair: {}", self.id);
 
-        let mut sniffer_config = SnifferConfig::default();
-        sniffer_config.max_packets = max_packets;
-        sniffer_config.save_to_file = output_file.is_some();
-
-        if let Some(ref output) = output_file {
-            sniffer_config.output_dir = output
-                .parent()
-                .unwrap_or(&std::path::PathBuf::from("."))
-                .to_path_buf();
-        }
+        let sniffer_config = SnifferConfig {
+            max_packets,
+            save_to_file: output_file.is_some(),
+            output_dir: output_file
+                .as_ref()
+                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                .unwrap_or_else(|| std::path::PathBuf::from(".")),
+            ..Default::default()
+        };
 
         let sniffer = SerialSniffer::new(sniffer_config);
 
@@ -559,20 +649,9 @@ impl VirtualSerialPair {
     /// Platform-specific resource cleanup
     #[cfg(unix)]
     async fn cleanup_resources(&mut self) -> Result<()> {
-        // Close the PTY master file descriptors
-        if let Some((master1_fd, master2_fd)) = self.master_fds.take() {
-            tracing::debug!(
-                "Closing PTY master file descriptors: {}, {}",
-                master1_fd,
-                master2_fd
-            );
-
-            // SAFETY: close is a libc function that closes a file descriptor.
-            // We own these file descriptors and are closing them exactly once.
-            unsafe {
-                libc::close(master1_fd);
-                libc::close(master2_fd);
-            }
+        // AsyncFd drops its inner OwnedFd automatically, closing the fd
+        if self.master_fds.take().is_some() {
+            tracing::debug!("Closing PTY master file descriptors");
         }
         Ok(())
     }
@@ -598,6 +677,13 @@ impl VirtualSerialPair {
 
         let bridge_stats = self.stats.lock().await.clone();
 
+        let (capture_packets, capture_bytes) = if let Some(ref capture) = self.capture {
+            let cap = capture.lock().await;
+            (cap.total_packets, cap.total_bytes)
+        } else {
+            (0, 0)
+        };
+
         VirtualStats {
             id: self.id.clone(),
             port_a: self.port_a.clone(),
@@ -609,12 +695,29 @@ impl VirtualSerialPair {
             packets_bridged: bridge_stats.packets_bridged,
             bridge_errors: bridge_stats.bridge_errors,
             last_error: bridge_stats.last_error,
+            capture_packets,
+            capture_bytes,
         }
     }
 
     /// Get a reference to the sniffer (if monitoring is active)
     pub fn sniffer(&self) -> Option<&SerialSniffer> {
         self.sniffer.as_ref()
+    }
+
+    /// Get captured packets (when monitoring is enabled)
+    pub async fn captured_packets(&self) -> Vec<CapturedPacket> {
+        if let Some(ref capture) = self.capture {
+            let cap = capture.lock().await;
+            cap.packets.clone()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Check if monitoring is enabled
+    pub fn is_monitoring(&self) -> bool {
+        self.capture.is_some()
     }
 }
 
@@ -634,19 +737,8 @@ impl Drop for VirtualSerialPair {
         // Close file descriptors on Unix
         #[cfg(unix)]
         {
-            if let Some((master1_fd, master2_fd)) = self.master_fds.take() {
-                tracing::debug!(
-                    "Closing PTY master file descriptors in Drop: {}, {}",
-                    master1_fd,
-                    master2_fd
-                );
-
-                // SAFETY: close is a libc function that closes a file descriptor.
-                // We own these file descriptors and are closing them exactly once in the Drop impl.
-                unsafe {
-                    libc::close(master1_fd);
-                    libc::close(master2_fd);
-                }
+            if self.master_fds.take().is_some() {
+                tracing::debug!("Closing PTY master file descriptors in Drop");
             }
         }
     }
@@ -684,6 +776,12 @@ pub struct VirtualStats {
 
     /// Last bridge error message
     pub last_error: Option<String>,
+
+    /// Total packets captured (when monitoring is enabled)
+    pub capture_packets: u64,
+
+    /// Total capture bytes (when monitoring is enabled)
+    pub capture_bytes: u64,
 }
 
 #[cfg(test)]
@@ -791,5 +889,38 @@ mod tests {
 
         // If we got here without panic, cleanup worked
         tracing::info!("Cleanup test passed");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_capture_disabled_by_default() {
+        let config = VirtualConfig::default();
+        let result = VirtualSerialPair::create(config).await;
+        if result.is_err() {
+            return;
+        }
+        let pair = result.unwrap();
+        assert!(!pair.is_monitoring());
+        assert!(pair.captured_packets().await.is_empty());
+        pair.stop().await.unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_capture_enabled_with_monitor() {
+        let config = VirtualConfig {
+            monitor: true,
+            max_packets: 100,
+            ..VirtualConfig::default()
+        };
+        let result = VirtualSerialPair::create(config).await;
+        if result.is_err() {
+            return;
+        }
+        let pair = result.unwrap();
+        assert!(pair.is_monitoring());
+        // No data written yet, so capture should be empty
+        assert!(pair.captured_packets().await.is_empty());
+        pair.stop().await.unwrap();
     }
 }

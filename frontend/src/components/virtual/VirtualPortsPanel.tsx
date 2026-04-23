@@ -14,6 +14,7 @@ import {
   Activity,
   Zap,
   Clock,
+  Clipboard,
 } from 'lucide-react'
 import type { VirtualPortConfig } from '@/types/tauri'
 
@@ -29,8 +30,6 @@ const DEFAULT_CONFIG: VirtualPortConfig = {
 
 const BACKEND_OPTIONS = [
   { value: 'pty', label: 'PTY (Pseudo-terminal)', description: 'Unix/Linux/macOS only' },
-  { value: 'named_pipe', label: 'Named Pipe', description: 'Windows only (not implemented)' },
-  { value: 'socat', label: 'Socat', description: 'Cross-platform (not implemented)' },
 ]
 
 const BUFFER_SIZES = [4096, 8192, 16384, 32768, 65536]
@@ -256,7 +255,7 @@ export function VirtualPortsPanel() {
                         className="text-text-tertiary hover:text-text-primary"
                         title="Copy to clipboard"
                       >
-                        📋
+                        <Clipboard size={14} strokeWidth={1.5} />
                       </button>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
@@ -269,7 +268,7 @@ export function VirtualPortsPanel() {
                         className="text-text-tertiary hover:text-text-primary"
                         title="Copy to clipboard"
                       >
-                        📋
+                        <Clipboard size={14} strokeWidth={1.5} />
                       </button>
                     </div>
                   </div>
@@ -318,35 +317,23 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
             Backend Type
           </label>
           <div className="space-y-2">
-            {BACKEND_OPTIONS.map((option) => {
-              const isImplemented = option.value === 'pty'
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => isImplemented && onChange({ ...config, backend: option.value as VirtualPortConfig['backend'] })}
-                  disabled={!isImplemented}
-                  className={cn(
-                    'w-full text-left p-3 rounded-md border transition-colors',
-                    config.backend === option.value
-                      ? 'bg-info/10 text-info border-info/30'
-                      : 'bg-bg-elevated text-text-secondary border-border hover:text-text-primary',
-                    !isImplemented && 'opacity-50 cursor-not-allowed'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-sm">{option.label}</div>
-                      <div className="text-xs text-text-tertiary mt-0.5">{option.description}</div>
-                    </div>
-                    {!isImplemented && (
-                      <span className="px-2 py-0.5 text-xs bg-alert/10 text-alert rounded">
-                        Not Implemented
-                      </span>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
+            {BACKEND_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => onChange({ ...config, backend: option.value as VirtualPortConfig['backend'] })}
+                className={cn(
+                  'w-full text-left p-3 rounded-md border transition-colors',
+                  config.backend === option.value
+                    ? 'bg-info/10 text-info border-info/30'
+                    : 'bg-bg-elevated text-text-secondary border-border hover:text-text-primary'
+                )}
+              >
+                <div>
+                  <div className="font-medium text-sm">{option.label}</div>
+                  <div className="text-xs text-text-tertiary mt-0.5">{option.description}</div>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -368,17 +355,17 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
           </select>
         </div>
 
-        {/* Monitor Traffic */}
-        <div className="flex items-center gap-2">
+        {/* Monitor Traffic - coming soon */}
+        <div className="flex items-center gap-2 opacity-50">
           <input
             type="checkbox"
             id="monitor"
-            checked={config.monitor || false}
-            onChange={(e) => onChange({ ...config, monitor: e.target.checked })}
-            className="w-4 h-4 rounded border-border bg-bg-deep text-info focus:ring-info"
+            checked={false}
+            disabled
+            className="w-4 h-4 rounded border-border bg-bg-deep text-info"
           />
-          <label htmlFor="monitor" className="text-sm text-text-secondary">
-            Enable traffic monitoring
+          <label htmlFor="monitor" className="text-sm text-text-tertiary">
+            Enable traffic monitoring (coming soon)
           </label>
         </div>
       </div>

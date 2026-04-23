@@ -109,6 +109,12 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
     }
   }, [])
 
+  // Use ref to track current ports for refresh (avoids recreating callback on state changes)
+  const virtualPortsRef = useRef(virtualPorts)
+  useEffect(() => {
+    virtualPortsRef.current = virtualPorts
+  }, [virtualPorts])
+
   const refreshPorts = useCallback(async () => {
     try {
       // Refresh list
@@ -117,7 +123,7 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
       // Check health of each port and remove stopped ones
       const portsToRemove: string[] = []
 
-      for (const [id, port] of virtualPorts.entries()) {
+      for (const [id, _port] of virtualPortsRef.current.entries()) {
         try {
           const isHealthy = await invoke<boolean>('check_virtual_port_health', { id })
           if (!isHealthy) {
@@ -147,7 +153,7 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
     } catch (e) {
       console.error('Failed to refresh virtual ports:', e)
     }
-  }, [virtualPorts, listVirtualPorts])
+  }, [listVirtualPorts])
 
   // Setup auto-refresh for stats
   useEffect(() => {
@@ -157,15 +163,16 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
     }
 
     // Start refresh interval if there are active ports
-    if (virtualPorts.size > 0) {
+    const currentPorts = virtualPortsRef.current
+    if (currentPorts.size > 0) {
       refreshIntervalRef.current = setInterval(() => {
         // Refresh stats for each port
-        virtualPorts.forEach((port, id) => {
+        currentPorts.forEach((_port, id) => {
           getPortStats(id).catch(err => {
             console.error(`Failed to refresh stats for ${id}:`, err)
           })
         })
-      }, 5000) // Update stats every 5 seconds (reduced from 2s for better performance)
+      }, 5000) // Update stats every 5 seconds
 
       console.log('Started virtual port stats refresh')
     }
