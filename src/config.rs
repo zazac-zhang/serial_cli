@@ -180,6 +180,59 @@ impl ConfigManager {
         Ok(())
     }
 
+    /// Add a custom protocol to the configuration
+    ///
+    /// Returns error if a protocol with the same name already exists.
+    pub fn add_custom_protocol(&self, name: String, path: PathBuf) -> Result<()> {
+        let mut config = self.config.write().unwrap();
+        if config.protocols.custom.contains_key(&name) {
+            return Err(SerialError::Config(format!(
+                "Protocol '{}' already exists. Use 'protocol reload' to update, or 'protocol unload' first.",
+                name
+            )));
+        }
+        config.protocols.custom.insert(
+            name.clone(),
+            CustomProtocolConfig {
+                name,
+                path,
+                version: 1,
+                loaded_at: Some(chrono::Local::now().to_rfc3339()),
+            },
+        );
+        Ok(())
+    }
+
+    /// Update an existing custom protocol (for reload). Atomic single-lock operation.
+    pub fn update_custom_protocol(&self, name: String, path: PathBuf) -> Result<()> {
+        let mut config = self.config.write().unwrap();
+        let entry = config.protocols.custom.get_mut(&name).ok_or_else(|| {
+            SerialError::Config(format!("Custom protocol not found: {}", name))
+        })?;
+        entry.path = path;
+        entry.version += 1;
+        entry.loaded_at = Some(chrono::Local::now().to_rfc3339());
+        Ok(())
+    }
+
+    /// Remove a custom protocol from the configuration
+    pub fn remove_custom_protocol(&self, name: &str) -> Result<()> {
+        let mut config = self.config.write().unwrap();
+        if config.protocols.custom.remove(name).is_none() {
+            return Err(SerialError::Config(format!(
+                "Custom protocol not found: {}",
+                name
+            )));
+        }
+        Ok(())
+    }
+
+    /// Get a custom protocol by name
+    pub fn get_custom_protocol(&self, name: &str) -> Option<CustomProtocolConfig> {
+        let config = self.config.read().unwrap();
+        config.protocols.custom.get(name).cloned()
+    }
+
     /// Save configuration to file
     pub fn save(&self, path: Option<&Path>) -> Result<()> {
         let config = self.config.read().unwrap();

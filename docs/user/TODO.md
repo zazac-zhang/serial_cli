@@ -64,45 +64,38 @@ Backend capture infrastructure exists, but not wired through to frontend.
 ---
 
 ### 3. Protocol Dynamic Loading
-**Status**: ⚠️ Partial
+**Status**: ✅ Complete (except hot-reload)
 **Priority**: P1
 
 **Completed**:
 - [x] `protocol validate` - Validate protocol scripts
-- [x] `protocol list` - List all protocols
-- [x] `protocol info` - Show protocol info
+- [x] `protocol list` - List all protocols (built-in + custom)
+- [x] `protocol info` - Show protocol info (built-in + custom)
+- [x] `protocol load` - Load + validate + persist to config
+- [x] `protocol unload` - Remove from config
+- [x] `protocol reload` - Re-validate + update config
+- [x] ConfigManager helpers for custom protocol CRUD
+- [x] Protocol persistence via config file (`protocols.custom`)
 - [x] ProtocolManager fully implemented with load/unload/reload
 - [x] ProtocolLoader with validation
 - [x] ProtocolRegistry with factory pattern
 
 **TODO**:
-- [ ] Connect CLI `protocol load` to ProtocolManager
-- [ ] Connect CLI `protocol unload` to ProtocolManager
-- [ ] Connect CLI `protocol reload` to ProtocolManager
-- [ ] Add protocol persistence (loaded protocols survive restart)
-- [ ] Implement hot-reloading
-
-**Current State**: Commands print "will be implemented in next version"
+- [ ] Implement hot-reloading (file watcher)
 
 ---
 
 ### 4. Configuration Management
-**Status**: ⚠️ Partial
+**Status**: ✅ Complete
 **Priority**: P1
 
 **Completed**:
-- [x] `config show` - Display full configuration
+- [x] `config show` - Display full configuration (text/JSON)
+- [x] `config set` - Set configuration value with validation
+- [x] `config save` - Save configuration to file
+- [x] `config reset` - Reset to defaults
 - [x] ConfigManager with load/validate/set/save
 - [x] TOML-based configuration with fallback defaults
-
-**TODO**:
-- [ ] `config set` - Set configuration value
-- [ ] `config save` - Save configuration to file
-- [ ] `config reset` - Reset to defaults
-- [ ] Add configuration file editing
-- [ ] Implement proper validation feedback
-
-**Current State**: Commands print "will be implemented in next version"
 
 ---
 
@@ -236,11 +229,11 @@ Only PTY backend (Unix/macOS) is functional. NamedPipe and Socat options have be
 | Category | Total | Completed | Partial | TODO |
 |----------|-------|-----------|---------|------|
 | P0 - Critical | 1 | 1 | 0 | 0 |
-| P1 - Important | 5 | 0 | 5 | 0 |
+| P1 - Important | 5 | 2 | 3 | 0 |
 | P2 - Future | 3 | 0 | 2 | 1 |
-| **Total** | **9** | **1** | **7** | **1** |
+| **Total** | **9** | **3** | **5** | **1** |
 
-**Overall Progress**: ~50% (P0 done, core features complete, P1 commands partially implemented)
+**Overall Progress**: ~60% (P0 done, 2/5 P1 complete, core features solid)
 
 ---
 
