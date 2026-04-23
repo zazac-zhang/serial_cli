@@ -61,6 +61,7 @@ async fn main() {
             commands::virtual_port::stop_virtual_port,
             commands::virtual_port::get_virtual_port_stats,
             commands::virtual_port::check_virtual_port_health,
+            commands::virtual_port::get_captured_packets,
         ])
         .setup(|app| {
             // Setup event system

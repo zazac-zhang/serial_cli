@@ -35,6 +35,17 @@ pub struct VirtualPortStats {
     pub packets_bridged: u64,
     pub bridge_errors: u64,
     pub last_error: Option<String>,
+    pub capture_packets: u64,
+    pub capture_bytes: u64,
+    pub monitoring: bool,
+}
+
+/// A single captured packet for the frontend
+#[derive(serde::Serialize)]
+pub struct CapturedPacketDto {
+    pub direction: String,
+    pub data: Vec<u8>,
+    pub timestamp_millis: u64,
 }
 
 /// Virtual port configuration from Tauri frontend
@@ -192,6 +203,9 @@ pub async fn get_virtual_port_stats(
             packets_bridged: stats.packets_bridged,
             bridge_errors: stats.bridge_errors,
             last_error: stats.last_error.clone(),
+            capture_packets: stats.capture_packets,
+            capture_bytes: stats.capture_bytes,
+            monitoring: pair.is_monitoring(),
         })
     } else {
         Err(format!("Virtual port not found: {}", id))
@@ -212,4 +226,44 @@ pub async fn check_virtual_port_health(
     } else {
         Ok(false)
     }
+}
+
+/// Get captured packets for a monitored virtual port
+#[tauri::command]
+pub async fn get_captured_packets(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<CapturedPacketDto>, String> {
+    let registry = state.virtual_port_registry.read().await;
+
+    let pair = registry
+        .get(&id)
+        .ok_or_else(|| format!("Virtual port not found: {}", id))?;
+
+    if !pair.is_monitoring() {
+        return Ok(Vec::new());
+    }
+
+    let packets = pair.captured_packets().await;
+    let dtos = packets
+        .into_iter()
+        .map(|p| {
+            let dir = match p.direction {
+                serial_cli::serial_core::VirtualPacketDirection::AtoB => "A→B".to_string(),
+                serial_cli::serial_core::VirtualPacketDirection::BtoA => "B→A".to_string(),
+            };
+            let ts = p
+                .timestamp
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            CapturedPacketDto {
+                direction: dir,
+                data: p.data.clone(),
+                timestamp_millis: ts,
+            }
+        })
+        .collect();
+
+    Ok(dtos)
 }

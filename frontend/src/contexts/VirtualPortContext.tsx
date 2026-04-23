@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { VirtualPortConfig, VirtualPortInfo, VirtualPortStats } from '../types/tauri'
+import type { CapturedPacket, VirtualPortConfig, VirtualPortInfo, VirtualPortStats } from '../types/tauri'
 
 interface VirtualPortContextType {
   virtualPorts: Map<string, VirtualPortInfo>
@@ -12,6 +12,7 @@ interface VirtualPortContextType {
   listVirtualPorts: () => Promise<void>
   stopVirtualPort: (id: string) => Promise<void>
   getPortStats: (id: string) => Promise<VirtualPortStats>
+  getCapturedPackets: (id: string) => Promise<CapturedPacket[]>
   refreshPorts: () => Promise<void>
 }
 
@@ -107,6 +108,10 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
       console.error(`Failed to get stats for port ${id}:`, e)
       throw e
     }
+  }, [])
+
+  const getCapturedPackets = useCallback(async (id: string) => {
+    return await invoke<CapturedPacket[]>('get_captured_packets', { id })
   }, [])
 
   // Use ref to track current ports for refresh (avoids recreating callback on state changes)
@@ -256,6 +261,7 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
       listVirtualPorts,
       stopVirtualPort,
       getPortStats,
+      getCapturedPackets,
       refreshPorts,
     }}>
       {children}

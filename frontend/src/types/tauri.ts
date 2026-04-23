@@ -84,4 +84,13 @@ export interface VirtualPortStats {
   packets_bridged: number
   bridge_errors: number
   last_error: string | null
+  capture_packets: number
+  capture_bytes: number
+  monitoring: boolean
+}
+
+export interface CapturedPacket {
+  direction: string
+  data: number[]
+  timestamp_millis: number
 }

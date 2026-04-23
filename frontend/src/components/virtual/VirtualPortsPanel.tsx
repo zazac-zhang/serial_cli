@@ -15,8 +15,9 @@ import {
   Zap,
   Clock,
   Clipboard,
+  Eye,
 } from 'lucide-react'
-import type { VirtualPortConfig } from '@/types/tauri'
+import type { VirtualPortConfig, CapturedPacket } from '@/types/tauri'
 
 interface CreatingPort {
   config: VirtualPortConfig
@@ -43,6 +44,7 @@ export function VirtualPortsPanel() {
     createVirtualPort,
     listVirtualPorts,
     stopVirtualPort,
+    getCapturedPackets,
     refreshPorts,
   } = useVirtualPorts()
 
@@ -50,6 +52,23 @@ export function VirtualPortsPanel() {
   const [creating, setCreating] = useState(false)
   const [stoppingId, setStoppingId] = useState<string | null>(null)
   const [stopError, setStopError] = useState<string | null>(null)
+  const [packets, setPackets] = useState<CapturedPacket[]>([])
+  const [packetsPortId, setPacketsPortId] = useState<string | null>(null)
+  const [loadingPortId, setLoadingPortId] = useState<string | null>(null)
+
+  const handleLoadPackets = useCallback(async (id: string) => {
+    setLoadingPortId(id)
+    try {
+      const result = await getCapturedPackets(id)
+      setPackets(result)
+      setPacketsPortId(id)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to load captured packets'
+      setStopError(msg)
+    } finally {
+      setLoadingPortId(null)
+    }
+  }, [getCapturedPackets])
 
   const handleCreatePort = useCallback(() => {
     setCreatingPort({ config: DEFAULT_CONFIG })
@@ -243,6 +262,24 @@ export function VirtualPortsPanel() {
                     </div>
                   )}
 
+                  {/* Monitoring Status */}
+                  {stats && stats.monitoring && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Eye size={14} strokeWidth={1.5} className="text-signal" />
+                      <span className="text-xs text-signal">Monitoring</span>
+                      <span className="text-xs text-text-tertiary">
+                        ({stats.capture_packets} packets / {stats.capture_bytes.toLocaleString()} bytes captured)
+                      </span>
+                      <button
+                        onClick={() => handleLoadPackets(port.id)}
+                        disabled={loadingPortId !== null}
+                        className="ml-auto text-xs px-2 py-1 rounded bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50"
+                      >
+                        {loadingPortId === port.id ? 'Loading...' : 'View Packets'}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Port Paths */}
                   <div className="mt-3 space-y-1.5">
                     <div className="flex items-center gap-2 text-xs">
@@ -275,6 +312,46 @@ export function VirtualPortsPanel() {
                 </div>
               )
             })}
+          </div>
+        </Panel>
+      )}
+
+      {/* Captured Packets Viewer */}
+      {packets.length > 0 && packetsPortId && (
+        <Panel
+          title={`Captured Packets — ${virtualPorts.get(packetsPortId)?.port_a ?? packetsPortId.slice(0, 8)}`}
+          variant="signal"
+          className="w-full"
+          actions={
+            <button
+              onClick={() => { setPackets([]); setPacketsPortId(null) }}
+              className="text-xs px-2 py-1 rounded bg-bg-elevated text-text-tertiary border border-border hover:text-text-primary transition-colors"
+            >
+              Close
+            </button>
+          }
+        >
+          <div className="max-h-64 overflow-y-auto space-y-1">
+            {packets.map((pkt, idx) => (
+              <div key={idx} className="flex items-center gap-3 px-3 py-1.5 rounded bg-bg-elevated text-xs font-mono">
+                <span className={cn(
+                  'px-1.5 py-0.5 rounded text-[10px] font-bold',
+                  pkt.direction === 'A→B'
+                    ? 'bg-info/20 text-info'
+                    : 'bg-signal/20 text-signal'
+                )}>
+                  {pkt.direction}
+                </span>
+                <span className="text-text-tertiary w-12 text-right">{pkt.data.length}B</span>
+                <span className="text-text-primary truncate flex-1">
+                  {pkt.data.slice(0, 32).map(b => b.toString(16).padStart(2, '0')).join(' ')}
+                  {pkt.data.length > 32 && ' ...'}
+                </span>
+                <span className="text-text-tertiary shrink-0">
+                  {new Date(pkt.timestamp_millis).toLocaleTimeString()}.{String(pkt.timestamp_millis % 1000).padStart(3, '0')}
+                </span>
+              </div>
+            ))}
           </div>
         </Panel>
       )}
@@ -355,17 +432,17 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
           </select>
         </div>
 
-        {/* Monitor Traffic - coming soon */}
-        <div className="flex items-center gap-2 opacity-50">
+        {/* Monitor Traffic */}
+        <div className="flex items-center gap-2">
           <input
             type="checkbox"
             id="monitor"
-            checked={false}
-            disabled
-            className="w-4 h-4 rounded border-border bg-bg-deep text-info"
+            checked={config.monitor ?? false}
+            onChange={(e) => onChange({ ...config, monitor: e.target.checked })}
+            className="w-4 h-4 rounded border-border bg-bg-deep text-info accent-info"
           />
-          <label htmlFor="monitor" className="text-sm text-text-tertiary">
-            Enable traffic monitoring (coming soon)
+          <label htmlFor="monitor" className="text-sm text-text-secondary">
+            Enable traffic monitoring
           </label>
         </div>
       </div>

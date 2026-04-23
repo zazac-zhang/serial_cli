@@ -41,25 +41,21 @@ Refactored main.rs from 1194 lines to 73 lines.
 ## P1 - Important Features
 
 ### 2. Virtual Port Monitoring (End-to-End)
-**Status**: ⚠️ Partial (~30%)
+**Status**: ✅ Complete
 **Priority**: P1
-
-Backend capture infrastructure exists, but not wired through to frontend.
 
 **Completed**:
 - [x] `CapturedPacket` / `PacketDirection` / `PacketCapture` structs in Rust
 - [x] `captured_packets()` and `is_monitoring()` public methods
 - [x] `VirtualStats` extended with capture fields
-- [x] Frontend monitoring checkbox UI (disabled with "coming soon")
-
-**TODO**:
-- [ ] Integrate packet capture into bridge task (record each read with direction + payload)
-- [ ] Add Tauri command to fetch captured packets
-- [ ] Enable monitoring checkbox in GUI, wire to backend
-- [ ] Real-time traffic display in virtual port panel
-- [ ] Packet filtering and search
-
-**Known Limitation**: "Virtual port monitoring is limited... For full monitoring, use regular serial ports"
+- [x] Packet capture integrated into bridge task (records each read with direction + payload)
+- [x] Export capture types from `serial_core/mod.rs`
+- [x] Tauri command `get_captured_packets` to fetch captured packets
+- [x] `VirtualPortStats` extended with `capture_packets`, `capture_bytes`, `monitoring`
+- [x] Frontend `CapturedPacket` type + context `getCapturedPackets` method
+- [x] Enable monitoring checkbox in GUI, wire to backend config
+- [x] Real-time packet count display in port card
+- [x] Captured packets viewer panel with direction badge, hex preview, timestamp
 
 ---
 
@@ -229,11 +225,11 @@ Only PTY backend (Unix/macOS) is functional. NamedPipe and Socat options have be
 | Category | Total | Completed | Partial | TODO |
 |----------|-------|-----------|---------|------|
 | P0 - Critical | 1 | 1 | 0 | 0 |
-| P1 - Important | 5 | 2 | 3 | 0 |
+| P1 - Important | 5 | 3 | 2 | 0 |
 | P2 - Future | 3 | 0 | 2 | 1 |
-| **Total** | **9** | **3** | **5** | **1** |
+| **Total** | **9** | **4** | **4** | **1** |
 
-**Overall Progress**: ~60% (P0 done, 2/5 P1 complete, core features solid)
+**Overall Progress**: ~70% (P0 done, 3/5 P1 complete)
 
 ---
 
