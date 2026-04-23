@@ -37,47 +37,20 @@ just build-macos  # x86_64 + arm64
 
 **Requirements:** Rust 1.75+, just task runner
 
-## Architecture Overview
+## Architecture
 
-```
-src/
-├── main.rs              # CLI entry point (clap commands)
-├── lib.rs               # Library root - re-exports Result, SerialError
-├── error.rs             # Error types (SerialError, Result<T>)
-├── config.rs            # Configuration management
-│
-├── serial_core/         # Serial port I/O
-│   ├── port.rs          # PortManager, SerialConfig, PortHandle
-│   ├── io_loop.rs       # Async I/O event loop
-│   └── sniffer.rs       # Packet capture/monitoring
-│
-├── protocol/            # Protocol engine
-│   ├── registry.rs      # ProtocolRegistry, ProtocolFactory
-│   ├── built_in/        # Modbus, AT Command, Line protocols
-│   ├── lua_ext.rs       # Custom Lua protocol support
-│   └── validator.rs     # ProtocolValidator
-│
-├── lua/                 # LuaJIT integration
-│   ├── bindings.rs      # LuaBindings - Rust→Lua API
-│   ├── engine.rs        # LuaEngine runtime
-│   └── executor.rs      # Script execution
-│
-├── task/                # Task scheduling
-│   ├── queue.rs         # TaskQueue
-│   └── executor.rs      # TaskExecutor
-│
-└── cli/                 # CLI interface
-    ├── interactive.rs   # REPL shell
-    ├── commands.rs      # Single commands
-    └── batch.rs         # Batch script execution
-```
+See [`docs/dev/ARCH.md`](docs/dev/ARCH.md) for full directory layout, design patterns, module dependencies, and data flow.
 
-### Key Design Patterns
+**Quick reference:**
 
-1. **Protocol Trait** (`src/protocol/mod.rs`): All protocols implement `parse()`, `encode()`, `reset()`
-2. **PortManager** (`src/serial_core/port.rs`): Centralized port management with UUID-based handles
-3. **LuaBindings** (`src/lua/bindings.rs`): Registers Rust APIs to Lua
-4. **Error Handling**: Centralized in `error.rs` using `thiserror`; all functions return `Result<T>`
+- `src/main.rs` — thin entry point (~73 lines), dispatches to `cli/commands/*`
+- `src/cli/args.rs` — clap definitions (Cli, Commands)
+- `src/cli/types.rs` — command enum definitions (all subcommands)
+- `src/cli/commands/` — one handler file per command group
+- `src/serial_core/` — port I/O, sniffer, virtual ports
+- `src/protocol/` — protocol engine with Lua extensibility
+- `src/lua/` — LuaJIT integration (bindings, stdlib, executor)
+- `src/config.rs` — TOML-based ConfigManager
 
 ## Key Conventions
 
@@ -87,6 +60,7 @@ src/
 - **Configuration**: TOML-based with fallback defaults
 - **Documentation**: Keep docs minimal and well-organized
   - Root level: README.md, CHANGELOG.md, RELEASE.md (essential user-facing docs)
+  - Architecture: `docs/dev/ARCH.md` (directory layout, design patterns)
   - Avoid creating new .md files unless they serve a clear, ongoing purpose
 - **TODO tracking**: 发现或修复问题后，同步更新 `docs/user/TODO.md` 中的待办/已完成列表。
 
@@ -101,12 +75,4 @@ just gui-build          # Build GUI application
 just gui-check          # cargo check --workspace
 just gui-type-check     # TypeScript type check
 just gui-fmt            # Format all code
-```
-
-## Module Dependencies
-
-```
-main.rs → cli/* → serial_core → protocol/*
-                    ↓
-                 lua/* → protocol/* (for custom protocols)
 ```
