@@ -1,8 +1,47 @@
 //! CLI command type definitions
 //!
-//! This module contains all command and subcommand enum definitions.
+//! This module contains all command and subcommand enum definitions
+//! used by clap for argument parsing.
 
 use std::path::PathBuf;
+
+/// Virtual serial port subcommands
+#[derive(clap::Subcommand)]
+pub enum VirtualCommand {
+    /// Create a virtual serial port pair
+    Create {
+        /// Backend type (pty/socat/namedpipe)
+        #[arg(long, default_value = "pty")]
+        backend: String,
+
+        /// Enable traffic monitoring
+        #[arg(long)]
+        monitor: bool,
+
+        /// Output monitoring to file
+        #[arg(long)]
+        output: Option<PathBuf>,
+
+        /// Maximum packets to capture (0 = unlimited)
+        #[arg(long, default_value = "0")]
+        max_packets: usize,
+    },
+
+    /// List active virtual port pairs
+    List,
+
+    /// Stop a virtual port pair
+    Stop {
+        /// Virtual port pair ID
+        id: String,
+    },
+
+    /// Show statistics for a virtual port pair
+    Stats {
+        /// Virtual port pair ID
+        id: String,
+    },
+}
 
 /// Protocol subcommands
 #[derive(clap::Subcommand)]

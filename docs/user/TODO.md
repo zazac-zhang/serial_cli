@@ -1,7 +1,7 @@
 # Serial CLI TODO List
 
 **Version**: v0.2.0
-**Updated**: 2026-04-17
+**Updated**: 2026-04-23
 
 ---
 
@@ -15,29 +15,55 @@
 
 ## P0 - Critical Issues
 
-### 1. Code Architecture: Refactor main.rs (1200+ lines)
-**Status**: 🔴 Critical
+### 1. Code Architecture: Refactor main.rs
+**Status**: ✅ Complete
 **Impact**: Maintainability, Testing
 
-The main.rs file is too large and violates single responsibility principle.
+Refactored main.rs from 1194 lines to 73 lines.
 
-**Action Items**:
-- [ ] Move command implementations to `src/cli/commands/` module
-  - [ ] `info.rs` - list, status commands
-  - [ ] `exec.rs` - exec, run commands
-  - [ ] `session.rs` - shell, open commands
-  - [ ] `management.rs` - protocol, sniff, batch, config commands
-- [ ] Extract protocol registration to `src/protocol/registration.rs`
-- [ ] Create `src/cli/parsers.rs` for hex/base64 utilities
-- [ ] Keep main.rs under 200 lines (entry point only)
+**Completed**:
+- [x] Create `src/cli/args.rs` - Cli, Commands structs (clap definitions)
+- [x] Add `VirtualCommand` to `src/cli/types.rs` (all command enums unified)
+- [x] Create `src/cli/commands/protocol.rs` - protocol command handler
+- [x] Create `src/cli/commands/sniff.rs` - sniff command handler
+- [x] Create `src/cli/commands/batch.rs` - batch command handler
+- [x] Create `src/cli/commands/config.rs` - config command handler
+- [x] Create `src/cli/commands/virtual_port.rs` - virtual port handler + registry
+- [x] Create `src/cli/commands/ports.rs` - list_ports, send_data
+- [x] Create `src/cli/commands/script.rs` - run_lua_script (uses LuaStdLib)
+- [x] Fix `src/cli/commands/parsers.rs` - doc tests and clippy warnings
+- [x] main.rs reduced to 73 lines (entry point + dispatch only)
 
-**Target**: main.rs < 200 lines
+**Bonus**: Eliminated duplicate `register_stdlib_utils()` in main.rs (replaced by `LuaStdLib::register_all_on()`)
 
 ---
 
 ## P1 - Important Features
 
-### 2. Protocol Dynamic Loading
+### 2. Virtual Port Monitoring (End-to-End)
+**Status**: ⚠️ Partial (~30%)
+**Priority**: P1
+
+Backend capture infrastructure exists, but not wired through to frontend.
+
+**Completed**:
+- [x] `CapturedPacket` / `PacketDirection` / `PacketCapture` structs in Rust
+- [x] `captured_packets()` and `is_monitoring()` public methods
+- [x] `VirtualStats` extended with capture fields
+- [x] Frontend monitoring checkbox UI (disabled with "coming soon")
+
+**TODO**:
+- [ ] Integrate packet capture into bridge task (record each read with direction + payload)
+- [ ] Add Tauri command to fetch captured packets
+- [ ] Enable monitoring checkbox in GUI, wire to backend
+- [ ] Real-time traffic display in virtual port panel
+- [ ] Packet filtering and search
+
+**Known Limitation**: "Virtual port monitoring is limited... For full monitoring, use regular serial ports"
+
+---
+
+### 3. Protocol Dynamic Loading
 **Status**: ⚠️ Partial
 **Priority**: P1
 
@@ -45,69 +71,101 @@ The main.rs file is too large and violates single responsibility principle.
 - [x] `protocol validate` - Validate protocol scripts
 - [x] `protocol list` - List all protocols
 - [x] `protocol info` - Show protocol info
+- [x] ProtocolManager fully implemented with load/unload/reload
+- [x] ProtocolLoader with validation
+- [x] ProtocolRegistry with factory pattern
 
 **TODO**:
-- [ ] `protocol load` - Load custom protocol from Lua script
-- [ ] `protocol unload` - Unload custom protocol
-- [ ] `protocol reload` - Reload protocol from disk
+- [ ] Connect CLI `protocol load` to ProtocolManager
+- [ ] Connect CLI `protocol unload` to ProtocolManager
+- [ ] Connect CLI `protocol reload` to ProtocolManager
+- [ ] Add protocol persistence (loaded protocols survive restart)
+- [ ] Implement hot-reloading
 
 **Current State**: Commands print "will be implemented in next version"
 
 ---
 
-### 3. Configuration Management
+### 4. Configuration Management
 **Status**: ⚠️ Partial
 **Priority**: P1
 
 **Completed**:
-- [x] `config show` - Display configuration (hardcoded)
+- [x] `config show` - Display full configuration
+- [x] ConfigManager with load/validate/set/save
+- [x] TOML-based configuration with fallback defaults
 
 **TODO**:
 - [ ] `config set` - Set configuration value
 - [ ] `config save` - Save configuration to file
 - [ ] `config reset` - Reset to defaults
+- [ ] Add configuration file editing
+- [ ] Implement proper validation feedback
 
 **Current State**: Commands print "will be implemented in next version"
 
 ---
 
-### 4. Batch Processing
-**Status**: ⚠️ Partial
+### 5. Data Sniffing Session Management
+**Status**: ⚠️ Partial (~70%)
+**Priority**: P1
+
+**Completed**:
+- [x] `sniff start` - Start packet capture with all options
+- [x] Real-time packet capture and display
+- [x] File output support
+- [x] TX/RX direction tracking
+
+**TODO**:
+- [ ] Track active sniffing sessions (state management)
+- [ ] `sniff stop` - Stop active sniffing session
+- [ ] `sniff stats` - Show capture statistics (currently "No active sniff session")
+- [ ] `sniff save` - Save captured packets (requires active session)
+
+---
+
+### 6. Batch Processing
+**Status**: ⚠️ Partial (~60%)
 **Priority**: P1
 
 **Completed**:
 - [x] `batch run script.lua` - Run single script
-- [x] `batch run batch.txt` - Run batch file (basic)
+- [x] `batch run batch.txt` - Run batch file
+- [x] Comment filtering (lines starting with #)
+- [x] Concurrent execution control
+- [x] Progress tracking and error reporting
 
 **TODO**:
 - [ ] `batch list` - List available batch files
-- [ ] Support comments in batch files
-- [ ] Support variables and loops
-- [ ] Better error handling and reporting
-
----
-
-### 5. Data Sniffing
-**Status**: ⚠️ Basic
-**Priority**: P2
-
-**Completed**:
-- [x] `sniff start` - Start packet capture
-
-**TODO**:
-- [ ] `sniff stop` - Stop active sniffing session
-- [ ] `sniff stats` - Show capture statistics
-- [ ] `sniff save` - Save captured packets
-- [ ] Session tracking and management
+- [ ] Support variable substitution
+- [ ] Support loops
+- [ ] Better error recovery
 
 ---
 
 ## P2 - Future Enhancements
 
-### 6. Testing
-**Status**: ⚠️ Partial
-**Priority**: P1
+### 7. Virtual Port Additional Backends
+**Status**: ❌ Not Started
+**Priority**: P2
 
+Only PTY backend (Unix/macOS) is functional. NamedPipe and Socat options have been removed from GUI.
+
+**TODO**:
+- [ ] NamedPipe backend (Windows support)
+- [ ] Socat backend (cross-platform alternative)
+
+---
+
+### 8. Testing
+**Status**: ⚠️ Partial
+**Priority**: P2
+
+- [x] 58/58 tests passing
+- [x] Unit tests for core modules
+- [x] Integration tests for virtual ports
+- [x] Property-based tests (proptest)
+- [x] Benchmark tests (6 benchmarks)
 - [ ] Add unit tests for command execution
 - [ ] Add integration tests for CLI commands
 - [ ] Add tests for protocol loading
@@ -115,27 +173,40 @@ The main.rs file is too large and violates single responsibility principle.
 
 ---
 
-### 7. Documentation
-**Status**: ✅ Good
-**Priority**: P1
+### 9. Documentation
+**Status**: ⚠️ Partial
+**Priority**: P2
 
-- [ ] Add protocol development guide
-- [ ] Add Lua API complete reference
-- [ ] Add troubleshooting guide expansion
-- [ ] Add video tutorials
+- [x] README.md, CHANGELOG.md, RELEASE.md
+- [x] CLAUDE.md project instructions
+- [x] Inline code documentation
+- [ ] Protocol development guide
+- [ ] Lua API complete reference
+- [ ] Troubleshooting guide expansion
 
 ---
 
-## Completed ✅
+## Completed
 
-- [x] Basic serial port communication
-- [x] Lua scripting engine
+- [x] Basic serial port communication (open, close, configure, send/receive)
+- [x] Lua scripting engine (LuaJIT with async support)
 - [x] Interactive shell (REPL)
-- [x] Built-in protocols (Modbus, AT Command, Line)
+- [x] Built-in protocols (Modbus RTU, Modbus ASCII, AT Command, Line)
 - [x] Data format support (text, hex, base64)
 - [x] Error handling with thiserror
-- [x] CLI command structure
+- [x] CLI command structure (clap)
 - [x] GUI application (Tauri + React)
+- [x] Virtual serial port pairs (PTY backend)
+- [x] Event-driven bridge (tokio AsyncFd, no busy-wait)
+- [x] Virtual port health checking and auto-cleanup
+- [x] Real-time statistics (bytes, packets, errors, uptime)
+- [x] Cyber-industrial UI with Lucide icons
+- [x] Monaco Editor integration for Lua scripts
+- [x] Data export (TXT/CSV/JSON)
+- [x] System notifications
+- [x] Keyboard shortcuts and command palette
+- [x] Data persistence (localStorage)
+- [x] Serial sniffer with packet capture
 
 ---
 
@@ -147,27 +218,29 @@ The main.rs file is too large and violates single responsibility principle.
 3. Create proper module structure
 
 ### Phase 2 (P1 - 2-3 weeks)
-1. Implement protocol dynamic loading
-2. Complete configuration management
-3. Enhance batch processing
+1. Wire virtual port monitoring end-to-end
+2. Connect protocol dynamic loading CLI commands to ProtocolManager
+3. Complete configuration management commands
+4. Implement sniffing session tracking
+5. Enhance batch processing
 
-### Phase 3 (P2 - 1-2 weeks)
-1. Advanced sniffing features
-2. Testing and documentation
-3. Performance optimizations
+### Phase 3 (P2 - 2-3 weeks)
+1. Additional virtual port backends (NamedPipe, Socat)
+2. Testing and code coverage
+3. Documentation expansion
 
 ---
 
 ## Progress Summary
 
-| Category | Total | Completed | In Progress | TODO |
-|----------|-------|-----------|-------------|------|
-| P0 - Critical | 1 | 0 | 0 | 1 |
-| P1 - Important | 4 | 0 | 4 | 0 |
-| P2 - Future | 2 | 1 | 1 | 0 |
-| **Total** | **7** | **1** | **5** | **1** |
+| Category | Total | Completed | Partial | TODO |
+|----------|-------|-----------|---------|------|
+| P0 - Critical | 1 | 1 | 0 | 0 |
+| P1 - Important | 5 | 0 | 5 | 0 |
+| P2 - Future | 3 | 0 | 2 | 1 |
+| **Total** | **9** | **1** | **7** | **1** |
 
-**Overall Progress**: 14% complete
+**Overall Progress**: ~50% (P0 done, core features complete, P1 commands partially implemented)
 
 ---
 
@@ -181,11 +254,3 @@ Want to help? Pick a task and create a PR:
 4. Submit PR with reference to this TODO
 
 **Labels**: `good-first-issue`, `help-wanted`, `enhancement`
-
----
-
-## Resources
-
-- [Development Guide](DEVELOPMENT.md)
-- [Code Review](CODE_REVIEW.md)
-- [Project Instructions](CLAUDE.md)

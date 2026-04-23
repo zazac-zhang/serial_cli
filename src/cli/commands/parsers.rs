@@ -9,9 +9,10 @@ use crate::error::{Result, SerialError};
 /// # Examples
 ///
 /// ```
-/// parse_hex_string("01020304") => Ok([0x01, 0x02, 0x03, 0x04])
-/// parse_hex_string("abc") => Err("Hex string must have even length")
-/// parse_hex_string("XY") => Err("Non-hex character detected")
+/// use serial_cli::cli::commands::parsers::parse_hex_string;
+/// assert!(parse_hex_string("01020304").is_ok());
+/// assert!(parse_hex_string("abc").is_err()); // odd length
+/// assert!(parse_hex_string("XY").is_err()); // non-hex
 /// ```
 pub fn parse_hex_string(s: &str) -> Result<Vec<u8>> {
     // Remove "0x" prefix if present
@@ -30,7 +31,7 @@ pub fn parse_hex_string(s: &str) -> Result<Vec<u8>> {
     }
 
     // Validate: check for even length
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(SerialError::InvalidInput(
             "Hex string must have even length".to_string(),
         ));
@@ -57,8 +58,9 @@ pub fn parse_hex_string(s: &str) -> Result<Vec<u8>> {
 /// # Examples
 ///
 /// ```
-/// base64_decode("SGVsbG8=") => Ok("Hello".as_bytes())
-/// base64_decode("invalid!") => Err("Invalid base64")
+/// use serial_cli::cli::commands::parsers::base64_decode;
+/// assert!(base64_decode("SGVsbG8=").is_ok());
+/// assert!(base64_decode("invalid!@#").is_err());
 /// ```
 pub fn base64_decode(s: &str) -> Result<Vec<u8>> {
     use base64::Engine as _;
@@ -78,7 +80,7 @@ pub fn base64_decode(s: &str) -> Result<Vec<u8>> {
     }
 
     // Remove newlines if present
-    let s = s.replace('\n', "").replace('\r', "");
+    let s = s.replace(['\n', '\r'], "");
 
     // Decode with detailed error message
     base64::engine::general_purpose::STANDARD
