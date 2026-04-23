@@ -10,6 +10,7 @@ use serial_cli::cli::commands::{
     batch as batch_cmd, config as config_cmd, ports, protocol as protocol_cmd,
     script, sniff as sniff_cmd, virtual_port,
 };
+use serial_cli::cli::sniff_session;
 use serial_cli::error::Result;
 
 #[tokio::main]
@@ -61,6 +62,15 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Virtual { virtual_command }) => {
             virtual_port::handle_virtual_command(virtual_command).await?;
+        }
+        Some(Commands::SniffDaemon {
+            port,
+            output,
+            max_packets,
+            hex,
+        }) => {
+            sniff_session::run_sniff_daemon(&port, output.as_deref().map(std::path::Path::new), max_packets, hex)
+                .await?;
         }
         None => {
             // No command specified, default to interactive mode

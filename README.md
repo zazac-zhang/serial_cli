@@ -19,7 +19,7 @@
 
 Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **both CLI and GUI interfaces**, **structured JSON output**, **embedded LuaJIT scripting**, and **support for multiple protocols** - making it perfect for both human interaction and AI/automation workflows.
 
-**✨ Production Ready** • **🖥️ GUI Available** • **🔧 58/58 Tests Passing** • **🌍 Linux • macOS • Windows**
+**✨ Production Ready** • **🖥️ GUI Available** • **🔧 203/203 Tests Passing** • **🌍 Linux • macOS • Windows**
 
 ---
 
@@ -107,9 +107,9 @@ serial> quit
 |:---:|:---:|:---:|:---:|
 | Works with any serial device | Structured JSON output | Embedded LuaJIT runtime | Linux • macOS • Windows |
 
-| 📡 **Protocols** | 🔄 **Batch Mode** | 🖥️ **GUI Available** | 🧪 **Well-Tested** |
+| 📡 **Protocols** | 🔄 **Batch Mode** | 🔍 **Sniff Sessions** | 🖥️ **GUI Available** |
 |:---:|:---:|:---:|:---:|
-| Modbus • AT Commands • Custom | Sequential & Parallel execution | Tauri-based GUI (NEW!) | 58 passing tests |
+| Modbus • AT Commands • Custom | Variables, loops, error reporting | Start/stop/stats/save | Tauri-based GUI (NEW!) |
 
 </div>
 
@@ -120,7 +120,8 @@ serial> quit
 - **📡 Protocol Support** - Built-in Modbus RTU/ASCII, AT Commands, line-based, and **custom Lua protocols**
 - **🎨 Custom Protocols** - Load custom protocols from Lua scripts with hot-reload support
 - **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
-- **🔄 Batch Processing** - Execute multiple scripts sequentially or in parallel
+- **🔄 Batch Processing** - Execute multiple scripts with variable substitution, loops, and per-script error reporting
+- **🔍 Sniff Sessions** - Start/stop/stats/save serial traffic with background daemon and session management
 - **🖥️ GUI Application** - **NEW!** Modern Tauri-based GUI with:
   - Cyber-industrial aesthetic design
   - Real-time data monitoring
@@ -152,7 +153,55 @@ serial-cli exec /dev/ttyUSB0 "send 0x01020304"
 serial-cli exec /dev/ttyUSB0 "send base64:SGVsbG8="
 ```
 
-### Lua Scripting - Modbus RTU
+#### Data Sniffing — Session Management
+
+```bash
+# Start sniffing on a port (spawns background daemon)
+serial-cli sniff start -p /dev/ttyUSB0 --output capture.log
+
+# Check sniff session statistics
+serial-cli sniff stats
+
+# Save captured packets to a file
+serial-cli sniff save -p backup.log
+
+# Stop the active sniff session
+serial-cli sniff stop
+```
+
+### Batch Processing — Variables & Loops
+
+```bash
+# Run a single Lua script
+serial-cli batch run script.lua
+
+# Run a batch file with variable substitution and loops
+serial-cli batch run tasks.batch
+
+# List available batch scripts
+serial-cli batch list
+```
+
+**Batch file example** (`tasks.batch`):
+```bash
+# Set variables (also reads from environment)
+set PORT /dev/ttyUSB0
+set DEVICE modbus
+
+# Run scripts with variable substitution
+scripts/${DEVICE}/init.lua
+scripts/${DEVICE}/read.lua
+
+# Loop with sleep
+loop 3
+  scripts/${DEVICE}/poll.lua
+  sleep 500
+end
+```
+
+---
+
+## Lua Scripting - Modbus RTU
 
 ```lua
 -- modbus_read.lua

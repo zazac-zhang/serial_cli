@@ -1,6 +1,33 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-04-24
+
+### Sniffing — Session Management
+
+- **`sniff start`** now spawns a background daemon process, freeing the parent shell for further commands
+- **`sniff stop`** — gracefully stops an active sniff session (SIGTERM → SIGKILL fallback)
+- **`sniff stats`** — shows port, PID, uptime, and config for the active session
+- **`sniff save`** — saves captured packets from the session's output file to a specified path
+- Session registry uses file-based state (PID + config in cache dir) with stale session auto-cleanup
+- Cross-platform process management (Unix via libc, Windows via Win32 API)
+
+### Batch Processing — Enhanced
+
+- **Variable substitution** — `${VAR}` and `$VAR` syntax in script paths and `set` values, with environment variable fallback
+- **`set KEY value`** directive — define variables within batch files
+- **Loop blocks** — `loop N` ... `end` with validated parsing (detects unclosed loops, unexpected `end`, nested loops)
+- **`sleep MS`** directive — add delays between script executions
+- **`batch list`** — now searches current directory + `~/.config/serial_cli/` for `.batch`, `.txt`, `.lua` files
+- **Error reporting** — per-script error messages displayed in batch summary output
+
+### Fixes
+
+- Fixed daemon pipe leak: explicitly close stdin/stdout/stderr handles before `std::mem::forget(child)`, preventing blocking writes under load
+- Removed unused `_display` parameter from sniff daemon (reduces CLI surface)
+
+---
+
 ## [0.2.0] - 2025-04-09
 
 ### 🎉 Major Features - GUI Application Complete

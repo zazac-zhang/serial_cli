@@ -7,6 +7,7 @@ use crate::lua::executor::ScriptEngine;
 use crate::task::executor::TaskExecutor;
 use crate::task::{Task, TaskPriority, TaskType};
 use crate::utils::ProgressReporter;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -18,17 +19,14 @@ pub enum BatchLine {
     Comment(String),
     /// Script to execute
     Script(std::path::PathBuf),
-    /// Conditional execution
-    Conditional {
-        condition: String,
-        scripts: Vec<std::path::PathBuf>,
-    },
-    /// Loop execution
+    /// Set a variable: `set NAME value`
+    Set { key: String, value: String },
+    /// Loop execution: `loop N` ... `end`
     Loop {
         count: usize,
-        scripts: Vec<std::path::PathBuf>,
+        body: Vec<BatchLine>,
     },
-    /// Sleep/delay
+    /// Sleep/delay: `sleep MS`
     Sleep(Duration),
 }
 
@@ -63,6 +61,8 @@ impl Default for BatchConfig {
 pub struct BatchRunner {
     config: BatchConfig,
     executor: Arc<TaskExecutor>,
+    /// Variables set via `set` directives in batch files
+    variables: HashMap<String, String>,
 }
 
 impl BatchRunner {
@@ -70,7 +70,79 @@ impl BatchRunner {
     pub fn new(config: BatchConfig) -> Result<Self> {
         let executor = Arc::new(TaskExecutor::new(config.max_concurrent));
 
-        Ok(Self { config, executor })
+        Ok(Self {
+            config,
+            executor,
+            variables: HashMap::new(),
+        })
+    }
+
+    /// Resolve variables in a string.
+    /// Supports `${VAR}` and `$VAR` syntax, falls back to environment variables.
+    fn resolve_variables(&self, input: &str) -> String {
+        let mut result = input.to_string();
+        let mut iteration = 0;
+
+        // Resolve ${VAR} syntax (with iteration guard against self-referential loops)
+        while let Some(start) = result.find("${") {
+            if let Some(end) = result[start..].find('}') {
+                let var_name = &result[start + 2..start + end];
+                let value: String = self
+                    .variables
+                    .get(var_name)
+                    .cloned()
+                    .or_else(|| std::env::var(var_name).ok())
+                    .unwrap_or_default();
+                result =
+                    format!("{}{}{}", &result[..start], value, &result[start + end + 1..]);
+                iteration += 1;
+                if iteration > 100 {
+                    break; // Guard against self-referential loops like ${A} = ${A}
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Resolve $VAR syntax (alphanumeric + underscore, stops at non-word char)
+        let mut output = String::new();
+        let mut chars = result.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '$'
+                && chars.peek().is_some_and(|c| c.is_alphabetic() || *c == '_')
+            {
+                let mut var_name = String::new();
+                while let Some(&nc) = chars.peek() {
+                    if nc.is_alphanumeric() || nc == '_' {
+                        var_name.push(nc);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                let value: String = self
+                    .variables
+                    .get(&var_name)
+                    .cloned()
+                    .or_else(|| std::env::var(&var_name).ok())
+                    .unwrap_or_default();
+                output.push_str(&value);
+            } else {
+                output.push(c);
+            }
+        }
+
+        output
+    }
+
+    /// Set a variable
+    pub fn set_variable(&mut self, key: &str, value: &str) {
+        self.variables.insert(key.to_string(), value.to_string());
+    }
+
+    /// Get a variable
+    pub fn get_variable(&self, key: &str) -> Option<&String> {
+        self.variables.get(key)
     }
 
     /// Run a single script
@@ -95,15 +167,14 @@ impl BatchRunner {
                 content: script_content,
             });
 
-            // Submit task with unique identifier
             let task_id = task.id().clone();
             self.executor.submit(task, TaskPriority::Normal).await?;
 
-            // Wait for this specific task to complete
             let start = std::time::Instant::now();
             let mut task_completed = false;
 
-            while !task_completed && start.elapsed() < Duration::from_secs(self.config.timeout_secs)
+            while !task_completed
+                && start.elapsed() < Duration::from_secs(self.config.timeout_secs)
             {
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -113,15 +184,18 @@ impl BatchRunner {
                         script: script_path.display().to_string(),
                         success: matches!(completion.result, crate::task::TaskResult::Success),
                         duration: completion.duration,
+                        error: None,
                     });
 
                     if !self.config.continue_on_error
                         && matches!(completion.result, crate::task::TaskResult::Error(_))
                     {
                         executor.stop().await?;
-                        return Err(SerialError::Script(crate::error::ScriptError::ApiError(
-                            "Script execution failed".to_string(),
-                        )));
+                        return Err(SerialError::Script(
+                            crate::error::ScriptError::ApiError(
+                                "Script execution failed".to_string(),
+                            ),
+                        ));
                     }
                     task_completed = true;
                     break;
@@ -147,7 +221,6 @@ impl BatchRunner {
         let executor = self.executor.clone();
         executor.start().await?;
 
-        // Submit all tasks
         for script_path in script_paths {
             let script_content = std::fs::read_to_string(script_path).map_err(SerialError::Io)?;
 
@@ -159,7 +232,6 @@ impl BatchRunner {
             self.executor.submit(task, TaskPriority::Normal).await?;
         }
 
-        // Wait for all to complete
         let start = std::time::Instant::now();
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -183,13 +255,11 @@ impl BatchRunner {
         let completed = self.executor.get_completed().await;
         let results: Vec<ScriptResult> = completed
             .into_iter()
-            .map(|c| {
-                let script_name = c.task_id.clone(); // In real implementation, store script name
-                ScriptResult {
-                    script: script_name,
-                    success: matches!(c.result, crate::task::TaskResult::Success),
-                    duration: c.duration,
-                }
+            .map(|c| ScriptResult {
+                script: c.task_id.clone(),
+                success: matches!(c.result, crate::task::TaskResult::Success),
+                duration: c.duration,
+                error: None,
             })
             .collect();
 
@@ -197,87 +267,27 @@ impl BatchRunner {
 
         Ok(BatchResult { results })
     }
-}
 
-/// Batch execution result
-#[derive(Debug, Clone)]
-pub struct BatchResult {
-    pub results: Vec<ScriptResult>,
-}
-
-/// Script execution result
-#[derive(Debug, Clone)]
-pub struct ScriptResult {
-    pub script: String,
-    pub success: bool,
-    pub duration: Duration,
-}
-
-impl Default for BatchRunner {
-    fn default() -> Self {
-        Self::new(BatchConfig::default()).unwrap()
-    }
-}
-
-impl BatchRunner {
     /// Parse a batch file into executable lines
     pub fn parse_batch_file(&self, path: &Path) -> Result<Vec<BatchLine>> {
         let content = std::fs::read_to_string(path).map_err(SerialError::Io)?;
-        let mut lines = Vec::new();
-
-        for line in content.lines() {
-            let trimmed = line.trim();
-
-            // Skip empty lines
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            // Comment line
-            if trimmed.starts_with('#') {
-                lines.push(BatchLine::Comment(trimmed.to_string()));
-                continue;
-            }
-
-            // Check for loop directive
-            if trimmed.starts_with("loop ") {
-                let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let count: usize = parts[1].parse().unwrap_or(1);
-                    lines.push(BatchLine::Loop {
-                        count,
-                        scripts: vec![],
-                    });
-                }
-                continue;
-            }
-
-            // Check for sleep directive
-            if trimmed.starts_with("sleep ") {
-                let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let ms: u64 = parts[1].parse().unwrap_or(1000);
-                    lines.push(BatchLine::Sleep(Duration::from_millis(ms)));
-                }
-                continue;
-            }
-
-            // Script path
-            lines.push(BatchLine::Script(Path::new(trimmed).to_path_buf()));
-        }
-
-        Ok(lines)
+        parse_batch_lines(&content)
     }
 
     /// Run parsed batch lines with enhanced features
-    pub async fn run_batch_lines(&self, batch_lines: Vec<BatchLine>) -> Result<BatchResult> {
+    pub async fn run_batch_lines(&mut self, batch_lines: Vec<BatchLine>) -> Result<BatchResult> {
+        self.run_batch_lines_impl(batch_lines).await
+    }
+
+    /// Internal implementation — uses explicit boxing for async recursion
+    async fn run_batch_lines_impl(
+        &mut self,
+        batch_lines: Vec<BatchLine>,
+    ) -> Result<BatchResult> {
         let mut results = Vec::new();
         let total_lines = batch_lines.len();
         let mut progress = if self.config.show_progress {
-            Some(ProgressReporter::new(
-                "Batch execution".to_string(),
-                total_lines,
-            ))
+            Some(ProgressReporter::new("Batch execution".to_string(), total_lines))
         } else {
             None
         };
@@ -290,28 +300,46 @@ impl BatchRunner {
                         tracing::info!("  # {}", msg);
                     }
                 }
-                BatchLine::Script(script_path) => {
+                BatchLine::Set { key, value } => {
+                    let resolved = self.resolve_variables(value);
                     if self.config.verbose {
-                        tracing::info!("Running: {}", script_path.display());
+                        tracing::info!("  set {} = {}", key, resolved);
+                    }
+                    self.variables.insert(key.clone(), resolved);
+                }
+                BatchLine::Script(script_path) => {
+                    let path_str = script_path.to_string_lossy();
+                    let resolved = self.resolve_variables(&path_str);
+                    let resolved_path = Path::new(&resolved);
+
+                    if self.config.verbose {
+                        tracing::info!("Running: {}", resolved_path.display());
                     }
 
-                    match self.run_script(script_path).await {
+                    match self.run_script(resolved_path).await {
                         Ok(_) => {
                             results.push(ScriptResult {
-                                script: script_path.display().to_string(),
+                                script: resolved_path.display().to_string(),
                                 success: true,
                                 duration: Duration::ZERO,
+                                error: None,
                             });
                         }
                         Err(e) => {
+                            let err_msg = format!("{}", e);
                             results.push(ScriptResult {
-                                script: script_path.display().to_string(),
+                                script: resolved_path.display().to_string(),
                                 success: false,
                                 duration: Duration::ZERO,
+                                error: Some(err_msg.clone()),
                             });
 
                             if !self.config.continue_on_error {
-                                tracing::info!("Error executing {}: {}", script_path.display(), e);
+                                tracing::info!(
+                                    "Error executing {}: {}",
+                                    resolved_path.display(),
+                                    e
+                                );
                                 break;
                             }
                         }
@@ -327,8 +355,7 @@ impl BatchRunner {
                     }
                     tokio::time::sleep(*duration).await;
                 }
-                BatchLine::Loop { count, scripts: _ } => {
-                    // Handle loop - execute next lines in a loop
+                BatchLine::Loop { count, body } => {
                     let loop_count = *count;
                     if self.config.verbose {
                         tracing::info!("Starting loop ({} iterations)", loop_count);
@@ -336,31 +363,29 @@ impl BatchRunner {
 
                     for iteration in 0..loop_count {
                         if self.config.verbose {
-                            tracing::info!("  Loop iteration {}/{}", iteration + 1, loop_count);
+                            tracing::info!(
+                                "  Loop iteration {}/{}",
+                                iteration + 1,
+                                loop_count
+                            );
                         }
 
-                        // Execute scripts in the loop (simplified - would need more complex parsing)
-                        if let Some(BatchLine::Script(script)) = batch_lines.get(i + 1) {
-                            if let Err(e) = self.run_script(script).await {
-                                tracing::info!("Loop iteration failed: {}", e);
-                                if !self.config.continue_on_error {
-                                    break;
-                                }
+                        let body_clone = body.clone();
+                        // Async recursion requires Box::pin because the recursive Future
+                        // has a different (larger) size than the parent Future.
+                        let future = Box::pin(self.run_batch_lines_impl(body_clone));
+                        let body_results = future.await?;
+
+                        for r in body_results.results {
+                            if !r.success && !self.config.continue_on_error {
+                                tracing::info!(
+                                    "Loop iteration {} failed: {}",
+                                    iteration + 1,
+                                    r.error.as_deref().unwrap_or("unknown error")
+                                );
+                                return Ok(BatchResult { results });
                             }
                         }
-                    }
-                }
-                BatchLine::Conditional { condition, scripts } => {
-                    // Handle conditional execution (simplified - always execute for now)
-                    if self.config.verbose {
-                        tracing::info!(
-                            "Conditional: {} (always true in current implementation)",
-                            condition
-                        );
-                    }
-
-                    for script in scripts {
-                        let _ = self.run_script(script).await;
                     }
                 }
             }
@@ -369,10 +394,161 @@ impl BatchRunner {
         }
 
         if let Some(ref mut p) = progress {
-            p.update(total_lines); // Ensure complete
+            p.update(total_lines);
         }
 
         Ok(BatchResult { results })
+    }
+}
+
+/// Parse batch file content into a list of BatchLine entries.
+/// Supports: comments (#), set directives, loop/end blocks, sleep, and script paths.
+fn parse_batch_lines(content: &str) -> Result<Vec<BatchLine>> {
+    let mut lines = Vec::new();
+    let mut in_loop = false;
+    let mut loop_count: usize = 0;
+    let mut loop_body = Vec::new();
+
+    for (line_num, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if trimmed.starts_with('#') {
+            let entry = BatchLine::Comment(trimmed.to_string());
+            if in_loop {
+                loop_body.push(entry);
+            } else {
+                lines.push(entry);
+            }
+            continue;
+        }
+
+        // End of loop block
+        if trimmed.eq_ignore_ascii_case("end") {
+            if in_loop {
+                lines.push(BatchLine::Loop {
+                    count: loop_count,
+                    body: std::mem::take(&mut loop_body),
+                });
+                in_loop = false;
+                loop_count = 0;
+            } else {
+                return Err(SerialError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "Unexpected 'end' without matching 'loop' at line {}",
+                        line_num + 1
+                    ),
+                )));
+            }
+            continue;
+        }
+
+        // Loop directive
+        if trimmed.to_lowercase().starts_with("loop ") {
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+            if parts.len() >= 2 {
+                if let Ok(count) = parts[1].parse::<usize>() {
+                    if in_loop {
+                        return Err(SerialError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("Nested loops not supported at line {}", line_num + 1),
+                        )));
+                    }
+                    in_loop = true;
+                    loop_count = count;
+                    loop_body = Vec::new();
+                }
+            }
+            continue;
+        }
+
+        // Set directive: `set NAME value`
+        if trimmed.to_lowercase().starts_with("set ") {
+            let rest = &trimmed[4..];
+            if let Some(space_pos) = rest.find(|c: char| c.is_whitespace()) {
+                let key = &rest[..space_pos];
+                let value = rest[space_pos..].trim();
+                let entry = BatchLine::Set {
+                    key: key.to_string(),
+                    value: value.to_string(),
+                };
+                if in_loop {
+                    loop_body.push(entry);
+                } else {
+                    lines.push(entry);
+                }
+            } else {
+                // `set NAME` with no value — set to empty string
+                let entry = BatchLine::Set {
+                    key: rest.to_string(),
+                    value: String::new(),
+                };
+                if in_loop {
+                    loop_body.push(entry);
+                } else {
+                    lines.push(entry);
+                }
+            }
+            continue;
+        }
+
+        // Sleep directive: `sleep MS`
+        if trimmed.to_lowercase().starts_with("sleep ") {
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let ms: u64 = parts[1].parse().unwrap_or(1000);
+                let entry = BatchLine::Sleep(Duration::from_millis(ms));
+                if in_loop {
+                    loop_body.push(entry);
+                } else {
+                    lines.push(entry);
+                }
+            }
+            continue;
+        }
+
+        // Script path
+        let entry = BatchLine::Script(Path::new(trimmed).to_path_buf());
+        if in_loop {
+            loop_body.push(entry);
+        } else {
+            lines.push(entry);
+        }
+    }
+
+    if in_loop {
+        return Err(SerialError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Unclosed 'loop' block — missing 'end'",
+        )));
+    }
+
+    Ok(lines)
+}
+
+/// Batch execution result
+#[derive(Debug, Clone)]
+pub struct BatchResult {
+    pub results: Vec<ScriptResult>,
+}
+
+/// Script execution result
+#[derive(Debug, Clone)]
+pub struct ScriptResult {
+    pub script: String,
+    pub success: bool,
+    pub duration: Duration,
+    /// Error message if the script failed
+    pub error: Option<String>,
+}
+
+impl Default for BatchRunner {
+    fn default() -> Self {
+        Self::new(BatchConfig::default()).unwrap()
     }
 }
 
@@ -390,14 +566,61 @@ mod tests {
     async fn test_run_single_script() {
         let runner = BatchRunner::new(BatchConfig::default()).unwrap();
 
-        // Create a test script
         let script_path = std::env::temp_dir().join("test_batch.lua");
         std::fs::write(&script_path, "print('test')").unwrap();
 
         let result = runner.run_script(&script_path).await;
         assert!(result.is_ok());
 
-        // Cleanup
         let _ = std::fs::remove_file(script_path);
+    }
+
+    #[test]
+    fn test_variable_resolution() {
+        let mut runner = BatchRunner::new(BatchConfig::default()).unwrap();
+        runner.set_variable("PORT", "/dev/ttyUSB0");
+        runner.set_variable("SCRIPT", "modbus");
+
+        let resolved = runner.resolve_variables("scripts/${SCRIPT}.lua");
+        assert_eq!(resolved, "scripts/modbus.lua");
+
+        let resolved2 = runner.resolve_variables("$PORT/config.toml");
+        assert_eq!(resolved2, "/dev/ttyUSB0/config.toml");
+    }
+
+    #[test]
+    fn test_parse_batch_file_with_set_and_loop() {
+        let runner = BatchRunner::new(BatchConfig::default()).unwrap();
+
+        let batch_path = std::env::temp_dir().join("test.batch");
+        std::fs::write(
+            &batch_path,
+            "# Test batch file\nset PORT /dev/ttyUSB0\nloop 2\n  scripts/${PORT}/test.lua\n  sleep 100\nend\n",
+        )
+        .unwrap();
+
+        let lines = runner.parse_batch_file(&batch_path).unwrap();
+        assert_eq!(lines.len(), 3); // Comment, Set, Loop
+
+        if let BatchLine::Loop { count, body } = &lines[2] {
+            assert_eq!(*count, 2);
+            assert_eq!(body.len(), 2); // Script + Sleep
+        } else {
+            panic!("Expected Loop variant");
+        }
+
+        let _ = std::fs::remove_file(batch_path);
+    }
+
+    #[test]
+    fn test_parse_unclosed_loop() {
+        let result = parse_batch_lines("loop 3\nscript.lua\n");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_unexpected_end() {
+        let result = parse_batch_lines("end\n");
+        assert!(result.is_err());
     }
 }

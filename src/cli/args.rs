@@ -79,4 +79,20 @@ pub enum Commands {
         #[command(subcommand)]
         virtual_command: VirtualCommand,
     },
+
+    /// (Internal) Background sniff daemon — not for direct user invocation
+    #[command(hide = true, name = "__sniff_daemon__")]
+    SniffDaemon {
+        #[arg(long)]
+        port: String,
+
+        #[arg(long)]
+        output: Option<String>,
+
+        #[arg(long, default_value = "0")]
+        max_packets: usize,
+
+        #[arg(long, default_value = "false")]
+        hex: bool,
+    },
 }

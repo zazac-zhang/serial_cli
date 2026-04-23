@@ -1,8 +1,12 @@
 //! Sniff command handler
 
-use crate::error::Result;
+use std::time::Duration;
+
 use crate::cli::types::SniffCommand;
-use crate::serial_core::{SerialSniffer, SnifferConfig};
+use crate::cli::sniff_session::{
+    get_session_stats, read_captured_packets, spawn_sniff_daemon, stop_active_session,
+};
+use crate::error::{Result, SerialError};
 
 pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
     match cmd {
@@ -13,6 +17,22 @@ pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             display,
             format: display_format,
         } => {
+            // Check if there's already an active session
+            if let Ok(Some(meta)) = crate::cli::sniff_session::load_session() {
+                if crate::cli::sniff_session::is_process_running(meta.pid) {
+                    return Err(SerialError::Io(std::io::Error::new(
+                        std::io::ErrorKind::AlreadyExists,
+                        format!(
+                            "An active sniff session is already running on port '{}' (PID {}). Use 'sniff stop' first.",
+                            meta.port, meta.pid
+                        ),
+                    )));
+                } else {
+                    // Stale session — clean up
+                    crate::cli::sniff_session::clear_session()?;
+                }
+            }
+
             tracing::info!("Starting sniff on port: {}", port);
             tracing::info!("Max packets: {}", max_packets);
             let display_str = if display { "enabled" } else { "disabled" };
@@ -23,77 +43,98 @@ pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
             }
             tracing::info!("");
 
-            // Create sniffer configuration
-            let mut sniffer_config = SnifferConfig {
+            // Spawn background daemon process
+            let meta = spawn_sniff_daemon(
+                &port,
+                output.as_deref(),
                 max_packets,
-                hex_display: display_format == "hex",
-                ..SnifferConfig::default()
+                display_format == "hex",
+            )?;
+
+            println!("✓ Sniffing started on port: {} (PID: {})", meta.port, meta.pid);
+            if display {
+                println!("  Real-time display enabled");
+            }
+            if let Some(ref p) = meta.output_path {
+                println!("  Output file: {}", p.display());
+            }
+            let max_packets_str = if meta.max_packets == 0 {
+                "unlimited".to_string()
+            } else {
+                meta.max_packets.to_string()
             };
-
-            if output.is_some() {
-                sniffer_config.save_to_file = true;
-                if let Some(ref out_path) = output {
-                    if let Some(parent) = out_path.parent() {
-                        sniffer_config.output_dir = parent.to_path_buf();
-                    }
-                }
-            }
-
-            // Create sniffer
-            let sniffer = SerialSniffer::new(sniffer_config.clone());
-
-            // Start sniffing
-            match sniffer.start_sniffing(&port).await {
-                Ok(_session) => {
-                    tracing::info!("\u{2713} Sniffing started successfully on port: {}", port);
-                    if display {
-                        tracing::info!("Real-time display enabled - Press Ctrl+C to stop");
-                        tracing::info!("");
-                    } else {
-                        tracing::info!("Press Ctrl+C to stop sniffing");
-                    }
-
-                    // Keep sniffing until interrupted
-                    tokio::signal::ctrl_c()
-                        .await
-                        .map_err(crate::error::SerialError::Io)?;
-
-                    tracing::info!("\nStopping sniff...");
-
-                    // Get packet statistics
-                    let packet_count = sniffer.packet_count().await;
-                    tracing::info!("Captured {} packets", packet_count);
-
-                    // Save to file if requested
-                    if let Some(out_path) = output {
-                        tracing::info!("Saving to: {}", out_path.display());
-                        if let Err(e) = sniffer.save_to_file(&out_path).await {
-                            tracing::info!("Warning: Failed to save: {}", e);
-                        } else {
-                            tracing::info!("\u{2713} Saved successfully");
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::info!("\u{2717} Failed to start sniffing: {}", e);
-                    return Err(e);
-                }
-            }
+            println!("  Max packets:  {}", max_packets_str);
+            println!("  Use 'sniff stats' to view statistics");
+            println!("  Use 'sniff stop' to stop sniffing");
         }
         SniffCommand::Stop => {
-            println!("Stopping active sniff session...");
-            println!("Note: Session tracking will be implemented in a future version");
+            stop_active_session()?;
         }
         SniffCommand::Stats => {
-            println!("Sniff statistics:");
-            println!("No active sniff session");
-            println!("Note: Statistics tracking requires an active sniffing session");
+            let meta = get_session_stats()?;
+            let elapsed = Duration::from_secs(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    - meta.started_at,
+            );
+
+            let max_packets_display = if meta.max_packets == 0 {
+                "unlimited".to_string()
+            } else {
+                meta.max_packets.to_string()
+            };
+            println!("Sniff session statistics:");
+            println!("  Port:         {}", meta.port);
+            println!("  PID:          {}", meta.pid);
+            println!("  Started:      {} ago", format_duration(elapsed));
+            println!("  Max packets:  {}", max_packets_display);
+            println!("  Hex display:  {}", meta.hex_display);
+
+            if let Some(ref output) = meta.output_path {
+                if output.exists() {
+                    let content = read_captured_packets(output)?;
+                    let line_count = content.lines().count();
+                    println!("  Output file:  {} ({} lines)", output.display(), line_count);
+                } else {
+                    println!("  Output file:  {} (not yet written)", output.display());
+                }
+            }
         }
         SniffCommand::Save { path } => {
-            println!("Saving captured packets to: {}", path.display());
-            println!("Note: This command requires an active sniffing session");
-            println!("Use 'sniff start' to begin a sniffing session first");
+            let meta = get_session_stats()?;
+
+            // Try to read from the session's output file if one exists
+            if let Some(ref session_output) = meta.output_path {
+                if session_output.exists() {
+                    let content = read_captured_packets(session_output)?;
+                    std::fs::write(&path, content).map_err(SerialError::Io)?;
+                    println!("✓ Captured packets saved to: {}", path.display());
+                } else {
+                    return Err(SerialError::Io(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "No captured data available yet",
+                    )));
+                }
+            } else {
+                return Err(SerialError::Io(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Session has no output file configured. Restart with --output to enable saving.",
+                )));
+            }
         }
     }
     Ok(())
+}
+
+fn format_duration(d: Duration) -> String {
+    let secs = d.as_secs();
+    if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        format!("{}m {}s", secs / 60, secs % 60)
+    } else {
+        format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
+    }
 }

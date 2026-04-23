@@ -1,8 +1,8 @@
 //! Batch command handler
 
-use crate::error::{Result, SerialError};
 use crate::cli::types::BatchCommand;
-use crate::cli::batch::{BatchConfig, BatchRunner};
+use crate::cli::batch::{BatchConfig, BatchLine, BatchRunner};
+use crate::error::{Result, SerialError};
 
 pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
     match cmd {
@@ -35,7 +35,7 @@ pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
             };
 
             // Create batch runner
-            let runner = BatchRunner::new(config)?;
+            let mut runner = BatchRunner::new(config)?;
 
             // Check if it's a single script or a batch file
             if script.extension().is_some_and(|e| e == "lua") {
@@ -52,27 +52,21 @@ pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                     }
                 }
             } else {
-                // Assume it's a batch file containing list of scripts
+                // Assume it's a batch file
+                println!("Parsing batch file...");
+
+                let lines = runner.parse_batch_file(&script)?;
+
+                // Report what was parsed
+                let script_count = lines.iter().filter(|l| matches!(l, BatchLine::Script(_))).count();
+                let set_count = lines.iter().filter(|l| matches!(l, BatchLine::Set { .. })).count();
+                let loop_count = lines.iter().filter(|l| matches!(l, BatchLine::Loop { .. })).count();
+                println!("Found {} scripts, {} variable assignments, {} loops", script_count, set_count, loop_count);
+                println!();
+
                 println!("Executing batch script file...");
 
-                let content =
-                    std::fs::read_to_string(&script).map_err(SerialError::Io)?;
-
-                let script_paths: Vec<&std::path::Path> = content
-                    .lines()
-                    .filter(|line| !line.trim().is_empty() && !line.trim().starts_with('#'))
-                    .map(|line| std::path::Path::new(line.trim()))
-                    .collect();
-
-                if script_paths.is_empty() {
-                    println!("\u{26A0} No scripts found in batch file");
-                    return Ok(());
-                }
-
-                println!("Found {} scripts to execute", script_paths.len());
-
-                // Run scripts in sequence
-                match runner.run_scripts(script_paths).await {
+                match runner.run_batch_lines(lines).await {
                     Ok(result) => {
                         println!();
                         println!("Batch execution completed:");
@@ -87,8 +81,12 @@ pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                         if failed > 0 {
                             println!();
                             println!("Failed scripts:");
-                            for result in result.results.iter().filter(|r| !r.success) {
-                                println!("  - {}", result.script);
+                            for r in result.results.iter().filter(|r| !r.success) {
+                                if let Some(ref err) = r.error {
+                                    println!("  - {} ({})", r.script, err);
+                                } else {
+                                    println!("  - {}", r.script);
+                                }
                             }
                         }
                     }
@@ -101,29 +99,61 @@ pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
         }
         BatchCommand::List => {
             println!("Batch scripts:");
-            println!("Looking for batch scripts in current directory...");
 
-            // List common batch script locations
-            let batch_files = vec!["batch.txt", "scripts.txt", "batch.lua", "scripts.batch"];
+            // Search in multiple common locations
+            let mut search_dirs: Vec<std::path::PathBuf> = vec![
+                std::env::current_dir().unwrap_or_default(),
+            ];
 
-            let mut found = false;
-            for batch_file in batch_files {
-                if std::path::Path::new(batch_file).exists() {
-                    println!("  \u{2713} {}", batch_file);
-                    found = true;
+            if let Some(home) = dirs_or_home() {
+                search_dirs.push(home.join(".config").join("serial_cli"));
+            } else {
+                tracing::warn!("Could not determine home directory — skipping ~/.config/serial_cli batch search");
+            }
+
+            let batch_extensions = ["batch", "txt", "lua"];
+
+            let mut found_any = false;
+            for dir in &search_dirs {
+                if !dir.exists() {
+                    continue;
+                }
+
+                let entries = match std::fs::read_dir(dir) {
+                    Ok(entries) => entries,
+                    Err(_) => continue,
+                };
+
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    if path.is_file() {
+                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                            if batch_extensions.contains(&ext) {
+                                println!("  \u{2713} {}", path.display());
+                                found_any = true;
+                            }
+                        }
+                    }
                 }
             }
 
-            if !found {
+            if !found_any {
                 println!("  No batch scripts found");
                 println!();
                 println!("Create a batch script file with one Lua script per line:");
                 println!("  # Comments start with #");
-                println!("  script1.lua");
-                println!("  script2.lua");
-                println!("  script3.lua");
+                println!("  set PORT /dev/ttyUSB0");
+                println!("  loop 3");
+                println!("    script1.lua");
+                println!("    sleep 500");
+                println!("  end");
             }
         }
     }
     Ok(())
+}
+
+/// Get the user's home directory, falling back gracefully
+fn dirs_or_home() -> Option<std::path::PathBuf> {
+    directories::BaseDirs::new().map(|d| d.home_dir().to_path_buf())
 }

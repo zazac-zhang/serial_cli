@@ -7,6 +7,7 @@ pub mod batch;
 pub mod commands;
 pub mod interactive;
 pub mod json;
+pub mod sniff_session;
 pub mod types;
 
 pub use args::{Cli, Commands};
