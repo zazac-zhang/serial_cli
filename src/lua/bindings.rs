@@ -686,8 +686,10 @@ impl LuaBindings {
 
     /// Register protocol_load API
     pub fn register_protocol_load(&self) -> Result<()> {
-        let load = self.lua.create_function(|_lua, path: String| {
-            use crate::protocol::ProtocolValidator;
+        use crate::protocol::ProtocolValidator;
+
+        let load = self.lua.create_function(move |_lua, path: String| {
+            let cm = crate::config::ConfigManager::load_with_fallback();
 
             // Validate the path exists
             let path_obj = std::path::PathBuf::from(&path);
@@ -696,9 +698,40 @@ impl LuaBindings {
             }
 
             // Validate the script
-            match ProtocolValidator::validate_script(&path_obj) {
-                Ok(_) => Ok((true, "Protocol loaded successfully".to_string())),
-                Err(e) => Ok((false, format!("Validation failed: {}", e))),
+            if let Err(e) = ProtocolValidator::validate_script(&path_obj) {
+                return Ok((false, format!("Validation failed: {}", e)));
+            }
+
+            // Derive protocol name from filename stem
+            let proto_name = path_obj
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            // Check it's not a built-in
+            if crate::protocol::built_in::is_builtin_protocol(&proto_name) {
+                return Ok((false, format!("Cannot load: '{}' is a reserved built-in protocol name", proto_name)));
+            }
+
+            // If already loaded, reload it instead
+            if cm.get_custom_protocol(&proto_name).is_some() {
+                match cm.update_custom_protocol(proto_name.clone(), path_obj.clone()) {
+                    Ok(_) => {
+                        let _ = cm.save(None);
+                        Ok((true, format!("Protocol reloaded: {} (from {})", proto_name, path)))
+                    }
+                    Err(e) => Ok((false, format!("Failed to reload protocol: {}", e))),
+                }
+            } else {
+                // Add to config
+                match cm.add_custom_protocol(proto_name.clone(), path_obj.clone()) {
+                    Ok(_) => {
+                        let _ = cm.save(None);
+                        Ok((true, format!("Protocol loaded: {} (from {})", proto_name, path)))
+                    }
+                    Err(e) => Ok((false, format!("Failed to load protocol: {}", e))),
+                }
             }
         })?;
         self.lua.globals().set("protocol_load", load)?;
@@ -707,10 +740,21 @@ impl LuaBindings {
 
     /// Register protocol_unload API
     pub fn register_protocol_unload(&self) -> Result<()> {
-        let unload = self.lua.create_function(|_, _name: String| {
-            // For now, just return success
-            // Full implementation will use ProtocolManager
-            Ok((true, "Protocol unloaded successfully".to_string()))
+        let unload = self.lua.create_function(move |_, name: String| {
+            // Check it's not a built-in
+            if crate::protocol::built_in::is_builtin_protocol(&name) {
+                return Ok((false, format!("Cannot unload built-in protocol: {}", name)));
+            }
+
+            let cm = crate::config::ConfigManager::load_with_fallback();
+
+            match cm.remove_custom_protocol(&name) {
+                Ok(_) => {
+                    let _ = cm.save(None);
+                    Ok((true, format!("Protocol unloaded: {}", name)))
+                }
+                Err(e) => Ok((false, format!("Failed to unload protocol: {}", e))),
+            }
         })?;
         self.lua.globals().set("protocol_unload", unload)?;
         Ok(())
@@ -718,10 +762,36 @@ impl LuaBindings {
 
     /// Register protocol_reload API
     pub fn register_protocol_reload(&self) -> Result<()> {
-        let reload = self.lua.create_function(|_, _name: String| {
-            // For now, just return success
-            // Full implementation will use ProtocolManager
-            Ok((true, "Protocol reloaded successfully".to_string()))
+        use crate::protocol::ProtocolValidator;
+
+        let reload = self.lua.create_function(move |_, name: String| {
+            let cm = crate::config::ConfigManager::load_with_fallback();
+
+            // Get existing protocol path
+            let existing = cm.get_custom_protocol(&name);
+            let Some(proto) = existing else {
+                return Ok((false, format!("Custom protocol not found: {}", name)));
+            };
+
+            let script_path = proto.path.clone();
+
+            // Validate the script still exists
+            if !script_path.exists() {
+                return Ok((false, format!("Script file not found: {}", script_path.display())));
+            }
+
+            if let Err(e) = ProtocolValidator::validate_script(&script_path) {
+                return Ok((false, format!("Script validation failed: {}", e)));
+            }
+
+            // Update in config
+            match cm.update_custom_protocol(name.clone(), script_path.clone()) {
+                Ok(_) => {
+                    let _ = cm.save(None);
+                    Ok((true, format!("Protocol reloaded: {}", name)))
+                }
+                Err(e) => Ok((false, format!("Failed to reload protocol: {}", e))),
+            }
         })?;
         self.lua.globals().set("protocol_reload", reload)?;
         Ok(())

@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 /// Global configuration manager
+#[derive(Clone)]
 pub struct ConfigManager {
     config: Arc<RwLock<Config>>,
     config_path: Option<PathBuf>,

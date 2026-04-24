@@ -13,7 +13,7 @@ use std::env;
 use std::fs::{self, File};
 use std::io::Write;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::task::JoinSet;
 
 /// Benchmark runner
@@ -232,16 +232,33 @@ impl BenchmarkRunner {
         println!("\n=== Virtual Port Benchmarks ===\n");
         let mut results = Vec::new();
 
-        // Simulated virtual port creation timing (real creation requires OS-level PTY)
-        let result = self.run(
-            "virtual_port_create_simulation".to_string(),
-            BenchmarkCategory::VirtualPort,
-            || {
-                std::thread::sleep(Duration::from_micros(100));
-                Ok(())
-            },
-        )?;
-        results.push(result);
+        // Real PTY virtual port creation timing
+        use crate::serial_core::{VirtualConfig, VirtualSerialPair};
+        use crate::serial_core::backends::BackendType;
+
+        // Only run on platforms where PTY is available
+        if BackendType::Pty.is_available() {
+            // Pre-build a shared Runtime to avoid measuring Runtime creation overhead
+            let rt = Arc::new(tokio::runtime::Runtime::new()?);
+            let result = self.run(
+                "virtual_port_create_pty".to_string(),
+                BenchmarkCategory::VirtualPort,
+                {
+                    let rt = Arc::clone(&rt);
+                    move || {
+                        rt.block_on(async {
+                            let config = VirtualConfig::default();
+                            let _pair = VirtualSerialPair::create(config).await?;
+                            Ok::<(), crate::error::SerialError>(())
+                        })?;
+                        Ok(())
+                    }
+                },
+            )?;
+            results.push(result);
+        } else {
+            println!("  SKIPPED: PTY backend not available");
+        }
 
         Ok(results)
     }

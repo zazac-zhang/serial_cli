@@ -408,8 +408,7 @@ impl InteractiveShell {
         }
 
         // Validate protocol name
-        let valid_protocols = ["modbus_rtu", "modbus_ascii", "at_command", "line"];
-        if !valid_protocols.contains(&protocol_name) {
+        if !crate::protocol::built_in::is_builtin_protocol(protocol_name) {
             println!("Unknown protocol: {}", protocol_name);
             println!();
             println!("Available protocols:");
