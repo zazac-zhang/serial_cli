@@ -29,7 +29,7 @@ impl ModbusProtocol {
     }
 
     /// Calculate CRC16 for Modbus RTU
-    fn calculate_crc(data: &[u8]) -> u16 {
+    pub fn calculate_crc(data: &[u8]) -> u16 {
         let mut crc: u16 = 0xFFFF;
         for &byte in data {
             crc ^= byte as u16;
@@ -45,7 +45,7 @@ impl ModbusProtocol {
     }
 
     /// Calculate LRC for Modbus ASCII
-    fn calculate_lrc(data: &[u8]) -> u8 {
+    pub fn calculate_lrc(data: &[u8]) -> u8 {
         let mut lrc: u8 = 0;
         for &byte in data {
             lrc = lrc.wrapping_add(byte);

@@ -193,3 +193,34 @@ pub enum ConfigCommand {
     /// Reset configuration to defaults
     Reset,
 }
+
+/// Benchmark subcommands
+#[derive(clap::Subcommand)]
+pub enum BenchmarkCommand {
+    /// Run benchmarks
+    Run {
+        /// Benchmark category (serial-io, virtual-port, protocol, startup, memory, concurrency, all)
+        #[arg(default_value = "all")]
+        category: String,
+
+        /// Number of iterations
+        #[arg(long, default_value = "100")]
+        iterations: u64,
+
+        /// Save results to file
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Compare benchmark results
+    Compare {
+        /// Baseline results file
+        baseline: PathBuf,
+
+        /// Current results file
+        current: PathBuf,
+    },
+
+    /// List available benchmarks
+    List,
+}

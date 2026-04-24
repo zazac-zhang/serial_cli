@@ -5,10 +5,8 @@
 use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::loader::ProtocolLoader;
 use crate::protocol::validator::ProtocolValidator;
-use crate::protocol::watcher::ProtocolWatcher;
 use crate::protocol::{ProtocolInfo, ProtocolRegistry};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -29,8 +27,6 @@ pub struct ProtocolManager {
     custom_protocols: HashMap<String, CustomProtocol>,
     /// Hot-reload watcher task handle
     watcher_task: Option<JoinHandle<()>>,
-    /// Paths being watched for changes
-    watched_paths: Arc<Mutex<HashSet<PathBuf>>>,
     /// Whether hot-reload is enabled
     hot_reload_enabled: Arc<Mutex<bool>>,
 }
@@ -42,7 +38,6 @@ impl ProtocolManager {
             registry,
             custom_protocols: HashMap::new(),
             watcher_task: None,
-            watched_paths: Arc::new(Mutex::new(HashSet::new())),
             hot_reload_enabled: Arc::new(Mutex::new(false)),
         }
     }

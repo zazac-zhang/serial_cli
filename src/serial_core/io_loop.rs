@@ -4,17 +4,18 @@
 
 use crate::error::{Result, SerialError};
 use crate::serial_core::PortManager;
+use bytes::BytesMut;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{timeout, Duration};
 
-/// I/O event
+/// IoEvent with zero-copy BytesMut for received data
 #[derive(Debug, Clone)]
 pub enum IoEvent {
     /// Data received from port
-    DataReceived { port_id: String, data: Vec<u8> },
+    DataReceived { port_id: String, data: BytesMut },
     /// Data sent to port
     DataSent { port_id: String, length: usize },
     /// Port opened
@@ -146,6 +147,9 @@ impl IoLoop {
         let io_task: JoinHandle<()> = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(config.read_timeout_ms));
 
+            // Pre-allocate a reusable buffer per port (pool pattern)
+            let mut port_buffers: HashMap<String, BytesMut> = HashMap::new();
+
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
@@ -162,22 +166,31 @@ impl IoLoop {
                                 Err(_) => continue,
                             };
 
+                            // Get or create a reusable buffer for this port
+                            let buffer = port_buffers
+                                .entry(port_id.clone())
+                                .or_insert_with(|| BytesMut::with_capacity(config.buffer_size));
+
+                            // Ensure buffer has enough capacity
+                            buffer.resize(config.buffer_size, 0);
+
                             let mut handle = port_handle.lock().await;
-                            let mut buffer = vec![0u8; config.buffer_size];
 
                             // Non-blocking read with timeout
                             match timeout(Duration::from_millis(10), async {
-                                handle.read(&mut buffer)
+                                handle.read(buffer.as_mut())
                             })
                             .await
                             {
                                 Ok(Ok(n)) if n > 0 => {
                                     buffer.truncate(n);
+                                    // Split to get owned BytesMut without copying
+                                    let data = buffer.split();
 
                                     let _ = event_tx
                                         .send(IoEvent::DataReceived {
                                             port_id: port_id.clone(),
-                                            data: buffer,
+                                            data,
                                         })
                                         .await;
                                 }

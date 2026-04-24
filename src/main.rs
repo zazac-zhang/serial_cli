@@ -7,7 +7,7 @@ use clap::Parser;
 use serial_cli::cli::args::{Cli, Commands};
 use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::cli::commands::{
-    batch as batch_cmd, config as config_cmd, ports, protocol as protocol_cmd,
+    batch as batch_cmd, benchmark as benchmark_cmd, config as config_cmd, ports, protocol as protocol_cmd,
     script, sniff as sniff_cmd, virtual_port,
 };
 use serial_cli::cli::sniff_session;
@@ -62,6 +62,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Virtual { virtual_command }) => {
             virtual_port::handle_virtual_command(virtual_command).await?;
+        }
+        Some(Commands::Benchmark { benchmark_command }) => {
+            benchmark_cmd::handle_benchmark_command(benchmark_command)?;
         }
         Some(Commands::SniffDaemon {
             port,

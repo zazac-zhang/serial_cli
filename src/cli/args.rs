@@ -4,7 +4,7 @@
 
 use clap::{Parser, Subcommand};
 
-use super::types::{BatchCommand, ConfigCommand, ProtocolCommand, SniffCommand, VirtualCommand};
+use super::types::{BatchCommand, BenchmarkCommand, ConfigCommand, ProtocolCommand, SniffCommand, VirtualCommand};
 
 #[derive(Parser)]
 #[command(name = "serial-cli")]
@@ -78,6 +78,12 @@ pub enum Commands {
     Virtual {
         #[command(subcommand)]
         virtual_command: VirtualCommand,
+    },
+
+    /// Performance benchmarking
+    Benchmark {
+        #[command(subcommand)]
+        benchmark_command: BenchmarkCommand,
     },
 
     /// (Internal) Background sniff daemon — not for direct user invocation
