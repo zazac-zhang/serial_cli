@@ -414,12 +414,22 @@ impl LuaBindings {
 
         let create = self.lua.create_function(move |lua, (backend, monitor): (Option<String>, Option<bool>)| {
             use crate::serial_core::{VirtualBackend, VirtualConfig, VirtualSerialPair};
+            use crate::serial_core::backends::BackendType;
 
             let backend_type = match backend.as_deref() {
                 Some("pty") => VirtualBackend::Pty,
                 Some("namedpipe") => VirtualBackend::NamedPipe,
                 Some("socat") => VirtualBackend::Socat,
-                None => VirtualBackend::default_for_platform(),
+                None => {
+                    // Use auto-detection
+                    let detected = BackendType::detect();
+                    match detected {
+                        BackendType::Pty => VirtualBackend::Pty,
+                        BackendType::NamedPipe => VirtualBackend::NamedPipe,
+                        BackendType::Socat => VirtualBackend::Socat,
+                        BackendType::Auto => VirtualBackend::Pty, // fallback
+                    }
+                }
                 Some(other) => {
                     return Err(mlua::Error::RuntimeError(format!(
                         "Unknown backend: {}. Available: pty, namedpipe, socat",

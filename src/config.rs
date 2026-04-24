@@ -180,6 +180,17 @@ impl ConfigManager {
         Ok(())
     }
 
+    /// Get the virtual backend type from config
+    pub fn get_virtual_backend_type(&self) -> crate::serial_core::backends::BackendType {
+        self.config
+            .read()
+            .unwrap()
+            .virtual_ports
+            .backend
+            .parse()
+            .unwrap_or(crate::serial_core::backends::BackendType::Auto)
+    }
+
     /// Add a custom protocol to the configuration
     ///
     /// Returns error if a protocol with the same name already exists.

@@ -2,6 +2,8 @@
 //!
 //! This module provides serial port management and I/O operations.
 
+pub mod backends;
+pub mod factory;
 pub mod io_loop;
 pub mod port;
 pub mod signals;
@@ -11,6 +13,8 @@ pub mod virtual_port;
 #[cfg(windows)]
 pub mod windows_signals;
 
+pub use backends::{BackendType, VirtualBackend as VirtualBackendTrait};
+pub use factory::BackendFactory;
 pub use io_loop::IoLoop;
 pub use port::{FlowControl, Parity, PortManager, SerialConfig, SerialPortHandle};
 pub use signals::{create_signal_controller, PlatformSignals, SignalState};

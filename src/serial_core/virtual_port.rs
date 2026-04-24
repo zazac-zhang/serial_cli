@@ -4,6 +4,7 @@
 //! and debugging serial communication without physical hardware.
 
 use crate::error::{Result, SerialError};
+use crate::serial_core::backends::{BackendType, BackendStats, VirtualBackend as VirtualBackendTrait};
 use crate::serial_core::sniffer::{SerialSniffer, SnifferConfig};
 use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -71,7 +72,7 @@ impl PacketCapture {
 #[derive(Debug, Clone)]
 pub struct VirtualConfig {
     /// Backend type for creating virtual ports
-    pub backend: VirtualBackend,
+    pub backend: BackendType,
 
     /// Enable traffic monitoring
     pub monitor: bool,
@@ -89,7 +90,7 @@ pub struct VirtualConfig {
 impl Default for VirtualConfig {
     fn default() -> Self {
         Self {
-            backend: VirtualBackend::Pty,
+            backend: BackendType::Auto,
             monitor: false,
             monitor_output: None,
             max_packets: 0,
@@ -98,50 +99,9 @@ impl Default for VirtualConfig {
     }
 }
 
-/// Virtual port backend type
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum VirtualBackend {
-    /// POSIX PTY (pseudo-terminal) - Unix/Linux/macOS
-    Pty,
-
-    /// Windows Named Pipes - Windows only
-    NamedPipe,
-
-    /// External socat process - Cross-platform
-    Socat,
-}
-
-impl VirtualBackend {
-    /// Get the default backend for the current platform
-    pub fn default_for_platform() -> Self {
-        #[cfg(unix)]
-        return VirtualBackend::Pty;
-
-        #[cfg(windows)]
-        return VirtualBackend::NamedPipe;
-    }
-
-    /// Check if this backend is available on the current platform
-    pub fn is_available(&self) -> bool {
-        match self {
-            VirtualBackend::Pty => {
-                #[cfg(unix)]
-                return true;
-
-                #[cfg(not(unix))]
-                return false;
-            }
-            VirtualBackend::NamedPipe => {
-                #[cfg(windows)]
-                return true;
-
-                #[cfg(not(windows))]
-                return false;
-            }
-            VirtualBackend::Socat => true, // Available everywhere if installed
-        }
-    }
-}
+/// Virtual port backend type (legacy alias for compatibility)
+#[deprecated(note = "Use BackendType from serial_core::backends instead")]
+pub type VirtualBackend = BackendType;
 
 #[cfg(unix)]
 #[cfg(unix)]
@@ -227,19 +187,42 @@ impl VirtualSerialPair {
         // Create the virtual pair based on backend
         let (port_a, port_b, master_fds, bridge_task, error_rx, stats) =
             match config.backend {
-                VirtualBackend::Pty => Self::create_pty_pair(
+                BackendType::Auto => {
+                    // Auto-detect based on platform
+                    let detected = BackendType::detect();
+                    tracing::info!("Auto-detected backend: {:?}", detected);
+                    match detected {
+                        BackendType::Pty => Self::create_pty_pair(
+                            config.bridge_buffer_size,
+                            Arc::clone(&running),
+                            capture.clone(),
+                        )?,
+                        BackendType::NamedPipe => {
+                            return Err(SerialError::VirtualPort(
+                                "NamedPipe backend not yet implemented via old API".to_string(),
+                            ))
+                        }
+                        BackendType::Socat => {
+                            return Err(SerialError::VirtualPort(
+                                "Socat backend not yet implemented via old API".to_string(),
+                            ))
+                        }
+                        BackendType::Auto => unreachable!(),
+                    }
+                }
+                BackendType::Pty => Self::create_pty_pair(
                     config.bridge_buffer_size,
                     Arc::clone(&running),
                     capture.clone(),
                 )?,
-                VirtualBackend::NamedPipe => {
+                BackendType::NamedPipe => {
                     return Err(SerialError::VirtualPort(
-                        "NamedPipe backend not yet implemented".to_string(),
+                        "NamedPipe backend not yet implemented via old API".to_string(),
                     ))
                 }
-                VirtualBackend::Socat => {
+                BackendType::Socat => {
                     return Err(SerialError::VirtualPort(
-                        "Socat backend not yet implemented".to_string(),
+                        "Socat backend not yet implemented via old API".to_string(),
                     ))
                 }
             };
@@ -802,7 +785,7 @@ mod tests {
 
     #[test]
     fn test_default_backend_for_platform() {
-        let backend = VirtualBackend::default_for_platform();
+        let backend = BackendType::detect();
         assert!(backend.is_available());
     }
 

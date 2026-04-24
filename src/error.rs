@@ -50,6 +50,18 @@ pub enum SerialError {
     /// Virtual port errors
     #[error("Virtual port error: {0}")]
     VirtualPort(String),
+
+    /// Unsupported backend for this platform
+    #[error("Unsupported backend for this platform: {0}")]
+    UnsupportedBackend(String),
+
+    /// Missing required dependency
+    #[error("Missing required dependency: {0}\nHint: {1}")]
+    MissingDependency(String, String),
+
+    /// Backend initialization failed
+    #[error("Backend initialization failed: {0}")]
+    BackendInitFailed(String),
 }
 
 /// Serial port specific errors
