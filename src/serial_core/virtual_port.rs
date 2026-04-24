@@ -792,7 +792,7 @@ mod tests {
     #[test]
     fn test_virtual_config_default() {
         let config = VirtualConfig::default();
-        assert_eq!(config.backend, VirtualBackend::Pty);
+        assert_eq!(config.backend, BackendType::Auto);
         assert!(!config.monitor);
         assert!(config.monitor_output.is_none());
         assert_eq!(config.max_packets, 0);
@@ -815,7 +815,8 @@ mod tests {
         assert!(!pair.id.is_empty());
         assert!(!pair.port_a.is_empty());
         assert!(!pair.port_b.is_empty());
-        assert_eq!(pair.backend, VirtualBackend::Pty);
+        // Auto backend should resolve to Pty on Unix
+        assert_eq!(pair.backend, BackendType::Auto);
         assert!(pair.is_running());
 
         // Verify file descriptors are stored
