@@ -99,10 +99,6 @@ impl Default for VirtualConfig {
     }
 }
 
-/// Virtual port backend type (legacy alias for compatibility)
-#[deprecated(note = "Use BackendType from serial_core::backends instead")]
-pub type VirtualBackend = BackendType;
-
 #[cfg(unix)]
 #[cfg(unix)]
 type PtyMasters = (Arc<AsyncFd<OwnedFd>>, Arc<AsyncFd<OwnedFd>>);
@@ -129,7 +125,7 @@ pub struct VirtualSerialPair {
     pub port_b: String,
 
     /// Backend type used
-    pub backend: VirtualBackend,
+    pub backend: BackendType,
 
     /// Sniffer for monitoring traffic
     sniffer: Option<SerialSniffer>,
@@ -740,7 +736,7 @@ pub struct VirtualStats {
     pub port_b: String,
 
     /// Backend type
-    pub backend: VirtualBackend,
+    pub backend: BackendType,
 
     /// Running state
     pub running: bool,
@@ -773,13 +769,13 @@ mod tests {
 
     #[test]
     fn test_virtual_backend_availability() {
-        let pty = VirtualBackend::Pty;
+        let pty = BackendType::Pty;
         assert_eq!(pty.is_available(), cfg!(unix));
 
-        let named_pipe = VirtualBackend::NamedPipe;
+        let named_pipe = BackendType::NamedPipe;
         assert_eq!(named_pipe.is_available(), cfg!(windows));
 
-        let socat = VirtualBackend::Socat;
+        let socat = BackendType::Socat;
         assert!(socat.is_available());
     }
 

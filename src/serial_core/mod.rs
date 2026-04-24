@@ -13,7 +13,7 @@ pub mod virtual_port;
 #[cfg(windows)]
 pub mod windows_signals;
 
-pub use backends::{BackendType, VirtualBackend as VirtualBackendTrait};
+pub use backends::BackendType;
 pub use factory::BackendFactory;
 pub use io_loop::IoLoop;
 pub use port::{FlowControl, Parity, PortManager, SerialConfig, SerialPortHandle};
@@ -21,7 +21,7 @@ pub use signals::{create_signal_controller, PlatformSignals, SignalState};
 pub use sniffer::{CapturedPacket, PacketDirection, SerialSniffer, SnifferConfig, SnifferSession};
 pub use virtual_port::{
     CapturedPacket as VirtualCapturedPacket, PacketCapture, PacketDirection as VirtualPacketDirection,
-    VirtualBackend, VirtualConfig, VirtualSerialPair, VirtualStats,
+    VirtualConfig, VirtualSerialPair, VirtualStats,
 };
 
 #[cfg(windows)]
