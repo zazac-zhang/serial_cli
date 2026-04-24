@@ -3,11 +3,13 @@
 //! This backend creates virtual serial port pairs using the socat utility.
 
 use crate::error::{Result, SerialError};
-use crate::serial_core::backends::{BackendStats, VirtualBackend, VirtualPortEnd};
+use crate::serial_core::backends::{
+    BackendStats, BridgeErrorRx, BridgeStats, VirtualBackend, VirtualPortEnd,
+};
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 /// Socat backend implementation
 pub struct SocatBackend {
@@ -51,7 +53,9 @@ impl SocatBackend {
 
 #[async_trait]
 impl VirtualBackend for SocatBackend {
-    async fn create_pair(&mut self) -> Result<(VirtualPortEnd, VirtualPortEnd)> {
+    async fn create_pair(
+        &mut self,
+    ) -> Result<(VirtualPortEnd, VirtualPortEnd, BridgeErrorRx, BridgeStats)> {
         // Check if socat is available
         if !Self::check_available().await {
             return Err(SerialError::MissingDependency(
@@ -98,6 +102,12 @@ impl VirtualBackend for SocatBackend {
         self.created = true;
         self.start_time = SystemTime::now();
 
+        // Socat handles bridging internally — no error channel needed.
+        // Create a zero-capacity channel that's never used.
+        let (error_tx, error_rx) = mpsc::channel::<String>(0);
+        drop(error_tx);
+        let stats = Arc::clone(&self.stats);
+
         Ok((
             VirtualPortEnd {
                 name: "A".into(),
@@ -107,6 +117,8 @@ impl VirtualBackend for SocatBackend {
                 name: "B".into(),
                 path: self.port_b_path.clone(),
             },
+            error_rx,
+            stats,
         ))
     }
 
@@ -129,11 +141,7 @@ impl VirtualBackend for SocatBackend {
 
     async fn get_stats(&self) -> BackendStats {
         let mut stats = self.stats.lock().await;
-        stats.uptime_seconds = self
-            .start_time
-            .elapsed()
-            .unwrap_or_default()
-            .as_secs();
+        stats.uptime_seconds = self.start_time.elapsed().unwrap_or_default().as_secs();
         stats.clone()
     }
 
@@ -194,7 +202,7 @@ mod tests {
             return;
         }
 
-        let (port_a, port_b) = result.unwrap();
+        let (port_a, port_b, _error_rx, _stats) = result.unwrap();
         assert_eq!(port_a.name, "A");
         assert_eq!(port_b.name, "B");
         assert!(backend.created);

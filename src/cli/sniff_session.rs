@@ -60,7 +60,10 @@ fn session_file() -> Result<PathBuf> {
 pub fn save_session(meta: &SniffSessionMeta) -> Result<()> {
     let path = session_file()?;
     let json = serde_json::to_string_pretty(meta).map_err(|e| {
-        SerialError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
+        SerialError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            e.to_string(),
+        ))
     })?;
     fs::write(&path, json).map_err(SerialError::Io)?;
     Ok(())
@@ -74,7 +77,10 @@ pub fn load_session() -> Result<Option<SniffSessionMeta>> {
     }
     let content = fs::read_to_string(&path).map_err(SerialError::Io)?;
     let meta: SniffSessionMeta = serde_json::from_str(&content).map_err(|e| {
-        SerialError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
+        SerialError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            e.to_string(),
+        ))
     })?;
     Ok(Some(meta))
 }
@@ -92,17 +98,13 @@ pub fn clear_session() -> Result<()> {
 #[cfg(unix)]
 pub fn is_process_running(pid: u32) -> bool {
     // SAFETY: kill syscall with sig=0 is the standard POSIX way to check process existence
-    unsafe {
-        libc::kill(pid as libc::pid_t, 0) == 0
-    }
+    unsafe { libc::kill(pid as libc::pid_t, 0) == 0 }
 }
 
 #[cfg(windows)]
 pub fn is_process_running(pid: u32) -> bool {
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_INFORMATION, SYNCHRONIZE,
-    };
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, SYNCHRONIZE};
     let rights = PROCESS_QUERY_INFORMATION | SYNCHRONIZE;
     unsafe {
         let handle = OpenProcess(rights, false, pid);
@@ -137,9 +139,7 @@ pub fn stop_process(pid: u32) -> Result<()> {
 #[cfg(windows)]
 pub fn stop_process(pid: u32) -> Result<()> {
     use windows::Win32::Foundation::{CloseHandle, HANDLE, WIN32_ERROR};
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_TERMINATE, TerminateProcess,
-    };
+    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
     let rights = PROCESS_TERMINATE;
     let handle = unsafe { OpenProcess(rights, false, pid) }.map_err(|e| {
         SerialError::Io(std::io::Error::new(

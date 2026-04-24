@@ -1,8 +1,8 @@
 //! Config command handler
 
-use crate::error::Result;
 use crate::cli::types::ConfigCommand;
 use crate::config::ConfigManager;
+use crate::error::Result;
 
 pub fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
     let config_manager = ConfigManager::load_with_fallback();
@@ -46,11 +46,20 @@ pub fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 println!("[virtual]");
                 println!("  backend = \"{}\"", config.virtual_ports.backend);
                 println!("  monitor = {}", config.virtual_ports.monitor);
-                println!("  monitor_format = \"{}\"", config.virtual_ports.monitor_format);
+                println!(
+                    "  monitor_format = \"{}\"",
+                    config.virtual_ports.monitor_format
+                );
                 println!("  auto_cleanup = {}", config.virtual_ports.auto_cleanup);
                 println!("  max_packets = {}", config.virtual_ports.max_packets);
-                println!("  bridge_buffer_size = {}", config.virtual_ports.bridge_buffer_size);
-                println!("  bridge_poll_interval_ms = {}", config.virtual_ports.bridge_poll_interval_ms);
+                println!(
+                    "  bridge_buffer_size = {}",
+                    config.virtual_ports.bridge_buffer_size
+                );
+                println!(
+                    "  bridge_poll_interval_ms = {}",
+                    config.virtual_ports.bridge_poll_interval_ms
+                );
                 println!();
                 println!("Use 'config set <key> <value>' to modify configuration");
                 println!("Use 'config save [path]' to save configuration to file");

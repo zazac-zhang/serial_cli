@@ -33,8 +33,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("  Virtual pair created!");
     println!("  ID:      {}", pair.id);
-    println!("  Port A:  {} (system-registered character device)", pair.port_a);
-    println!("  Port B:  {} (system-registered character device)", pair.port_b);
+    println!(
+        "  Port A:  {} (system-registered character device)",
+        pair.port_a
+    );
+    println!(
+        "  Port B:  {} (system-registered character device)",
+        pair.port_b
+    );
     println!("  Backend: PTY (POSIX pseudo-terminal)");
     println!("  Running: {}\n", pair.is_running());
 

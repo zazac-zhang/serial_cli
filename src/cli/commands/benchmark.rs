@@ -1,6 +1,6 @@
 //! Benchmark command handler
 
-use crate::benchmark::{BenchmarkCategory, BenchmarkRunner, BenchmarkReport};
+use crate::benchmark::{BenchmarkCategory, BenchmarkReport, BenchmarkRunner};
 use crate::cli::types::BenchmarkCommand;
 use crate::error::{Result, SerialError};
 use std::path::PathBuf;
@@ -12,9 +12,7 @@ pub fn handle_benchmark_command(cmd: BenchmarkCommand) -> Result<()> {
             iterations,
             output,
         } => run_benchmarks(&category, iterations, output),
-        BenchmarkCommand::Compare { baseline, current } => {
-            compare_benchmarks(&baseline, &current)
-        }
+        BenchmarkCommand::Compare { baseline, current } => compare_benchmarks(&baseline, &current),
         BenchmarkCommand::List => list_benchmarks(),
     }
 }
@@ -103,7 +101,10 @@ fn compare_benchmarks(baseline: &PathBuf, current: &PathBuf) -> Result<()> {
     println!("Summary:");
     println!("  Regressions: {}", regression_count);
     println!("  Improvements: {}", improvement_count);
-    println!("  Unchanged: {}", comparisons.len() - regression_count - improvement_count);
+    println!(
+        "  Unchanged: {}",
+        comparisons.len() - regression_count - improvement_count
+    );
 
     Ok(())
 }
@@ -126,8 +127,9 @@ fn list_benchmarks() -> Result<()> {
 }
 
 fn save_benchmark_results(report: &BenchmarkReport, path: &PathBuf) -> Result<()> {
-    let json = serde_json::to_string_pretty(report)
-        .map_err(|e| SerialError::Config(format!("Failed to serialize benchmark results: {}", e)))?;
+    let json = serde_json::to_string_pretty(report).map_err(|e| {
+        SerialError::Config(format!("Failed to serialize benchmark results: {}", e))
+    })?;
     std::fs::write(path, json)
         .map_err(|e| SerialError::Config(format!("Failed to write benchmark results: {}", e)))?;
 

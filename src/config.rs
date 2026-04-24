@@ -165,9 +165,9 @@ impl ConfigManager {
                 config.virtual_ports.bridge_buffer_size = size;
             }
             ["virtual", "bridge_poll_interval_ms"] => {
-                let interval = value
-                    .parse::<u64>()
-                    .map_err(|_| SerialError::Config(format!("Invalid poll interval: {}", value)))?;
+                let interval = value.parse::<u64>().map_err(|_| {
+                    SerialError::Config(format!("Invalid poll interval: {}", value))
+                })?;
                 config.virtual_ports.bridge_poll_interval_ms = interval;
             }
             _ => {
@@ -218,9 +218,10 @@ impl ConfigManager {
     /// Update an existing custom protocol (for reload). Atomic single-lock operation.
     pub fn update_custom_protocol(&self, name: String, path: PathBuf) -> Result<()> {
         let mut config = self.config.write().unwrap();
-        let entry = config.protocols.custom.get_mut(&name).ok_or_else(|| {
-            SerialError::Config(format!("Custom protocol not found: {}", name))
-        })?;
+        let entry =
+            config.protocols.custom.get_mut(&name).ok_or_else(|| {
+                SerialError::Config(format!("Custom protocol not found: {}", name))
+            })?;
         entry.path = path;
         entry.version += 1;
         entry.loaded_at = Some(chrono::Local::now().to_rfc3339());

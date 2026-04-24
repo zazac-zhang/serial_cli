@@ -4,7 +4,9 @@
 
 use clap::{Parser, Subcommand};
 
-use super::types::{BatchCommand, BenchmarkCommand, ConfigCommand, ProtocolCommand, SniffCommand, VirtualCommand};
+use super::types::{
+    BatchCommand, BenchmarkCommand, ConfigCommand, ProtocolCommand, SniffCommand, VirtualCommand,
+};
 
 #[derive(Parser)]
 #[command(name = "serial-cli")]

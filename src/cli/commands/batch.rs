@@ -1,7 +1,7 @@
 //! Batch command handler
 
-use crate::cli::types::BatchCommand;
 use crate::cli::batch::{BatchConfig, BatchLine, BatchRunner};
+use crate::cli::types::BatchCommand;
 use crate::error::{Result, SerialError};
 
 pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
@@ -58,10 +58,22 @@ pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
                 let lines = runner.parse_batch_file(&script)?;
 
                 // Report what was parsed
-                let script_count = lines.iter().filter(|l| matches!(l, BatchLine::Script(_))).count();
-                let set_count = lines.iter().filter(|l| matches!(l, BatchLine::Set { .. })).count();
-                let loop_count = lines.iter().filter(|l| matches!(l, BatchLine::Loop { .. })).count();
-                println!("Found {} scripts, {} variable assignments, {} loops", script_count, set_count, loop_count);
+                let script_count = lines
+                    .iter()
+                    .filter(|l| matches!(l, BatchLine::Script(_)))
+                    .count();
+                let set_count = lines
+                    .iter()
+                    .filter(|l| matches!(l, BatchLine::Set { .. }))
+                    .count();
+                let loop_count = lines
+                    .iter()
+                    .filter(|l| matches!(l, BatchLine::Loop { .. }))
+                    .count();
+                println!(
+                    "Found {} scripts, {} variable assignments, {} loops",
+                    script_count, set_count, loop_count
+                );
                 println!();
 
                 println!("Executing batch script file...");
@@ -101,9 +113,8 @@ pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
             println!("Batch scripts:");
 
             // Search in multiple common locations
-            let mut search_dirs: Vec<std::path::PathBuf> = vec![
-                std::env::current_dir().unwrap_or_default(),
-            ];
+            let mut search_dirs: Vec<std::path::PathBuf> =
+                vec![std::env::current_dir().unwrap_or_default()];
 
             if let Some(home) = dirs_or_home() {
                 search_dirs.push(home.join(".config").join("serial_cli"));

@@ -7,12 +7,12 @@
 
 mod named_pipe;
 mod pty;
-mod r#trait;
 mod socat;
+mod r#trait;
 
 pub use named_pipe::NamedPipeBackend;
 pub use pty::PtyBackend;
-pub use r#trait::{BackendStats, VirtualBackend, VirtualPortEnd};
+pub use r#trait::{BackendStats, BridgeErrorRx, BridgeStats, VirtualBackend, VirtualPortEnd};
 pub use socat::SocatBackend;
 
 /// Virtual backend type selection
@@ -88,12 +88,18 @@ mod tests {
     fn test_backend_type_parsing() {
         assert_eq!("auto".parse::<BackendType>().unwrap(), BackendType::Auto);
         assert_eq!("pty".parse::<BackendType>().unwrap(), BackendType::Pty);
-        assert_eq!("namedpipe".parse::<BackendType>().unwrap(), BackendType::NamedPipe);
+        assert_eq!(
+            "namedpipe".parse::<BackendType>().unwrap(),
+            BackendType::NamedPipe
+        );
         assert_eq!("socat".parse::<BackendType>().unwrap(), BackendType::Socat);
 
         // Case insensitive
         assert_eq!("PTY".parse::<BackendType>().unwrap(), BackendType::Pty);
-        assert_eq!("NamedPipe".parse::<BackendType>().unwrap(), BackendType::NamedPipe);
+        assert_eq!(
+            "NamedPipe".parse::<BackendType>().unwrap(),
+            BackendType::NamedPipe
+        );
 
         // Invalid
         assert!("invalid".parse::<BackendType>().is_err());

@@ -30,9 +30,9 @@ where
             .expect("create benchmark runtime");
         rt.block_on(f())
     });
-    join_handle
-        .join()
-        .map_err(|_| crate::error::SerialError::Io(std::io::Error::other("benchmark thread panicked")))?
+    join_handle.join().map_err(|_| {
+        crate::error::SerialError::Io(std::io::Error::other("benchmark thread panicked"))
+    })?
 }
 
 /// Benchmark runner
@@ -136,7 +136,10 @@ impl BenchmarkRunner {
         };
 
         println!("  {:>10} iter in {:>8.2?}", result.iterations, elapsed);
-        println!("  {:>10.3} MB/s", result.throughput_bytes_per_sec().unwrap() / 1_000_000.0);
+        println!(
+            "  {:>10.3} MB/s",
+            result.throughput_bytes_per_sec().unwrap() / 1_000_000.0
+        );
 
         Ok(result)
     }
@@ -236,8 +239,8 @@ impl BenchmarkRunner {
         let mut results = Vec::new();
 
         // Real PTY virtual port creation timing
-        use crate::serial_core::{VirtualConfig, VirtualSerialPair};
         use crate::serial_core::backends::BackendType;
+        use crate::serial_core::{VirtualConfig, VirtualSerialPair};
 
         // Only run on platforms where PTY is available
         if BackendType::Pty.is_available() {
@@ -298,7 +301,9 @@ impl BenchmarkRunner {
 
         // Modbus ASCII parse (real parsing with hex decode + LRC validation)
         let mut ascii_proto = ModbusProtocol::new(ModbusMode::Ascii);
-        let ascii_frame = ascii_proto.encode(&rtu_payload).expect("encode ASCII frame");
+        let ascii_frame = ascii_proto
+            .encode(&rtu_payload)
+            .expect("encode ASCII frame");
         let ascii_bytes = ascii_frame.len() as u64;
 
         let result = self.run_throughput(
@@ -402,17 +407,18 @@ impl BenchmarkRunner {
             || {
                 // Create a temporary protocol file
                 let temp_dir = env::temp_dir();
-                let temp_file_path = temp_dir.join(format!("benchmark_proto_{}.lua", std::process::id()));
+                let temp_file_path =
+                    temp_dir.join(format!("benchmark_proto_{}.lua", std::process::id()));
 
                 let mut file = File::create(&temp_file_path).map_err(|e| {
-                    crate::error::SerialError::Protocol(
-                        crate::error::ProtocolError::InvalidFrame(format!("Failed to create temp file: {}", e))
-                    )
+                    crate::error::SerialError::Protocol(crate::error::ProtocolError::InvalidFrame(
+                        format!("Failed to create temp file: {}", e),
+                    ))
                 })?;
                 file.write_all(script_content.as_bytes()).map_err(|e| {
-                    crate::error::SerialError::Protocol(
-                        crate::error::ProtocolError::InvalidFrame(format!("Failed to write temp file: {}", e))
-                    )
+                    crate::error::SerialError::Protocol(crate::error::ProtocolError::InvalidFrame(
+                        format!("Failed to write temp file: {}", e),
+                    ))
                 })?;
 
                 let _loaded = ProtocolLoader::load_from_file(&temp_file_path)?;
@@ -490,17 +496,18 @@ impl BenchmarkRunner {
             BenchmarkCategory::Memory,
             || {
                 let temp_dir = env::temp_dir();
-                let temp_file_path = temp_dir.join(format!("memory_test_{}.lua", std::process::id()));
+                let temp_file_path =
+                    temp_dir.join(format!("memory_test_{}.lua", std::process::id()));
 
                 let mut file = File::create(&temp_file_path).map_err(|e| {
-                    crate::error::SerialError::Protocol(
-                        crate::error::ProtocolError::InvalidFrame(format!("Failed to create temp file: {}", e))
-                    )
+                    crate::error::SerialError::Protocol(crate::error::ProtocolError::InvalidFrame(
+                        format!("Failed to create temp file: {}", e),
+                    ))
                 })?;
                 file.write_all(script_content.as_bytes()).map_err(|e| {
-                    crate::error::SerialError::Protocol(
-                        crate::error::ProtocolError::InvalidFrame(format!("Failed to write temp file: {}", e))
-                    )
+                    crate::error::SerialError::Protocol(crate::error::ProtocolError::InvalidFrame(
+                        format!("Failed to write temp file: {}", e),
+                    ))
                 })?;
 
                 let _loaded = ProtocolLoader::load_from_file(&temp_file_path)?;
@@ -538,9 +545,11 @@ impl BenchmarkRunner {
                             });
                         }
                         while let Some(res) = join_set.join_next().await {
-                            res.map_err(|e| crate::error::SerialError::Task(
-                                crate::error::TaskError::InvalidState(e.to_string())
-                            ))??;
+                            res.map_err(|e| {
+                                crate::error::SerialError::Task(
+                                    crate::error::TaskError::InvalidState(e.to_string()),
+                                )
+                            })??;
                         }
                         Ok(())
                     })
@@ -564,9 +573,11 @@ impl BenchmarkRunner {
                             });
                         }
                         while let Some(res) = join_set.join_next().await {
-                            res.map_err(|e| crate::error::SerialError::Task(
-                                crate::error::TaskError::InvalidState(e.to_string())
-                            ))??;
+                            res.map_err(|e| {
+                                crate::error::SerialError::Task(
+                                    crate::error::TaskError::InvalidState(e.to_string()),
+                                )
+                            })??;
                         }
                         Ok(())
                     })
@@ -590,9 +601,11 @@ impl BenchmarkRunner {
                             });
                         }
                         while let Some(res) = join_set.join_next().await {
-                            res.map_err(|e| crate::error::SerialError::Task(
-                                crate::error::TaskError::InvalidState(e.to_string())
-                            ))??;
+                            res.map_err(|e| {
+                                crate::error::SerialError::Task(
+                                    crate::error::TaskError::InvalidState(e.to_string()),
+                                )
+                            })??;
                         }
                         Ok(())
                     })

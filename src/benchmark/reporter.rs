@@ -32,7 +32,10 @@ impl BenchmarkReport {
     /// Print summary
     pub fn print_summary(&self) {
         println!("\n=== Benchmark Summary ===");
-        println!("Timestamp: {}", self.timestamp.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!(
+            "Timestamp: {}",
+            self.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+        );
         println!("Total benchmarks: {}\n", self.results.len());
 
         for category in BenchmarkCategory::all() {
@@ -41,13 +44,13 @@ impl BenchmarkReport {
                 println!("{}:", category.name());
                 for result in results {
                     if let Some(throughput) = result.throughput_bytes_per_sec() {
-                        println!(
-                            "  {}: {:.2} MB/s",
-                            result.name,
-                            throughput / 1_000_000.0
-                        );
+                        println!("  {}: {:.2} MB/s", result.name, throughput / 1_000_000.0);
                     } else {
-                        println!("  {}: {:.2} ns/iter", result.name, result.avg_ns_per_iteration());
+                        println!(
+                            "  {}: {:.2} ns/iter",
+                            result.name,
+                            result.avg_ns_per_iteration()
+                        );
                     }
                 }
                 println!();
@@ -79,12 +82,7 @@ impl ComparisonResult {
             "[NO CHANGE]"
         };
 
-        println!(
-            "  {}: {} ({:+.1}%)",
-            self.name,
-            status,
-            self.change_percent
-        );
+        println!("  {}: {} ({:+.1}%)", self.name, status, self.change_percent);
         println!(
             "    Baseline: {:.2} ns/iter -> Current: {:.2} ns/iter",
             self.baseline_ns, self.current_ns
@@ -126,8 +124,7 @@ pub fn compare_benchmarks(
         if let (Some(baseline), Some(current)) = (baseline_map.get(&name), current_map.get(&name)) {
             let baseline_ns = baseline.avg_ns_per_iteration();
             let current_ns = current.avg_ns_per_iteration();
-            let change_percent =
-                ((current_ns - baseline_ns) / baseline_ns) * 100.0;
+            let change_percent = ((current_ns - baseline_ns) / baseline_ns) * 100.0;
 
             let is_regression = change_percent > REGRESSION_THRESHOLD;
             let is_improvement = change_percent < -IMPROVEMENT_THRESHOLD;

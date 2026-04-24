@@ -117,11 +117,9 @@ pub async fn create_virtual_port(
     drop(registry);
 
     // Emit event
-    if let Err(e) = crate::events::emitter::emit_virtual_port_created(
-        app.clone(),
-        id.clone(),
-        port_info,
-    ).await {
+    if let Err(e) =
+        crate::events::emitter::emit_virtual_port_created(app.clone(), id.clone(), port_info).await
+    {
         eprintln!("Failed to emit virtual-port-created event: {}", e);
     }
 
@@ -163,16 +161,11 @@ pub async fn stop_virtual_port(
 
     if let Some(pair) = registry.remove(&id) {
         let id_clone = id.clone();
-        pair.stop()
-            .await
-            .map_err(|e| e.to_string())?;
+        pair.stop().await.map_err(|e| e.to_string())?;
         drop(registry);
 
         // Emit event
-        if let Err(e) = crate::events::emitter::emit_virtual_port_stopped(
-            app,
-            id_clone,
-        ).await {
+        if let Err(e) = crate::events::emitter::emit_virtual_port_stopped(app, id_clone).await {
             eprintln!("Failed to emit virtual-port-stopped event: {}", e);
         }
 

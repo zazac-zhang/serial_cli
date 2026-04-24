@@ -18,8 +18,7 @@ pub async fn run_lua_script(path: PathBuf, args: Vec<String>) -> Result<()> {
     LuaStdLib::register_all_on(lua)?;
 
     // 4. Read script file
-    let script_content =
-        std::fs::read_to_string(&path).map_err(crate::error::SerialError::Io)?;
+    let script_content = std::fs::read_to_string(&path).map_err(crate::error::SerialError::Io)?;
 
     // 5. Execute script with arguments
     if args.is_empty() {

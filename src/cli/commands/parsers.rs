@@ -67,7 +67,9 @@ pub fn base64_decode(s: &str) -> Result<Vec<u8>> {
 
     // Validate: check for empty string
     if s.is_empty() {
-        return Err(SerialError::InvalidInput("Base64 string is empty".to_string()));
+        return Err(SerialError::InvalidInput(
+            "Base64 string is empty".to_string(),
+        ));
     }
 
     // Check for common base64 characters
@@ -94,8 +96,14 @@ mod tests {
 
     #[test]
     fn test_parse_hex_valid() {
-        assert_eq!(parse_hex_string("01020304").unwrap(), vec![0x01, 0x02, 0x03, 0x04]);
-        assert_eq!(parse_hex_string("0x01020304").unwrap(), vec![0x01, 0x02, 0x03, 0x04]);
+        assert_eq!(
+            parse_hex_string("01020304").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x04]
+        );
+        assert_eq!(
+            parse_hex_string("0x01020304").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x04]
+        );
         assert_eq!(parse_hex_string("FF").unwrap(), vec![0xFF]);
         assert_eq!(parse_hex_string("00").unwrap(), vec![0x00]);
     }

@@ -16,6 +16,12 @@ pub struct PortManager {
     io_loop_enabled: Arc<Mutex<bool>>,
 }
 
+impl Default for PortManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PortManager {
     /// Create a new port manager
     pub fn new() -> Self {
@@ -180,7 +186,9 @@ impl PortManager {
                 });
 
             // Open as TTYPort to get raw fd
-            let tty = builder.open_native().map_err(|e| map_serial_error(e, name))?;
+            let tty = builder
+                .open_native()
+                .map_err(|e| map_serial_error(e, name))?;
             let fd = tty.as_raw_fd();
 
             // Set DTR/RTS via real ioctl
@@ -226,7 +234,9 @@ impl PortManager {
                     FlowControl::Hardware => serialport::FlowControl::Hardware,
                 });
 
-            let port = builder.open_native().map_err(|e| map_serial_error(e, name))?;
+            let port = builder
+                .open_native()
+                .map_err(|e| map_serial_error(e, name))?;
             (Box::new(port), ())
         };
 
@@ -439,7 +449,7 @@ impl SerialPortHandle {
             };
 
             match result {
-                Ok(state) if matches!(state, crate::serial_core::signals::SignalState::Set(_)) => {
+                Ok(crate::serial_core::signals::SignalState::Set(_)) => {
                     tracing::info!("DTR signal set to: {} for port {}", enable, self.name);
                 }
                 Ok(_) => {
@@ -451,7 +461,8 @@ impl SerialPortHandle {
                 Err(e) => {
                     tracing::warn!(
                         "Failed to set DTR signal for port {}: {}. State updated in memory only.",
-                        self.name, e
+                        self.name,
+                        e
                     );
                     self.dtr_state = old_state;
                 }
@@ -476,7 +487,7 @@ impl SerialPortHandle {
             };
 
             match result {
-                Ok(state) if matches!(state, crate::serial_core::signals::SignalState::Set(_)) => {
+                Ok(crate::serial_core::signals::SignalState::Set(_)) => {
                     tracing::info!("RTS signal set to: {} for port {}", enable, self.name);
                 }
                 Ok(_) => {
@@ -488,7 +499,8 @@ impl SerialPortHandle {
                 Err(e) => {
                     tracing::warn!(
                         "Failed to set RTS signal for port {}: {}. State updated in memory only.",
-                        self.name, e
+                        self.name,
+                        e
                     );
                     self.rts_state = old_state;
                 }

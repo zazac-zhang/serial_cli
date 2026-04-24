@@ -448,7 +448,7 @@ impl LuaBindings {
             let id = pair.id.clone();
             let port_a = pair.port_a.clone();
             let port_b = pair.port_b.clone();
-            let backend = format!("{:?}", pair.backend);
+            let backend = format!("{:?}", pair.backend_type);
             let running = pair.is_running();
 
             // Return result as Lua table
@@ -475,7 +475,9 @@ impl LuaBindings {
         let stop = self.lua.create_function(move |_, _id: String| {
             // Note: This is a simplified implementation
             // In a real implementation, you'd need to manage virtual pair lifecycle
-            tracing::warn!("virtual_stop called but virtual pair management not implemented in Lua");
+            tracing::warn!(
+                "virtual_stop called but virtual pair management not implemented in Lua"
+            );
             Ok(true)
         })?;
 
@@ -711,7 +713,13 @@ impl LuaBindings {
 
             // Check it's not a built-in
             if crate::protocol::built_in::is_builtin_protocol(&proto_name) {
-                return Ok((false, format!("Cannot load: '{}' is a reserved built-in protocol name", proto_name)));
+                return Ok((
+                    false,
+                    format!(
+                        "Cannot load: '{}' is a reserved built-in protocol name",
+                        proto_name
+                    ),
+                ));
             }
 
             // If already loaded, reload it instead
@@ -719,7 +727,10 @@ impl LuaBindings {
                 match cm.update_custom_protocol(proto_name.clone(), path_obj.clone()) {
                     Ok(_) => {
                         let _ = cm.save(None);
-                        Ok((true, format!("Protocol reloaded: {} (from {})", proto_name, path)))
+                        Ok((
+                            true,
+                            format!("Protocol reloaded: {} (from {})", proto_name, path),
+                        ))
                     }
                     Err(e) => Ok((false, format!("Failed to reload protocol: {}", e))),
                 }
@@ -728,7 +739,10 @@ impl LuaBindings {
                 match cm.add_custom_protocol(proto_name.clone(), path_obj.clone()) {
                     Ok(_) => {
                         let _ = cm.save(None);
-                        Ok((true, format!("Protocol loaded: {} (from {})", proto_name, path)))
+                        Ok((
+                            true,
+                            format!("Protocol loaded: {} (from {})", proto_name, path),
+                        ))
                     }
                     Err(e) => Ok((false, format!("Failed to load protocol: {}", e))),
                 }
@@ -777,7 +791,10 @@ impl LuaBindings {
 
             // Validate the script still exists
             if !script_path.exists() {
-                return Ok((false, format!("Script file not found: {}", script_path.display())));
+                return Ok((
+                    false,
+                    format!("Script file not found: {}", script_path.display()),
+                ));
             }
 
             if let Err(e) = ProtocolValidator::validate_script(&script_path) {

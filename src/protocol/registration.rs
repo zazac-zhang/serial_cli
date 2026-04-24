@@ -3,9 +3,9 @@
 //! Registers all built-in protocols to the protocol registry.
 
 use crate::error::Result;
-use crate::protocol::ProtocolFactory;
-use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
 use crate::protocol::built_in::modbus::ModbusMode;
+use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
+use crate::protocol::ProtocolFactory;
 use crate::protocol::ProtocolRegistry;
 use std::sync::Arc;
 use tokio::sync::Mutex;

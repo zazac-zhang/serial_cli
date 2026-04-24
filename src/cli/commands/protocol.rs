@@ -1,13 +1,19 @@
 //! Protocol command handler
 
+use crate::cli::types::ProtocolCommand;
 use crate::config::ConfigManager;
 use crate::error::{Result, SerialError};
-use crate::cli::types::ProtocolCommand;
 use std::path::Path;
 
 const BUILT_IN_PROTOCOLS: &[(&str, &str)] = &[
-    ("modbus_rtu", "Modbus RTU protocol (Industrial communication)"),
-    ("modbus_ascii", "Modbus ASCII protocol (Industrial communication)"),
+    (
+        "modbus_rtu",
+        "Modbus RTU protocol (Industrial communication)",
+    ),
+    (
+        "modbus_ascii",
+        "Modbus ASCII protocol (Industrial communication)",
+    ),
     ("at_command", "AT Command protocol (Modem control)"),
     ("line", "Line-based protocol (Text-based communication)"),
 ];
@@ -87,7 +93,10 @@ fn show_protocol_info(name: &str) -> Result<()> {
         println!("Type: Custom");
         println!("Script: {}", proto.path.display());
         println!("Version: {}", proto.version);
-        println!("Loaded: {}", proto.loaded_at.as_deref().unwrap_or("unknown"));
+        println!(
+            "Loaded: {}",
+            proto.loaded_at.as_deref().unwrap_or("unknown")
+        );
         return Ok(());
     }
 

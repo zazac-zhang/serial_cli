@@ -3,11 +3,11 @@
 //! This module provides benchmarking utilities for measuring
 //! and optimizing serial CLI performance.
 
-pub mod runner;
 pub mod reporter;
+pub mod runner;
 
-pub use runner::BenchmarkRunner;
 pub use reporter::{BenchmarkReport, ComparisonResult};
+pub use runner::BenchmarkRunner;
 
 /// Benchmark categories
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

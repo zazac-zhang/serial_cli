@@ -5,7 +5,9 @@
 use crate::error::{Result, SerialError};
 
 #[cfg(windows)]
-use crate::serial_core::backends::{BackendStats, VirtualBackend, VirtualPortEnd};
+use crate::serial_core::backends::{
+    BackendStats, BridgeErrorRx, BridgeStats, VirtualBackend, VirtualPortEnd,
+};
 #[cfg(windows)]
 use async_trait::async_trait;
 #[cfg(windows)]
@@ -13,7 +15,7 @@ use std::sync::Arc;
 #[cfg(windows)]
 use std::time::SystemTime;
 #[cfg(windows)]
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 /// NamedPipe backend implementation (Windows only)
 #[cfg(windows)]
@@ -48,14 +50,13 @@ impl NamedPipeBackend {
 
     /// Create a single named pipe
     async fn create_named_pipe(&self, name: &str) -> Result<()> {
-        use windows::Win32::System::Pipes::{
-            CreateNamedPipeW, PIPE_ACCESS_DUPLEX, PIPE_TYPE_BYTE,
-            PIPE_READMODE_BYTE, PIPE_WAIT, NMPWAIT_USE_DEFAULT_WAIT,
-            PIPE_UNLIMITED_INSTANCES,
-        };
-        use windows::core::PCWSTR;
-        use std::os::windows::ffi::OsStrExt;
         use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::PCWSTR;
+        use windows::Win32::System::Pipes::{
+            CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT, PIPE_ACCESS_DUPLEX, PIPE_READMODE_BYTE,
+            PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+        };
 
         // Convert string to wide string
         let wide_name: Vec<u16> = OsStr::new(name)
@@ -69,10 +70,10 @@ impl NamedPipeBackend {
                 PIPE_ACCESS_DUPLEX,
                 PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
                 PIPE_UNLIMITED_INSTANCES,
-                8192,  // Output buffer size
-                8192,  // Input buffer size
-                0,     // Default timeout
-                None,  // Default security attributes
+                8192, // Output buffer size
+                8192, // Input buffer size
+                0,    // Default timeout
+                None, // Default security attributes
             );
 
             if handle.is_invalid() {
@@ -95,7 +96,9 @@ impl NamedPipeBackend {
 #[cfg(windows)]
 #[async_trait]
 impl VirtualBackend for NamedPipeBackend {
-    async fn create_pair(&mut self) -> Result<(VirtualPortEnd, VirtualPortEnd)> {
+    async fn create_pair(
+        &mut self,
+    ) -> Result<(VirtualPortEnd, VirtualPortEnd, BridgeErrorRx, BridgeStats)> {
         tracing::info!(
             "Creating NamedPipe pair: {} and {}",
             self.pipe_a_name,
@@ -109,6 +112,12 @@ impl VirtualBackend for NamedPipeBackend {
         self.created = true;
         self.start_time = SystemTime::now();
 
+        // NamedPipe bridge is handled by client connections.
+        // Create an empty error channel for API consistency.
+        let (error_tx, error_rx) = mpsc::channel::<String>(0);
+        drop(error_tx);
+        let stats = Arc::clone(&self.stats);
+
         Ok((
             VirtualPortEnd {
                 name: "A".into(),
@@ -118,6 +127,8 @@ impl VirtualBackend for NamedPipeBackend {
                 name: "B".into(),
                 path: std::path::PathBuf::from(&self.pipe_b_name),
             },
+            error_rx,
+            stats,
         ))
     }
 
@@ -134,11 +145,7 @@ impl VirtualBackend for NamedPipeBackend {
 
     async fn get_stats(&self) -> BackendStats {
         let mut stats = self.stats.lock().await;
-        stats.uptime_seconds = self
-            .start_time
-            .elapsed()
-            .unwrap_or_default()
-            .as_secs();
+        stats.uptime_seconds = self.start_time.elapsed().unwrap_or_default().as_secs();
         stats.clone()
     }
 

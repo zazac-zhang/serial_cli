@@ -5,11 +5,11 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use serial_cli::cli::args::{Cli, Commands};
-use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::cli::commands::{
-    batch as batch_cmd, benchmark as benchmark_cmd, config as config_cmd, ports, protocol as protocol_cmd,
-    script, sniff as sniff_cmd, virtual_port,
+    batch as batch_cmd, benchmark as benchmark_cmd, config as config_cmd, ports,
+    protocol as protocol_cmd, script, sniff as sniff_cmd, virtual_port,
 };
+use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::cli::sniff_session;
 use serial_cli::error::Result;
 
@@ -72,8 +72,13 @@ async fn main() -> Result<()> {
             max_packets,
             hex,
         }) => {
-            sniff_session::run_sniff_daemon(&port, output.as_deref().map(std::path::Path::new), max_packets, hex)
-                .await?;
+            sniff_session::run_sniff_daemon(
+                &port,
+                output.as_deref().map(std::path::Path::new),
+                max_packets,
+                hex,
+            )
+            .await?;
         }
         None => {
             // No command specified, default to interactive mode

@@ -22,10 +22,7 @@ pub enum BatchLine {
     /// Set a variable: `set NAME value`
     Set { key: String, value: String },
     /// Loop execution: `loop N` ... `end`
-    Loop {
-        count: usize,
-        body: Vec<BatchLine>,
-    },
+    Loop { count: usize, body: Vec<BatchLine> },
     /// Sleep/delay: `sleep MS`
     Sleep(Duration),
 }
@@ -93,8 +90,12 @@ impl BatchRunner {
                     .cloned()
                     .or_else(|| std::env::var(var_name).ok())
                     .unwrap_or_default();
-                result =
-                    format!("{}{}{}", &result[..start], value, &result[start + end + 1..]);
+                result = format!(
+                    "{}{}{}",
+                    &result[..start],
+                    value,
+                    &result[start + end + 1..]
+                );
                 iteration += 1;
                 if iteration > 100 {
                     break; // Guard against self-referential loops like ${A} = ${A}
@@ -108,9 +109,7 @@ impl BatchRunner {
         let mut output = String::new();
         let mut chars = result.chars().peekable();
         while let Some(c) = chars.next() {
-            if c == '$'
-                && chars.peek().is_some_and(|c| c.is_alphabetic() || *c == '_')
-            {
+            if c == '$' && chars.peek().is_some_and(|c| c.is_alphabetic() || *c == '_') {
                 let mut var_name = String::new();
                 while let Some(&nc) = chars.peek() {
                     if nc.is_alphanumeric() || nc == '_' {
@@ -173,8 +172,7 @@ impl BatchRunner {
             let start = std::time::Instant::now();
             let mut task_completed = false;
 
-            while !task_completed
-                && start.elapsed() < Duration::from_secs(self.config.timeout_secs)
+            while !task_completed && start.elapsed() < Duration::from_secs(self.config.timeout_secs)
             {
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -191,11 +189,9 @@ impl BatchRunner {
                         && matches!(completion.result, crate::task::TaskResult::Error(_))
                     {
                         executor.stop().await?;
-                        return Err(SerialError::Script(
-                            crate::error::ScriptError::ApiError(
-                                "Script execution failed".to_string(),
-                            ),
-                        ));
+                        return Err(SerialError::Script(crate::error::ScriptError::ApiError(
+                            "Script execution failed".to_string(),
+                        )));
                     }
                     task_completed = true;
                     break;
@@ -280,14 +276,14 @@ impl BatchRunner {
     }
 
     /// Internal implementation — uses explicit boxing for async recursion
-    async fn run_batch_lines_impl(
-        &mut self,
-        batch_lines: Vec<BatchLine>,
-    ) -> Result<BatchResult> {
+    async fn run_batch_lines_impl(&mut self, batch_lines: Vec<BatchLine>) -> Result<BatchResult> {
         let mut results = Vec::new();
         let total_lines = batch_lines.len();
         let mut progress = if self.config.show_progress {
-            Some(ProgressReporter::new("Batch execution".to_string(), total_lines))
+            Some(ProgressReporter::new(
+                "Batch execution".to_string(),
+                total_lines,
+            ))
         } else {
             None
         };
@@ -363,11 +359,7 @@ impl BatchRunner {
 
                     for iteration in 0..loop_count {
                         if self.config.verbose {
-                            tracing::info!(
-                                "  Loop iteration {}/{}",
-                                iteration + 1,
-                                loop_count
-                            );
+                            tracing::info!("  Loop iteration {}/{}", iteration + 1, loop_count);
                         }
 
                         let body_clone = body.clone();

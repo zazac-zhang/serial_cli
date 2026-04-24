@@ -2,10 +2,10 @@
 
 use std::time::Duration;
 
-use crate::cli::types::SniffCommand;
 use crate::cli::sniff_session::{
     get_session_stats, read_captured_packets, spawn_sniff_daemon, stop_active_session,
 };
+use crate::cli::types::SniffCommand;
 use crate::error::{Result, SerialError};
 
 pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
@@ -51,7 +51,10 @@ pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
                 display_format == "hex",
             )?;
 
-            println!("✓ Sniffing started on port: {} (PID: {})", meta.port, meta.pid);
+            println!(
+                "✓ Sniffing started on port: {} (PID: {})",
+                meta.port, meta.pid
+            );
             if display {
                 println!("  Real-time display enabled");
             }
@@ -96,7 +99,11 @@ pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
                 if output.exists() {
                     let content = read_captured_packets(output)?;
                     let line_count = content.lines().count();
-                    println!("  Output file:  {} ({} lines)", output.display(), line_count);
+                    println!(
+                        "  Output file:  {} ({} lines)",
+                        output.display(),
+                        line_count
+                    );
                 } else {
                     println!("  Output file:  {} (not yet written)", output.display());
                 }

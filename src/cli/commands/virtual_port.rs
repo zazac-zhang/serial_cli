@@ -6,8 +6,8 @@ use std::sync::Arc;
 use once_cell::sync::Lazy;
 use tokio::sync::RwLock;
 
-use crate::error::{Result, SerialError};
 use crate::cli::types::VirtualCommand;
+use crate::error::{Result, SerialError};
 use crate::serial_core::{BackendType, VirtualConfig, VirtualSerialPair};
 
 /// Global registry for active virtual port pairs
@@ -121,7 +121,10 @@ pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
                     tracing::info!("    Port B: {}", stats.port_b);
                     tracing::info!("    Backend: {:?}", stats.backend);
                     tracing::info!("    Uptime: {}s", stats.uptime_secs);
-                    tracing::info!("    Status: {}", if stats.running { "Running" } else { "Stopped" });
+                    tracing::info!(
+                        "    Status: {}",
+                        if stats.running { "Running" } else { "Stopped" }
+                    );
                     tracing::info!("    Bytes bridged: {}", stats.bytes_bridged);
                     tracing::info!("    Packets bridged: {}", stats.packets_bridged);
                     if stats.bridge_errors > 0 {
@@ -164,7 +167,10 @@ pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
                 tracing::info!("  Port A: {}", stats.port_a);
                 tracing::info!("  Port B: {}", stats.port_b);
                 tracing::info!("  Backend: {:?}", stats.backend);
-                tracing::info!("  Status: {}", if stats.running { "Running" } else { "Stopped" });
+                tracing::info!(
+                    "  Status: {}",
+                    if stats.running { "Running" } else { "Stopped" }
+                );
                 tracing::info!("  Uptime: {}s", stats.uptime_secs);
                 tracing::info!("  Bytes bridged: {}", stats.bytes_bridged);
                 tracing::info!("  Packets bridged: {}", stats.packets_bridged);

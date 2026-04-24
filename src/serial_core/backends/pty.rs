@@ -3,7 +3,9 @@
 //! This backend creates virtual serial port pairs using POSIX PTY.
 
 use crate::error::{Result, SerialError};
-use crate::serial_core::backends::{BackendStats, VirtualBackend, VirtualPortEnd};
+use crate::serial_core::backends::{
+    BackendStats, BridgeErrorRx, BridgeStats, VirtualBackend, VirtualPortEnd,
+};
 use async_trait::async_trait;
 use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -50,7 +52,18 @@ impl PtyBackend {
     }
 
     /// Create the actual PTY pair
-    fn create_pty_pair(&mut self, buffer_size: usize) -> Result<(String, String, Arc<AsyncFd<OwnedFd>>, Arc<AsyncFd<OwnedFd>>, JoinHandle<()>, mpsc::Receiver<String>)> {
+    #[allow(clippy::type_complexity)]
+    fn create_pty_pair(
+        &mut self,
+        buffer_size: usize,
+    ) -> Result<(
+        String,
+        String,
+        Arc<AsyncFd<OwnedFd>>,
+        Arc<AsyncFd<OwnedFd>>,
+        JoinHandle<()>,
+        mpsc::Receiver<String>,
+    )> {
         use libc::{grantpt, posix_openpt, ptsname, unlockpt, O_NOCTTY, O_RDWR};
         use std::ffi::CStr;
 
@@ -306,9 +319,11 @@ impl PtyBackend {
 
 #[async_trait]
 impl VirtualBackend for PtyBackend {
-    async fn create_pair(&mut self) -> Result<(VirtualPortEnd, VirtualPortEnd)> {
+    async fn create_pair(
+        &mut self,
+    ) -> Result<(VirtualPortEnd, VirtualPortEnd, BridgeErrorRx, BridgeStats)> {
         let buffer_size = 8192;
-        let (slave_a, slave_b, master_a, master_b, bridge_task, _error_rx) =
+        let (slave_a, slave_b, master_a, master_b, bridge_task, error_rx) =
             self.create_pty_pair(buffer_size)?;
 
         self.slave_a_path = Some(slave_a.clone());
@@ -317,6 +332,8 @@ impl VirtualBackend for PtyBackend {
         self.master_b = Some(master_b);
         self.bridge_task = Some(bridge_task);
         self.start_time = SystemTime::now();
+
+        let stats = Arc::clone(&self.stats);
 
         Ok((
             VirtualPortEnd {
@@ -327,6 +344,8 @@ impl VirtualBackend for PtyBackend {
                 name: "B".into(),
                 path: std::path::PathBuf::from(&slave_b),
             },
+            error_rx,
+            stats,
         ))
     }
 
@@ -345,11 +364,7 @@ impl VirtualBackend for PtyBackend {
 
     async fn get_stats(&self) -> BackendStats {
         let mut stats = self.stats.lock().await;
-        stats.uptime_seconds = self
-            .start_time
-            .elapsed()
-            .unwrap_or_default()
-            .as_secs();
+        stats.uptime_seconds = self.start_time.elapsed().unwrap_or_default().as_secs();
         stats.clone()
     }
 

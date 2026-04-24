@@ -35,10 +35,7 @@ impl BackendFactory {
     }
 
     /// Resolve backend type from priority chain
-    async fn resolve_backend_type(
-        &self,
-        cli_override: Option<BackendType>,
-    ) -> Result<BackendType> {
+    async fn resolve_backend_type(&self, cli_override: Option<BackendType>) -> Result<BackendType> {
         // Priority 1: CLI flag
         if let Some(cli_type) = cli_override {
             tracing::debug!("Using CLI override for backend: {:?}", cli_type);
@@ -95,30 +92,32 @@ impl BackendFactory {
 
     /// Instantiate the concrete backend
     async fn instantiate_backend(&self, backend: BackendType) -> Result<Box<dyn VirtualBackend>> {
-        match backend {
+        let boxed: Box<dyn VirtualBackend> = match backend {
+            #[cfg(unix)]
+            BackendType::Pty => Box::new(PtyBackend::new()?),
+            #[cfg(not(unix))]
             BackendType::Pty => {
-                #[cfg(unix)]
-                return Ok(Box::new(PtyBackend::new()?));
-
-                #[cfg(not(unix))]
                 return Err(SerialError::UnsupportedBackend(
                     "PTY backend is not available on this platform".to_string(),
-                ));
+                ))
             }
+            #[cfg(windows)]
             BackendType::NamedPipe => {
-                #[cfg(windows)]
-                return Ok(Box::new(NamedPipeBackend::new()?));
-
-                #[cfg(not(windows))]
+                use crate::serial_core::backends::NamedPipeBackend;
+                Box::new(NamedPipeBackend::new()?)
+            }
+            #[cfg(not(windows))]
+            BackendType::NamedPipe => {
                 return Err(SerialError::UnsupportedBackend(
                     "NamedPipe backend is not available on this platform".to_string(),
-                ));
+                ))
             }
-            BackendType::Socat => Ok(Box::new(SocatBackend::new()?)),
+            BackendType::Socat => Box::new(SocatBackend::new()?),
             BackendType::Auto => {
                 unreachable!("Auto should be resolved before instantiation")
             }
-        }
+        };
+        Ok(boxed)
     }
 }
 
