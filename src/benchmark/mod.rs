@@ -10,7 +10,7 @@ pub use runner::BenchmarkRunner;
 pub use reporter::{BenchmarkReport, ComparisonResult};
 
 /// Benchmark categories
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BenchmarkCategory {
     /// Serial I/O throughput benchmarks
     SerialIo,
@@ -51,7 +51,7 @@ impl BenchmarkCategory {
 }
 
 /// Benchmark result
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BenchmarkResult {
     pub name: String,
     pub category: BenchmarkCategory,

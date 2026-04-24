@@ -6,7 +6,7 @@ use super::{BenchmarkCategory, BenchmarkResult};
 use std::collections::HashMap;
 
 /// Benchmark report
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BenchmarkReport {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub results: Vec<BenchmarkResult>,

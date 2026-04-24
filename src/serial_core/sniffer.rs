@@ -202,6 +202,7 @@ impl SerialSniffer {
 }
 
 /// Active sniffing session
+#[derive(Clone)]
 pub struct SnifferSession {
     #[allow(dead_code)]
     port_id: String,

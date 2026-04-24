@@ -2,7 +2,7 @@
 
 use crate::benchmark::{BenchmarkCategory, BenchmarkRunner, BenchmarkReport};
 use crate::cli::types::BenchmarkCommand;
-use crate::error::Result;
+use crate::error::{Result, SerialError};
 use std::path::PathBuf;
 
 pub fn handle_benchmark_command(cmd: BenchmarkCommand) -> Result<()> {
@@ -126,106 +126,18 @@ fn list_benchmarks() -> Result<()> {
 }
 
 fn save_benchmark_results(report: &BenchmarkReport, path: &PathBuf) -> Result<()> {
-    use std::io::Write;
-
-    // For now, save a simple text format
-    // TODO: Implement JSON serialization
-    let mut file = std::fs::File::create(path)?;
-    writeln!(file, "# Benchmark Report")?;
-    writeln!(file, "# Timestamp: {}", report.timestamp.format("%Y-%m-%d %H:%M:%S UTC"))?;
-    writeln!(file, "# Total benchmarks: {}", report.results.len())?;
-    writeln!(file)?;
-
-    for result in &report.results {
-        writeln!(file, "[{}]", result.name)?;
-        writeln!(file, "  category: {}", result.category.name())?;
-        writeln!(file, "  iterations: {}", result.iterations)?;
-        writeln!(file, "  elapsed_ns: {}", result.elapsed_ns)?;
-        if let Some(bytes) = result.bytes_processed {
-            writeln!(file, "  bytes_processed: {}", bytes)?;
-        }
-        writeln!(file)?;
-    }
+    let json = serde_json::to_string_pretty(report)
+        .map_err(|e| SerialError::Config(format!("Failed to serialize benchmark results: {}", e)))?;
+    std::fs::write(path, json)
+        .map_err(|e| SerialError::Config(format!("Failed to write benchmark results: {}", e)))?;
 
     println!("\nResults saved to: {}", path.display());
     Ok(())
 }
 
 fn load_benchmark_results(path: &PathBuf) -> Result<BenchmarkReport> {
-    use crate::benchmark::BenchmarkResult;
-    use std::io::BufRead;
-
-    // For now, this is a simple parser
-    // TODO: Implement JSON deserialization
-    let file = std::fs::File::open(path)?;
-    let reader = std::io::BufReader::new(file);
-
-    let mut results = Vec::new();
-    let mut current_name = String::new();
-    let mut current_category = BenchmarkCategory::SerialIo;
-    let mut iterations = 0u64;
-    let mut elapsed_ns = 0u64;
-    let mut bytes_processed = None;
-
-    for line in reader.lines() {
-        let line = line?;
-        if line.starts_with("[") && line.ends_with("]") {
-            // Save previous result
-            if !current_name.is_empty() {
-                results.push(BenchmarkResult {
-                    name: current_name.clone(),
-                    category: current_category,
-                    iterations,
-                    elapsed_ns,
-                    bytes_processed,
-                });
-            }
-
-            // Start new result
-            current_name = line[1..line.len() - 1].to_string();
-            iterations = 0;
-            elapsed_ns = 0;
-            bytes_processed = None;
-        } else if line.starts_with("  category: ") {
-            let cat = line.trim_start_matches("  category: ");
-            current_category = match cat {
-                "serial-io" => BenchmarkCategory::SerialIo,
-                "virtual-port" => BenchmarkCategory::VirtualPort,
-                "protocol" => BenchmarkCategory::Protocol,
-                "startup" => BenchmarkCategory::Startup,
-                "memory" => BenchmarkCategory::Memory,
-                "concurrency" => BenchmarkCategory::Concurrency,
-                _ => BenchmarkCategory::SerialIo,
-            };
-        } else if line.starts_with("  iterations: ") {
-            iterations = line
-                .trim_start_matches("  iterations: ")
-                .parse()
-                .unwrap_or(0);
-        } else if line.starts_with("  elapsed_ns: ") {
-            elapsed_ns = line
-                .trim_start_matches("  elapsed_ns: ")
-                .parse()
-                .unwrap_or(0);
-        } else if line.starts_with("  bytes_processed: ") {
-            bytes_processed = Some(
-                line.trim_start_matches("  bytes_processed: ")
-                    .parse()
-                    .unwrap_or(0),
-            );
-        }
-    }
-
-    // Save last result
-    if !current_name.is_empty() {
-        results.push(BenchmarkResult {
-            name: current_name,
-            category: current_category,
-            iterations,
-            elapsed_ns,
-            bytes_processed,
-        });
-    }
-
-    Ok(BenchmarkReport::new(results))
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| SerialError::Config(format!("Failed to read benchmark results: {}", e)))?;
+    serde_json::from_str(&content)
+        .map_err(|e| SerialError::Config(format!("Failed to parse benchmark results: {}", e)))
 }

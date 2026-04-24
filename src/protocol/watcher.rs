@@ -10,12 +10,17 @@ use tokio::sync::mpsc;
 /// File watcher for protocol scripts
 pub struct ProtocolWatcher {
     _watcher: RecommendedWatcher,
+    reload_tx: mpsc::UnboundedSender<PathBuf>,
+    reload_rx: Option<mpsc::UnboundedReceiver<PathBuf>>,
 }
 
 impl ProtocolWatcher {
     /// Create a new file watcher
     pub fn new() -> Result<Self> {
-        let (reload_tx, _reload_rx) = mpsc::unbounded_channel::<PathBuf>();
+        let (reload_tx, reload_rx) = mpsc::unbounded_channel::<PathBuf>();
+
+        // Clone tx for struct storage (UnboundedSender is cloneable)
+        let struct_tx = reload_tx.clone();
 
         // Create watcher
         let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
@@ -44,7 +49,11 @@ impl ProtocolWatcher {
             )))
         })?;
 
-        Ok(Self { _watcher: watcher })
+        Ok(Self {
+            _watcher: watcher,
+            reload_tx: struct_tx,
+            reload_rx: Some(reload_rx),
+        })
     }
 
     /// Watch a file for changes
@@ -64,14 +73,15 @@ impl ProtocolWatcher {
         Ok(())
     }
 
-    /// Get reload event receiver
-    pub fn reload_events(&self) -> mpsc::UnboundedReceiver<PathBuf> {
-        // We need to create a new channel since we can't clone the receiver
-        // This is a simplified version - in production you'd want a better approach
-        let (_tx, rx) = mpsc::unbounded_channel();
-        // Store tx somewhere to receive events
-        // For now, this is a placeholder
-        rx
+    /// Get reload event receiver.
+    /// Returns `None` if already taken.
+    pub fn reload_events(&mut self) -> Option<mpsc::UnboundedReceiver<PathBuf>> {
+        self.reload_rx.take()
+    }
+
+    /// Get a clone of the reload sender (for testing or forwarding).
+    pub fn sender(&self) -> mpsc::UnboundedSender<PathBuf> {
+        self.reload_tx.clone()
     }
 }
 

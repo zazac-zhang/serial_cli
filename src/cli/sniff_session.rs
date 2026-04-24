@@ -330,7 +330,7 @@ pub async fn run_sniff_daemon(
     max_packets: usize,
     hex_display: bool,
 ) -> Result<()> {
-    use crate::serial_core::{SerialSniffer, SnifferConfig};
+    use crate::serial_core::{PortManager, SerialSniffer, SnifferConfig};
 
     tracing::info!("[sniff-daemon] Starting on port: {}", port);
 
@@ -350,44 +350,97 @@ pub async fn run_sniff_daemon(
     }
 
     let sniffer = SerialSniffer::new(sniffer_config);
+    let manager = PortManager::new();
 
-    match sniffer.start_sniffing(port).await {
-        Ok(session) => {
-            tracing::info!("[sniff-daemon] Sniffing started on port: {}", port);
+    // Open the port for reading
+    let port_id = manager
+        .open_port(port, crate::serial_core::SerialConfig::default())
+        .await
+        .map_err(|e| {
+            tracing::error!("[sniff-daemon] Failed to open port: {}", e);
+            e
+        })?;
 
-            // Run until SIGTERM or Ctrl+C
-            loop {
-                if !session.is_running().await {
-                    break;
-                }
+    let session = sniffer.start_sniffing(port).await?;
+    tracing::info!("[sniff-daemon] Sniffing started on port: {}", port);
 
-                // Check for SIGTERM via ctrl_c (daemon has no TTY but signal still works)
-                if tokio::signal::ctrl_c().await.is_ok() {
-                    break;
-                }
+    // Spawn the read loop
+    let port_id_clone = port_id.clone();
+    let session_clone = session.clone();
+    let manager_clone = manager.clone();
+
+    let read_handle = tokio::spawn(async move {
+        let mut buffer = vec![0u8; 4096];
+        loop {
+            // Check if the session is still running
+            if !session_clone.is_running().await {
+                tracing::info!("[sniff-daemon] Read loop: session stopped");
+                break;
             }
 
-            tracing::info!("[sniff-daemon] Stopping sniff...");
-            session.stop().await?;
+            // Read from the serial port
+            let port_handle = match manager_clone.get_port(&port_id_clone).await {
+                Ok(h) => h,
+                Err(_) => {
+                    tracing::warn!("[sniff-daemon] Read loop: port handle lost");
+                    break;
+                }
+            };
 
-            let packet_count = sniffer.packet_count().await;
-            tracing::info!("[sniff-daemon] Captured {} packets", packet_count);
+            let read_result = {
+                let mut handle = port_handle.lock().await;
+                handle.read(&mut buffer)
+            };
 
-            // Save to file if configured
-            if let Some(out_path) = output {
-                tracing::info!("[sniff-daemon] Saving to: {}", out_path.display());
-                if let Err(e) = sniffer.save_to_file(&out_path.to_path_buf()).await {
-                    tracing::warn!("[sniff-daemon] Failed to save: {}", e);
-                } else {
-                    tracing::info!("[sniff-daemon] Saved successfully");
+            match read_result {
+                Ok(0) => {
+                    // No data available, wait a bit before retrying
+                    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                }
+                Ok(n) => {
+                    // Captured data — feed into sniffer as RX
+                    let data = &buffer[..n];
+                    tracing::debug!("[sniff-daemon] Captured {} bytes RX", n);
+                    if let Err(e) = session_clone.capture_rx(data).await {
+                        tracing::warn!("[sniff-daemon] Failed to capture packet: {}", e);
+                    }
+                }
+                Err(_) => {
+                    // Read error — wait and retry (port may be temporarily unavailable)
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
                 }
             }
         }
-        Err(e) => {
-            tracing::error!("[sniff-daemon] Failed to start sniffing: {}", e);
-            return Err(e);
+    });
+
+    // Run until SIGTERM or Ctrl+C
+    loop {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            break;
         }
     }
+
+    tracing::info!("[sniff-daemon] Stopping sniff...");
+    session.stop().await?;
+
+    // Wait for read loop to exit
+    let _ = read_handle.await;
+
+    let packet_count = sniffer.packet_count().await;
+    tracing::info!("[sniff-daemon] Captured {} packets", packet_count);
+
+    // Save to file if configured
+    if let Some(out_path) = output {
+        tracing::info!("[sniff-daemon] Saving to: {}", out_path.display());
+        if let Err(e) = sniffer.save_to_file(&out_path.to_path_buf()).await {
+            tracing::warn!("[sniff-daemon] Failed to save: {}", e);
+        } else {
+            tracing::info!("[sniff-daemon] Saved successfully");
+        }
+    }
+
+    // Close the port
+    let _ = manager.close_port(&port_id).await;
 
     Ok(())
 }

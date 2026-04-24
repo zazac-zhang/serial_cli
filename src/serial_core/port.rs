@@ -3,24 +3,17 @@
 //! This module provides serial port discovery, configuration, and management.
 
 use crate::error::{Result, SerialError, SerialPortError};
+use crate::serial_core::signals::PlatformSignals;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tokio_serial::SerialPort;
 
 /// Serial port manager
 #[derive(Clone)]
 pub struct PortManager {
     ports: Arc<Mutex<HashMap<String, Arc<Mutex<SerialPortHandle>>>>>,
-    // Optional IoLoop for async I/O
     io_loop_enabled: Arc<Mutex<bool>>,
-}
-
-impl Default for PortManager {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl PortManager {
@@ -50,17 +43,18 @@ impl PortManager {
     pub async fn is_ioloop_enabled(&self) -> bool {
         *self.io_loop_enabled.lock().await
     }
-} // Close impl PortManager block
+}
 
 /// Serial port handle
 pub struct SerialPortHandle {
     name: String,
-    port: Box<dyn SerialPort>,
+    port: Box<dyn serialport::SerialPort>,
     config: SerialConfig,
     protocol: Option<String>,
-    /// Platform-specific signal state
     dtr_state: bool,
     rts_state: bool,
+    #[cfg(unix)]
+    signal_controller: crate::serial_core::signals::UnixSignalController,
 }
 
 /// Serial port configuration
@@ -80,8 +74,8 @@ pub struct SerialConfig {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FlowControl {
     None,
-    Software, // XON/XOFF
-    Hardware, // RTS/CTS
+    Software,
+    Hardware,
 }
 
 /// Parity setting
@@ -105,7 +99,7 @@ impl Default for SerialConfig {
             rts_enable: true,
         }
     }
-} // Close the first impl PortManager block
+}
 
 impl PortManager {
     /// List available serial ports
@@ -126,7 +120,6 @@ impl PortManager {
                             com_number: None,
                         };
 
-                        // Try to extract COM port number on Windows
                         #[cfg(target_os = "windows")]
                         {
                             if let Some(com_str) = p.port_name.strip_prefix("COM") {
@@ -134,10 +127,6 @@ impl PortManager {
                                     info.com_number = Some(num);
                                 }
                             }
-
-                            // Try to get friendly name from port type info
-                            // Note: This is a placeholder - real implementation would
-                            // query Windows registry or device manager
                             if info.com_number.is_some() {
                                 info.friendly_name = Some(format!("Serial Port {}", p.port_name));
                             }
@@ -151,7 +140,6 @@ impl PortManager {
 
     /// Open a serial port
     pub async fn open_port(&self, name: &str, config: SerialConfig) -> Result<String> {
-        // Check if port is already open
         let ports_guard = self.ports.lock().await;
         if ports_guard.contains_key(name) {
             return Err(SerialError::Serial(SerialPortError::port_busy(
@@ -161,137 +149,124 @@ impl PortManager {
         }
         drop(ports_guard);
 
-        // Build serial port
-        let mut builder = tokio_serial::new(name, config.baudrate);
+        // Open via serialport::TTYPort on Unix to get raw fd for DTR/RTS
+        #[cfg(unix)]
+        let (port, signal_controller) = {
+            use std::os::unix::io::AsRawFd;
 
-        builder = builder.timeout(Duration::from_millis(config.timeout_ms));
+            let builder = serialport::new(name, config.baudrate)
+                .timeout(Duration::from_millis(config.timeout_ms))
+                .data_bits(match config.databits {
+                    5 => serialport::DataBits::Five,
+                    6 => serialport::DataBits::Six,
+                    7 => serialport::DataBits::Seven,
+                    8 => serialport::DataBits::Eight,
+                    _ => serialport::DataBits::Eight,
+                })
+                .parity(match config.parity {
+                    Parity::None => serialport::Parity::None,
+                    Parity::Odd => serialport::Parity::Odd,
+                    Parity::Even => serialport::Parity::Even,
+                })
+                .stop_bits(match config.stopbits {
+                    1 => serialport::StopBits::One,
+                    2 => serialport::StopBits::Two,
+                    _ => serialport::StopBits::One,
+                })
+                .flow_control(match config.flow_control {
+                    FlowControl::None => serialport::FlowControl::None,
+                    FlowControl::Software => serialport::FlowControl::Software,
+                    FlowControl::Hardware => serialport::FlowControl::Hardware,
+                });
 
-        // Configure data bits
-        let data_bits = match config.databits {
-            5 => tokio_serial::DataBits::Five,
-            6 => tokio_serial::DataBits::Six,
-            7 => tokio_serial::DataBits::Seven,
-            8 => tokio_serial::DataBits::Eight,
-            _ => tokio_serial::DataBits::Eight,
+            // Open as TTYPort to get raw fd
+            let tty = builder.open_native().map_err(|e| map_serial_error(e, name))?;
+            let fd = tty.as_raw_fd();
+
+            // Set DTR/RTS via real ioctl
+            set_dtr_on_fd(fd, config.dtr_enable);
+            set_rts_on_fd(fd, config.rts_enable);
+
+            // Create signal controller with correct initial state
+            let mut signal_controller = crate::serial_core::signals::UnixSignalController::new();
+            signal_controller.set_dtr(config.dtr_enable).ok();
+            signal_controller.set_rts(config.rts_enable).ok();
+
+            // Keep TTYPort directly — it implements serialport::SerialPort with blocking I/O
+            let port: Box<dyn serialport::SerialPort> = Box::new(tty);
+
+            (port, signal_controller)
         };
-        builder = builder.data_bits(data_bits);
 
-        // Configure parity
-        let parity = match config.parity {
-            Parity::None => tokio_serial::Parity::None,
-            Parity::Odd => tokio_serial::Parity::Odd,
-            Parity::Even => tokio_serial::Parity::Even,
+        #[cfg(not(unix))]
+        let (port, _signal_controller) = {
+            // On Windows, use serialport::new().open_native() to get COMPort
+            let builder = serialport::new(name, config.baudrate)
+                .timeout(Duration::from_millis(config.timeout_ms))
+                .data_bits(match config.databits {
+                    5 => serialport::DataBits::Five,
+                    6 => serialport::DataBits::Six,
+                    7 => serialport::DataBits::Seven,
+                    8 => serialport::DataBits::Eight,
+                    _ => serialport::DataBits::Eight,
+                })
+                .parity(match config.parity {
+                    Parity::None => serialport::Parity::None,
+                    Parity::Odd => serialport::Parity::Odd,
+                    Parity::Even => serialport::Parity::Even,
+                })
+                .stop_bits(match config.stopbits {
+                    1 => serialport::StopBits::One,
+                    2 => serialport::StopBits::Two,
+                    _ => serialport::StopBits::One,
+                })
+                .flow_control(match config.flow_control {
+                    FlowControl::None => serialport::FlowControl::None,
+                    FlowControl::Software => serialport::FlowControl::Software,
+                    FlowControl::Hardware => serialport::FlowControl::Hardware,
+                });
+
+            let port = builder.open_native().map_err(|e| map_serial_error(e, name))?;
+            (Box::new(port), ())
         };
-        builder = builder.parity(parity);
 
-        // Configure stop bits
-        let stop_bits = match config.stopbits {
-            1 => tokio_serial::StopBits::One,
-            2 => tokio_serial::StopBits::Two,
-            _ => tokio_serial::StopBits::One,
-        };
-        builder = builder.stop_bits(stop_bits);
-
-        // Configure flow control
-        let flow_control = match config.flow_control {
-            FlowControl::None => tokio_serial::FlowControl::None,
-            FlowControl::Software => tokio_serial::FlowControl::Software,
-            FlowControl::Hardware => tokio_serial::FlowControl::Hardware,
-        };
-        builder = builder.flow_control(flow_control);
-
-        // Open the port
-        let port = builder.open().map_err(|e| {
-            // Map tokio-serial errors to our error types
-            let error_msg = e.to_string();
-            if error_msg.contains("permission denied")
-                || error_msg.contains("Permission denied")
-                || error_msg.contains("Access is denied")
-            {
-                SerialError::Serial(SerialPortError::permission_denied(
-                    name,
-                    Some("Try running as Administrator or check port permissions"),
-                ))
-            } else if error_msg.contains("not found")
-                || error_msg.contains("No such file")
-                || error_msg.contains("The system cannot find the file")
-            {
-                SerialError::Serial(SerialPortError::PortNotFound(name.to_string()))
-            } else if error_msg.contains("busy")
-                || error_msg.contains("Busy")
-                || error_msg.contains("used by another application")
-            {
-                SerialError::Serial(SerialPortError::port_busy(
-                    name,
-                    Some("Close other applications using this port or try a different port"),
-                ))
-            } else {
-                SerialError::Serial(SerialPortError::IoError(error_msg))
-            }
-        })?;
-
-        // Set DTR/RTS signals if requested
-        // Note: Full platform-specific implementation will be added in a follow-up
-        // For now, we log the intent and store the configuration
-        if config.dtr_enable || config.rts_enable {
-            tracing::debug!(
-                "DTR/RTS configuration: DTR={}, RTS={}",
-                config.dtr_enable,
-                config.rts_enable
-            );
-            // The actual signal control will be implemented with platform-specific code
-        }
-
-        // Create handle
+        let dtr_state = config.dtr_enable;
+        let rts_state = config.rts_enable;
         let handle = SerialPortHandle {
             name: name.to_string(),
             port,
             config,
             protocol: None,
-            dtr_state: true, // Default DTR enabled
-            rts_state: true, // Default RTS enabled
+            dtr_state,
+            rts_state,
+            #[cfg(unix)]
+            signal_controller,
         };
 
-        // Store handle
         let mut ports_guard = self.ports.lock().await;
         let port_id = format!("{}-{}", name, uuid::Uuid::new_v4());
         let port_handle = Arc::new(Mutex::new(handle));
         ports_guard.insert(port_id.clone(), port_handle.clone());
 
-        // Start background I/O task if IoLoop is enabled
         if *self.io_loop_enabled.lock().await {
             let port_id_clone = port_id.clone();
             let port_handle_clone = port_handle.clone();
 
-            // Spawn background task to read data
             tokio::spawn(async move {
                 let mut buffer = vec![0u8; 4096];
                 loop {
-                    // Try to get the port handle
                     let mut handle = port_handle_clone.lock().await;
-
-                    // Try to read data
                     match handle.read(&mut buffer) {
                         Ok(n) if n > 0 => {
                             let data = buffer[..n].to_vec();
                             tracing::debug!("IoLoop: Received {} bytes from {}", n, port_id_clone);
-
-                            // Here you would emit an event or call a callback
-                            // For now, we just log the data
                             if let Ok(text) = String::from_utf8(data.clone()) {
                                 tracing::debug!("Data: {}", text);
                             }
                         }
-                        Ok(_) => {
-                            // No data available, sleep a bit
-                        }
-                        Err(_) => {
-                            // Port error or closed, stop the task
-                            break;
-                        }
+                        Ok(_) => {}
+                        Err(_) => break,
                     }
-
-                    // Small delay to prevent busy-waiting
                     drop(handle);
                     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
                 }
@@ -371,6 +346,62 @@ impl PortManager {
     }
 }
 
+#[cfg(unix)]
+fn set_dtr_on_fd(fd: libc::c_int, enable: bool) {
+    let result = unsafe {
+        crate::serial_core::signals::UnixSignalController::set_modem_bit_on_fd(
+            fd,
+            libc::TIOCM_DTR,
+            enable,
+        )
+    };
+    if let Err(e) = result {
+        tracing::warn!("Failed to set DTR on open: {}", e);
+    }
+}
+
+#[cfg(unix)]
+fn set_rts_on_fd(fd: libc::c_int, enable: bool) {
+    let result = unsafe {
+        crate::serial_core::signals::UnixSignalController::set_modem_bit_on_fd(
+            fd,
+            libc::TIOCM_RTS,
+            enable,
+        )
+    };
+    if let Err(e) = result {
+        tracing::warn!("Failed to set RTS on open: {}", e);
+    }
+}
+
+fn map_serial_error(e: serialport::Error, name: &str) -> SerialError {
+    let error_msg = e.to_string();
+    if error_msg.contains("permission denied")
+        || error_msg.contains("Permission denied")
+        || error_msg.contains("Access is denied")
+    {
+        SerialError::Serial(SerialPortError::permission_denied(
+            name,
+            Some("Try running as Administrator or check port permissions"),
+        ))
+    } else if error_msg.contains("not found")
+        || error_msg.contains("No such file")
+        || error_msg.contains("The system cannot find the file")
+    {
+        SerialError::Serial(SerialPortError::PortNotFound(name.to_string()))
+    } else if error_msg.contains("busy")
+        || error_msg.contains("Busy")
+        || error_msg.contains("used by another application")
+    {
+        SerialError::Serial(SerialPortError::port_busy(
+            name,
+            Some("Close other applications using this port or try a different port"),
+        ))
+    } else {
+        SerialError::Serial(SerialPortError::IoError(error_msg))
+    }
+}
+
 impl SerialPortHandle {
     /// Get port name
     pub fn name(&self) -> &str {
@@ -392,154 +423,88 @@ impl SerialPortHandle {
         self.protocol = protocol_name;
     }
 
-    /// Set DTR (Data Terminal Ready) signal state
-    ///
-    /// This function uses platform-specific signal control to set the DTR signal.
-    /// It follows a "warn but don't fail" approach for better compatibility.
+    /// Set DTR signal state
     pub fn set_dtr(&mut self, enable: bool) -> Result<()> {
-        // Update configuration
         if enable != self.dtr_state {
             let old_state = self.dtr_state;
             self.dtr_state = enable;
 
-            // Attempt platform-specific signal control
-            let result = self.set_hardware_dtr(enable);
+            #[cfg(unix)]
+            let result = self.signal_controller.set_dtr(enable);
+
+            #[cfg(not(unix))]
+            let result: Result<crate::serial_core::signals::SignalState> = {
+                self.dtr_state = enable;
+                Ok(crate::serial_core::signals::SignalState::NotSupported)
+            };
 
             match result {
-                Ok(()) => {
+                Ok(state) if matches!(state, crate::serial_core::signals::SignalState::Set(_)) => {
                     tracing::info!("DTR signal set to: {} for port {}", enable, self.name);
+                }
+                Ok(_) => {
+                    tracing::warn!(
+                        "DTR signal control not available on this platform for port {}",
+                        self.name
+                    );
                 }
                 Err(e) => {
                     tracing::warn!(
-                        "Failed to set DTR signal for port {}: {}. State updated in memory only (old: {}, new: {}).",
-                        self.name, e, old_state, enable
+                        "Failed to set DTR signal for port {}: {}. State updated in memory only.",
+                        self.name, e
                     );
-                    // Don't fail the operation, just log the warning
+                    self.dtr_state = old_state;
                 }
             }
         }
         Ok(())
     }
 
-    /// Set RTS (Request to Send) signal state
-    ///
-    /// This function uses platform-specific signal control to set the RTS signal.
-    /// It follows a "warn but don't fail" approach for better compatibility.
+    /// Set RTS signal state
     pub fn set_rts(&mut self, enable: bool) -> Result<()> {
-        // Update configuration
         if enable != self.rts_state {
             let old_state = self.rts_state;
             self.rts_state = enable;
 
-            // Attempt platform-specific signal control
-            let result = self.set_hardware_rts(enable);
+            #[cfg(unix)]
+            let result = self.signal_controller.set_rts(enable);
+
+            #[cfg(not(unix))]
+            let result: Result<crate::serial_core::signals::SignalState> = {
+                self.rts_state = enable;
+                Ok(crate::serial_core::signals::SignalState::NotSupported)
+            };
 
             match result {
-                Ok(()) => {
+                Ok(state) if matches!(state, crate::serial_core::signals::SignalState::Set(_)) => {
                     tracing::info!("RTS signal set to: {} for port {}", enable, self.name);
+                }
+                Ok(_) => {
+                    tracing::warn!(
+                        "RTS signal control not available on this platform for port {}",
+                        self.name
+                    );
                 }
                 Err(e) => {
                     tracing::warn!(
-                        "Failed to set RTS signal for port {}: {}. State updated in memory only (old: {}, new: {}).",
-                        self.name, e, old_state, enable
+                        "Failed to set RTS signal for port {}: {}. State updated in memory only.",
+                        self.name, e
                     );
-                    // Don't fail the operation, just log the warning
+                    self.rts_state = old_state;
                 }
             }
         }
-        Ok(())
-    }
-
-    /// Platform-specific DTR control implementation
-    ///
-    /// Note: Due to tokio-serial trait limitations, we cannot directly access
-    /// the underlying file descriptor/handle. This method logs the intent and
-    /// updates the internal state. For actual hardware control, platform-specific
-    /// code would be needed.
-    #[cfg(unix)]
-    fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!(
-            "Setting DTR signal to {} on port {} (Unix - ioctl would be used)",
-            enable,
-            self.name
-        );
-        self.dtr_state = enable;
-        Ok(())
-    }
-
-    /// Platform-specific DTR control implementation (Windows)
-    #[cfg(windows)]
-    fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!(
-            "Setting DTR signal to {} on port {} (Windows - EscapeCommFunction would be used)",
-            enable,
-            self.name
-        );
-        self.dtr_state = enable;
-        Ok(())
-    }
-
-    /// Platform-specific DTR control implementation (fallback)
-    #[cfg(not(any(unix, windows)))]
-    fn set_hardware_dtr(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!(
-            "Setting DTR signal to {} on port {} (platform not supported)",
-            enable,
-            self.name
-        );
-        self.dtr_state = enable;
-        Ok(())
-    }
-
-    /// Platform-specific RTS control implementation
-    ///
-    /// Note: Due to tokio-serial trait limitations, we cannot directly access
-    /// the underlying file descriptor/handle. This method logs the intent and
-    /// updates the internal state. For actual hardware control, platform-specific
-    /// code would be needed.
-    #[cfg(unix)]
-    fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!(
-            "Setting RTS signal to {} on port {} (Unix - ioctl would be used)",
-            enable,
-            self.name
-        );
-        self.rts_state = enable;
-        Ok(())
-    }
-
-    /// Platform-specific RTS control implementation (Windows)
-    #[cfg(windows)]
-    fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!(
-            "Setting RTS signal to {} on port {} (Windows - EscapeCommFunction would be used)",
-            enable,
-            self.name
-        );
-        self.rts_state = enable;
-        Ok(())
-    }
-
-    /// Platform-specific RTS control implementation (fallback)
-    #[cfg(not(any(unix, windows)))]
-    fn set_hardware_rts(&mut self, enable: bool) -> Result<()> {
-        tracing::debug!(
-            "Setting RTS signal to {} on port {} (platform not supported)",
-            enable,
-            self.name
-        );
-        self.rts_state = enable;
         Ok(())
     }
 
     /// Get current DTR state
     pub fn dtr_enabled(&self) -> bool {
-        self.config.dtr_enable
+        self.dtr_state
     }
 
     /// Get current RTS state
     pub fn rts_enabled(&self) -> bool {
-        self.config.rts_enable
+        self.rts_state
     }
 
     /// Write data to the port
@@ -558,7 +523,6 @@ impl SerialPortHandle {
 
     /// Close the port
     pub fn close(self) -> Result<()> {
-        // The port will be closed when dropped
         Ok(())
     }
 }
@@ -595,13 +559,11 @@ mod tests {
         let manager = PortManager::new();
         let ports = manager.list_ports();
         assert!(ports.is_ok());
-        // May return empty list if no ports available
     }
 
     #[tokio::test]
     async fn test_port_manager_creation() {
         let manager = PortManager::new();
-        // Try to open a non-existent port
         let result = manager
             .open_port("NONEXISTENT", SerialConfig::default())
             .await;
