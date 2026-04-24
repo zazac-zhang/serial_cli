@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.4.0] - 2026-04-24
+## [0.4.0] - 2026-04-24 ✅ RELEASED
 
 ### 🎉 Virtual Port Backend Architecture
 
