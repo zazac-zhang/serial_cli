@@ -244,6 +244,12 @@ impl ConfigManager {
         config.protocols.custom.get(name).cloned()
     }
 
+    /// Check if protocol hot-reload is enabled
+    pub fn is_hot_reload_enabled(&self) -> bool {
+        let config = self.config.read().unwrap();
+        config.protocols.hot_reload
+    }
+
     /// Save configuration to file
     pub fn save(&self, path: Option<&Path>) -> Result<()> {
         let config = self.config.read().unwrap();
@@ -492,6 +498,10 @@ pub struct ProtocolsConfig {
     /// Custom protocols
     #[serde(default)]
     pub custom: HashMap<String, CustomProtocolConfig>,
+
+    /// Enable hot-reload for protocol scripts
+    #[serde(default)]
+    pub hot_reload: bool,
 }
 
 /// Virtual serial port configuration

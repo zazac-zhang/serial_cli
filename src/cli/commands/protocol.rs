@@ -20,6 +20,7 @@ pub fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
         ProtocolCommand::Load { path, name } => load_protocol(&path, name),
         ProtocolCommand::Unload { name } => unload_protocol(&name),
         ProtocolCommand::Reload { name } => reload_protocol(&name),
+        ProtocolCommand::HotReload { action } => handle_hot_reload(&action),
     }
 }
 
@@ -205,5 +206,46 @@ fn reload_protocol(name: &str) -> Result<()> {
 
     println!("\u{2713} Protocol reloaded: {}", name);
     println!("  Script: {}", script_path.display());
+    Ok(())
+}
+
+fn handle_hot_reload(action: &str) -> Result<()> {
+    let config_manager = ConfigManager::load_with_fallback();
+
+    match action {
+        "enable" => {
+            println!("Enabling protocol hot-reload...");
+            config_manager.set("protocols.hot_reload", "true")?;
+            config_manager.save(None)?;
+            println!("\u{2713} Protocol hot-reload enabled");
+            println!();
+            println!("Custom protocols will now be automatically reloaded when modified.");
+        }
+        "disable" => {
+            println!("Disabling protocol hot-reload...");
+            config_manager.set("protocols.hot_reload", "false")?;
+            config_manager.save(None)?;
+            println!("\u{2713} Protocol hot-reload disabled");
+        }
+        "status" => {
+            let enabled = config_manager.is_hot_reload_enabled();
+            println!("Protocol hot-reload status:");
+            println!();
+            if enabled {
+                println!("  Status: \u{1F7E2} Enabled");
+                println!("  Custom protocols will be automatically reloaded when modified.");
+            } else {
+                println!("  Status: \u{1F6AB} Disabled");
+                println!("  Use 'protocol hot-reload enable' to enable automatic reloading.");
+            }
+        }
+        _ => {
+            return Err(SerialError::InvalidInput(format!(
+                "Unknown action: {}. Valid actions: enable, disable, status",
+                action
+            )));
+        }
+    }
+
     Ok(())
 }

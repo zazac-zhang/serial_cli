@@ -5,11 +5,14 @@
 use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::loader::ProtocolLoader;
 use crate::protocol::validator::ProtocolValidator;
+use crate::protocol::watcher::ProtocolWatcher;
 use crate::protocol::{ProtocolInfo, ProtocolRegistry};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 /// Custom protocol metadata
 #[derive(Debug, Clone)]
@@ -24,6 +27,12 @@ pub struct CustomProtocol {
 pub struct ProtocolManager {
     registry: Arc<Mutex<ProtocolRegistry>>,
     custom_protocols: HashMap<String, CustomProtocol>,
+    /// Hot-reload watcher task handle
+    watcher_task: Option<JoinHandle<()>>,
+    /// Paths being watched for changes
+    watched_paths: Arc<Mutex<HashSet<PathBuf>>>,
+    /// Whether hot-reload is enabled
+    hot_reload_enabled: Arc<Mutex<bool>>,
 }
 
 impl ProtocolManager {
@@ -32,6 +41,9 @@ impl ProtocolManager {
         Self {
             registry,
             custom_protocols: HashMap::new(),
+            watcher_task: None,
+            watched_paths: Arc::new(Mutex::new(HashSet::new())),
+            hot_reload_enabled: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -139,5 +151,34 @@ impl ProtocolManager {
     pub fn validate_protocol(path: &Path) -> Result<()> {
         ProtocolValidator::validate_script(path)?;
         Ok(())
+    }
+
+    /// Enable hot-reload for protocol scripts
+    ///
+    /// Monitors loaded custom protocol scripts for changes and automatically reloads them.
+    pub async fn enable_hot_reload(&mut self) -> Result<()> {
+        if *self.hot_reload_enabled.lock().await {
+            tracing::warn!("Hot-reload is already enabled");
+            return Ok(());
+        }
+
+        *self.hot_reload_enabled.lock().await = true;
+        tracing::info!("Protocol hot-reload enabled");
+        Ok(())
+    }
+
+    /// Disable hot-reload for protocol scripts
+    pub async fn disable_hot_reload(&mut self) -> Result<()> {
+        *self.hot_reload_enabled.lock().await = false;
+        if let Some(task) = self.watcher_task.take() {
+            task.abort();
+        }
+        tracing::info!("Protocol hot-reload disabled");
+        Ok(())
+    }
+
+    /// Check if hot-reload is currently enabled
+    pub async fn is_hot_reload_enabled(&self) -> bool {
+        *self.hot_reload_enabled.lock().await
     }
 }

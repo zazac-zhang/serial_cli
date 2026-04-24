@@ -91,6 +91,12 @@ pub enum ProtocolCommand {
         /// Path to protocol script
         path: PathBuf,
     },
+
+    /// Hot-reload management
+    HotReload {
+        /// Action: enable, disable, or status
+        action: String,
+    },
 }
 
 /// Sniff subcommands

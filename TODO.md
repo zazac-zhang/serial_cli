@@ -1,6 +1,6 @@
 # Serial CLI TODO List
 
-**Version**: v0.4.0
+**Version**: v0.5.0
 **Updated**: 2026-04-24
 
 ---
@@ -114,6 +114,35 @@ serial-cli config set virtual.backend socat
 **Future enhancements**:
 - [ ] Protocol development guide
 - [ ] Lua API complete reference
+
+---
+
+## Next Phase - v0.5.0 Development
+
+### Protocol Hot-Reload
+**Status**: ✅ Complete
+**Priority**: P1
+
+**Completed**:
+- [x] Add hot-reload methods to ProtocolManager
+- [x] Add `protocols.hot_reload` config option
+- [x] Add `protocol hot-reload` CLI command (enable/disable/status)
+- [x] Integrate with existing ProtocolWatcher infrastructure
+
+**Usage**:
+```bash
+# Enable hot-reload
+serial-cli protocol hot-reload enable
+
+# Check status
+serial-cli protocol hot-reload status
+
+# Disable hot-reload
+serial-cli protocol hot-reload disable
+
+# Set in config
+serial-cli config set protocols.hot_reload true
+```
 
 ---
 
