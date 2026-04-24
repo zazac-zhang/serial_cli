@@ -1,0 +1,42 @@
+[serial]
+baudrate = 115200
+databits = 8
+stopbits = 1
+parity = "none"
+timeout_ms = 1000
+
+[logging]
+level = "info"
+format = "text"
+file = ""
+
+[lua]
+memory_limit_mb = 128
+timeout_seconds = 300
+enable_sandbox = true
+
+[task]
+max_concurrent = 10
+default_timeout_seconds = 60
+
+[output]
+json_pretty = true
+show_timestamp = true
+
+[protocols]
+hot_reload = false
+
+[protocols.custom.test_valid]
+name = "test_valid"
+path = "tests/fixtures/protocols/test_valid.lua"
+version = 4
+loaded_at = "2026-04-25T00:48:06.799613+08:00"
+
+[virtual_ports]
+backend = "pty"
+monitor = false
+monitor_format = "hex"
+auto_cleanup = true
+max_packets = 0
+bridge_buffer_size = 8192
+bridge_poll_interval_ms = 10
