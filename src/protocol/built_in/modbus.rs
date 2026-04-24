@@ -55,19 +55,22 @@ impl ModbusProtocol {
 
     /// Encode Modbus request
     pub fn encode_request(&self, slave_id: u8, function_code: u8, data: &[u8]) -> Result<Vec<u8>> {
-        let mut pdu = vec![slave_id, function_code];
+        let mut pdu = Vec::with_capacity(2 + data.len());
+        pdu.push(slave_id);
+        pdu.push(function_code);
         pdu.extend_from_slice(data);
 
         match self.mode {
             ModbusMode::Rtu => {
-                let mut frame = pdu.clone();
+                let mut frame = Vec::with_capacity(pdu.len() + 2);
+                frame.extend_from_slice(&pdu);
                 let crc = Self::calculate_crc(&pdu);
                 frame.extend_from_slice(&crc.to_le_bytes());
                 Ok(frame)
             }
             ModbusMode::Ascii => {
-                // Convert to ASCII with LRC
-                let mut ascii = Vec::new();
+                // Pre-allocate: 1 (:) + pdu.len()*2 (hex) + 2 (LRC) + 2 (\r\n)
+                let mut ascii = Vec::with_capacity(1 + pdu.len() * 2 + 4);
                 ascii.push(b':'); // Start delimiter
 
                 for byte in &pdu {
@@ -153,7 +156,8 @@ impl ModbusProtocol {
                 }
 
                 // Convert hex to bytes
-                let mut bytes = Vec::new();
+                let byte_len = hex_data.len() / 2;
+                let mut bytes = Vec::with_capacity(byte_len);
                 for i in (0..hex_data.len()).step_by(2) {
                     let byte_str = &hex_data[i..i + 2];
                     let byte = Self::hex_to_byte(byte_str)?;
@@ -298,7 +302,8 @@ impl Protocol for ModbusProtocol {
                 }
 
                 // Convert hex to bytes
-                let mut bytes = Vec::new();
+                let byte_len = hex_data.len() / 2;
+                let mut bytes = Vec::with_capacity(byte_len);
                 for i in (0..hex_data.len()).step_by(2) {
                     let byte_str = &hex_data[i..i + 2];
                     let byte = Self::hex_to_byte(byte_str)?;
@@ -336,16 +341,15 @@ impl Protocol for ModbusProtocol {
 
         match self.mode {
             ModbusMode::Rtu => {
-                let mut frame = data.to_vec();
-                let crc = Self::calculate_crc(&frame);
+                let mut frame = Vec::with_capacity(data.len() + 2);
+                frame.extend_from_slice(data);
+                let crc = Self::calculate_crc(data);
                 frame.extend_from_slice(&crc.to_le_bytes());
                 Ok(frame)
             }
             ModbusMode::Ascii => {
-                // Encode as ASCII frame
-                // Format: :LLMMTT...CC\r\n
-
-                let mut ascii = Vec::new();
+                // Pre-allocate: 1 (:) + data.len()*2 (hex) + 2 (LRC) + 2 (\r\n)
+                let mut ascii = Vec::with_capacity(1 + data.len() * 2 + 4);
                 ascii.push(b':'); // Start delimiter
 
                 // Convert data to hex
