@@ -97,7 +97,7 @@ serial-cli config set virtual.backend socat
 ---
 
 ### 4. Documentation
-**Status**: ⚠️ Partial
+**Status**: ✅ Complete
 **Priority**: P2
 
 **Completed**:
@@ -106,13 +106,13 @@ serial-cli config set virtual.backend socat
 - [x] Inline code documentation
 - [x] Architecture reference (docs/dev/ARCH.md)
 - [x] Virtual Port Backend design spec (docs/superpowers/specs/)
+- [x] Update README with backend usage instructions
+- [x] Backend installation guide (socat, etc.)
+- [x] Troubleshooting guide with backend dependencies
 
-**TODO**:
-- [ ] Update README with backend usage instructions
+**Future enhancements**:
 - [ ] Protocol development guide
 - [ ] Lua API complete reference
-- [ ] Troubleshooting guide expansion
-- [ ] Backend installation guide (socat, etc.)
 
 ---
 
@@ -153,10 +153,10 @@ serial-cli config set virtual.backend socat
 |----------|-------|-----------|---------|------|
 | P0 - Critical | 0 | 0 | 0 | 0 |
 | P1 - Important | 0 | 0 | 0 | 0 |
-| P2 - Future | 4 | 1 | 2 | 1 |
-| **Total** | **4** | **1** | **2** | **1** |
+| P2 - Future | 4 | 3 | 0 | 1 |
+| **Total** | **4** | **3** | **0** | **1** |
 
-**Overall Progress**: ~90% (all P0/P1 complete, most P2 complete)
+**Overall Progress**: ~95% (all P0/P1 complete, most P2 complete)
 
 ---
 

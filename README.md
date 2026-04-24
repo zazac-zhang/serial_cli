@@ -1,6 +1,6 @@
 <div align="center">
 
-  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.2.0-blue?style=for-the-badge&logo=rust)
+  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.4.0-blue?style=for-the-badge&logo=rust)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
   [![GUI](https://img.shields.io/badge/GUI-Ready-success?style=for-the-badge&logo=react)](https://reactjs.org/)
@@ -19,7 +19,7 @@
 
 Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **both CLI and GUI interfaces**, **structured JSON output**, **embedded LuaJIT scripting**, and **support for multiple protocols** - making it perfect for both human interaction and AI/automation workflows.
 
-**✨ Production Ready** • **🖥️ GUI Available** • **🔧 203/203 Tests Passing** • **🌍 Linux • macOS • Windows**
+**✨ Production Ready** • **🖥️ GUI Available** • **🔧 214/214 Tests Passing** • **🌍 Linux • macOS • Windows**
 
 ---
 
@@ -131,6 +131,12 @@ serial> quit
   - System notifications
   - Complete keyboard shortcuts
   - Data persistence
+- **🔌 Virtual Serial Ports** - **NEW!** Pluggable backend architecture:
+  - **PTY Backend** (Unix/macOS) - POSIX pseudo-terminals
+  - **NamedPipe Backend** (Windows) - Windows named pipes
+  - **Socat Backend** (Cross-platform) - Socat-based virtual ports
+  - Platform auto-detection (defaults to best backend for your OS)
+  - Runtime backend selection via CLI flag or config file
 
 ---
 
@@ -197,6 +203,47 @@ loop 3
   scripts/${DEVICE}/poll.lua
   sleep 500
 end
+```
+
+### Virtual Serial Ports — Testing & Development
+
+```bash
+# Create virtual port pair (auto-detects best backend)
+serial-cli virtual create
+
+# Create with specific backend
+serial-cli virtual create --backend pty          # Unix/macOS
+serial-cli virtual create --backend namedpipe   # Windows
+serial-cli virtual create --backend socat       # Cross-platform (requires socat)
+
+# Create with monitoring enabled
+serial-cli virtual create --monitor --max-packets 1000
+
+# List active virtual pairs
+serial-cli virtual list
+
+# Show statistics for a pair
+serial-cli virtual stats <id>
+
+# Stop a virtual pair
+serial-cli virtual stop <id>
+```
+
+**Virtual ports are perfect for:**
+- Testing serial applications without hardware
+- Development and debugging
+- CI/CD pipeline automation
+- Protocol development and validation
+
+**Backend Selection:**
+- **Auto** (recommended): Automatically selects the best backend for your platform
+- **PTY**: Best performance on Unix/macOS
+- **NamedPipe**: Native Windows implementation
+- **Socat**: Cross-platform alternative (requires `socat` installation)
+
+**Set default backend in config:**
+```bash
+serial-cli config set virtual.backend socat
 ```
 
 ---
@@ -577,6 +624,23 @@ xcode-select --install
 - Install drivers for FTDI, CP210x, CH340 USB-to-serial adapters
 - Arduino IDE includes common drivers
 - Install Visual Studio Build Tools for development
+
+### Virtual Port Backend Dependencies
+
+**Socat Backend** (Cross-platform):
+```bash
+# Linux (Debian/Ubuntu)
+sudo apt-get install socat
+
+# macOS
+brew install socat
+
+# Windows
+# Download from: http://www.dest-unreach.org/socat/
+# Or use WSL on Windows
+```
+
+**Note:** The PTY and NamedPipe backends have no external dependencies and work out of the box on their respective platforms.
 
 ---
 

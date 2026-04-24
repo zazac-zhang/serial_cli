@@ -4,12 +4,12 @@ resolver = "2"
 
 [package]
 name = "serial-cli"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["Serial CLI Contributors"]
 description = "A universal serial port CLI tool optimized for AI interaction"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/yourusername/serial-cli"
+repository = "https://github.com/yourusername/serial_cli"
 readme = "README.md"
 
 [dependencies]

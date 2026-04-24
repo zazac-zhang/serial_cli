@@ -1,6 +1,60 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-04-24
+
+### 🎉 Virtual Port Backend Architecture
+
+- **Pluggable backend system** - `VirtualBackend` trait enables extensible backends
+- **PTY Backend** (Unix/macOS) - Refactored from existing code, improved performance
+- **NamedPipe Backend** (Windows) - Native Windows named pipes implementation
+- **Socat Backend** (Cross-platform) - Socat-based virtual ports with auto-detection
+- **Platform auto-detection** - Automatically selects best backend (PTY on Unix, NamedPipe on Windows)
+- **BackendFactory** - Priority chain: CLI flag → config file → auto-detection
+- **Config integration** - `virtual.backend` setting for default backend
+- **CLI enhancement** - `--backend` flag on `virtual create` command
+- **Error handling** - New error types: `UnsupportedBackend`, `MissingDependency`, `BackendInitFailed`
+- **Helpful error messages** - Installation hints for missing dependencies (socat)
+
+### Architecture
+
+- Created `serial_core/backends/` module with trait-based design
+- `VirtualBackend` trait: `create_pair()`, `is_healthy()`, `get_stats()`, `cleanup()`
+- Backend implementations: `PtyBackend`, `NamedPipeBackend`, `SocatBackend`
+- Runtime polymorphism via `Box<dyn VirtualBackend>`
+- Backward compatibility maintained via type aliases
+
+### Usage
+
+```bash
+# Auto-detect (recommended)
+serial-cli virtual create
+
+# Explicit backend selection
+serial-cli virtual create --backend pty
+serial-cli virtual create --backend socat
+serial-cli virtual create --backend namedpipe
+
+# Set default in config
+serial-cli config set virtual.backend socat
+```
+
+### Documentation
+
+- Updated README.md with virtual port examples
+- Added backend installation guide (socat dependencies)
+- Updated feature list and troubleshooting section
+- Added design spec: `docs/superpowers/specs/2026-04-24-virtual-port-backends-design.md`
+
+### Testing
+
+- All 214 tests passing
+- Added unit tests for backend implementations
+- Added BackendType parsing and detection tests
+- Property-based tests for backend selection
+
+---
+
 ## [0.3.0] - 2026-04-24
 
 ### Sniffing — Session Management
