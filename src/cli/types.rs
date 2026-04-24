@@ -10,8 +10,13 @@ use std::path::PathBuf;
 pub enum VirtualCommand {
     /// Create a virtual serial port pair
     Create {
-        /// Backend type (pty/socat/namedpipe)
-        #[arg(long, default_value = "pty")]
+        /// Backend type (auto/pty/socat/namedpipe)
+        ///
+        /// auto: Automatically detect best backend for platform (default)
+        /// pty: POSIX pseudo-terminal (Unix/macOS only)
+        /// socat: Socat-based virtual ports (requires socat binary)
+        /// namedpipe: Windows named pipes (Windows only)
+        #[arg(long, default_value = "auto")]
         backend: String,
 
         /// Enable traffic monitoring

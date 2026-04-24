@@ -8,7 +8,7 @@ use tokio::sync::RwLock;
 
 use crate::error::{Result, SerialError};
 use crate::cli::types::VirtualCommand;
-use crate::serial_core::{VirtualBackend, VirtualConfig, VirtualSerialPair};
+use crate::serial_core::{BackendType, VirtualConfig, VirtualSerialPair};
 
 /// Global registry for active virtual port pairs
 static VIRTUAL_REGISTRY: Lazy<Arc<RwLock<HashMap<String, VirtualSerialPair>>>> =
@@ -26,29 +26,36 @@ pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
 
             // Load configuration for defaults
             let config_manager = crate::config::ConfigManager::load_with_fallback();
-            let app_config = config_manager.get();
 
-            // Use backend from config if not explicitly set
-            let backend_str = if backend == "pty" {
-                &app_config.virtual_ports.backend
+            // Parse backend type from CLI argument
+            // Priority: CLI arg > config file > auto-detect
+            let backend_type = if backend == "auto" || backend.is_empty() {
+                // Use config or auto-detect
+                config_manager.get_virtual_backend_type()
             } else {
-                &backend
-            };
-
-            // Parse backend type
-            let backend_type = match backend_str.as_str() {
-                "pty" => VirtualBackend::Pty,
-                "namedpipe" => VirtualBackend::NamedPipe,
-                "socat" => VirtualBackend::Socat,
-                _ => {
-                    tracing::error!("Unknown backend: {}", backend_str);
-                    tracing::info!("Available backends: pty, namedpipe, socat");
-                    return Err(SerialError::VirtualPort(format!(
-                        "Unknown backend: {}",
-                        backend_str
-                    )));
+                // Parse CLI argument
+                match backend.parse::<BackendType>() {
+                    Ok(backend) => backend,
+                    Err(e) => {
+                        tracing::error!("Invalid backend type: {}", e);
+                        tracing::info!("Available backends: auto, pty, namedpipe, socat");
+                        return Err(e);
+                    }
                 }
             };
+
+            tracing::info!("Using backend type: {:?}", backend_type);
+
+            // Check if backend is available on this platform
+            if !backend_type.is_available() {
+                return Err(SerialError::VirtualPort(format!(
+                    "Backend {:?} is not available on this platform",
+                    backend_type
+                )));
+            }
+
+            // Get app config for other settings
+            let app_config = config_manager.get();
 
             // Use monitor from config if not explicitly set
             let monitor_enabled = if !monitor {
@@ -58,81 +65,41 @@ pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
             };
 
             // Use max_packets from config if not explicitly set
-            let max_packets_count = if max_packets == 0 {
+            let max_packets_config = if max_packets == 0 {
                 app_config.virtual_ports.max_packets
             } else {
                 max_packets
             };
 
-            // Use bridge_buffer_size from config
-            let bridge_buffer_size_value = app_config.virtual_ports.bridge_buffer_size;
-
-            // Create configuration
+            // Create virtual config
             let config = VirtualConfig {
                 backend: backend_type,
                 monitor: monitor_enabled,
                 monitor_output: output,
-                max_packets: max_packets_count,
-                bridge_buffer_size: bridge_buffer_size_value,
+                max_packets: max_packets_config,
+                bridge_buffer_size: app_config.virtual_ports.bridge_buffer_size,
             };
 
-            tracing::info!("Configuration: backend={:?}, monitor={}, max_packets={}, buffer_size={}",
-                config.backend, config.monitor, config.max_packets, config.bridge_buffer_size);
+            // Create the virtual pair
+            let pair = VirtualSerialPair::create(config).await?;
 
-            // Create virtual pair
-            let pair = match VirtualSerialPair::create(config).await {
-                Ok(p) => p,
-                Err(e) => {
-                    tracing::error!("\u{2717} Failed to create virtual pair: {}", e);
-                    return Err(e);
-                }
-            };
-
+            // Clone the values we need before moving pair
             let id = pair.id.clone();
             let port_a = pair.port_a.clone();
             let port_b = pair.port_b.clone();
 
-            tracing::info!("\u{2713} Virtual pair created successfully");
-            tracing::info!("  ID: {}", id);
-            tracing::info!("  Port A: {}", port_a);
-            tracing::info!("  Port B: {}", port_b);
-            tracing::info!("  Backend: {:?}", pair.backend);
-            tracing::info!("");
-            tracing::info!("Usage examples:");
-            tracing::info!("  Terminal 1: serial-cli interactive --port {}", port_a);
-            tracing::info!("  Terminal 2: serial-cli interactive --port {}", port_b);
-            tracing::info!("");
-            tracing::info!("To stop the pair:");
-            tracing::info!("  serial-cli virtual stop {}", id);
-
             // Store in registry
-            {
-                let mut registry = VIRTUAL_REGISTRY.write().await;
-                registry.insert(id.clone(), pair);
-            }
+            let mut registry = VIRTUAL_REGISTRY.write().await;
+            registry.insert(id.clone(), pair);
 
-            // Wait for Ctrl+C to keep it running
-            tracing::info!("");
-            tracing::info!("Press Ctrl+C to stop the virtual pair...");
-
-            let cleanup_result = tokio::select! {
-                _ = tokio::signal::ctrl_c() => {
-                    tracing::info!("\nStopping virtual pair...");
-                    let mut registry = VIRTUAL_REGISTRY.write().await;
-                    if let Some(pair) = registry.remove(&id) {
-                        pair.stop().await
-                    } else {
-                        Ok(())
-                    }
-                }
-            };
-
-            match cleanup_result {
-                Ok(_) => tracing::info!("\u{2713} Virtual pair stopped"),
-                Err(e) => {
-                    tracing::error!("\u{26A0} Error during cleanup: {}", e);
-                    return Err(e);
-                }
+            tracing::info!("Virtual port pair created successfully");
+            println!("✓ Virtual port pair created");
+            println!("  ID: {}", id);
+            println!("  Port A: {}", port_a);
+            println!("  Port B: {}", port_b);
+            println!("  Backend: {:?}", backend_type);
+            if monitor_enabled {
+                println!("  Monitoring: enabled (max {} packets)", max_packets_config);
             }
         }
 
