@@ -49,16 +49,30 @@ All P1 features complete! ✅
 ---
 
 ### 2. CLI Integration
-**Status**: ⚠️ Partial
+**Status**: ✅ Complete
 **Priority**: P2
 
 **Completed**:
 - [x] Backend type parsing (string → enum)
 - [x] Config file support for `virtual.default_backend`
+- [x] Add `--backend` flag to `virtual create` command
+- [x] Update help text with backend options
+- [x] Implement priority chain (CLI → config → auto-detect)
+- [x] Platform-aware backend selection
 
-**TODO**:
-- [ ] Add `--backend` flag to `virtual create` command
-- [ ] Update help text with backend options
+**Usage**:
+```bash
+# Auto-detect (default)
+serial-cli virtual create
+
+# Explicit backend selection
+serial-cli virtual create --backend pty
+serial-cli virtual create --backend socat
+serial-cli virtual create --backend namedpipe
+
+# Set default in config
+serial-cli config set virtual.backend socat
+```
 
 ---
 
