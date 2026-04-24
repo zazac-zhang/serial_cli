@@ -1,7 +1,7 @@
 # Serial CLI TODO List
 
 **Version**: v0.5.0
-**Updated**: 2026-04-24
+**Updated**: 2026-04-25
 
 ---
 
@@ -62,14 +62,16 @@ Port type changed from `Box<dyn tokio_serial::SerialPort>` to `Box<dyn serialpor
 | `virtual_stop()` | Still stub — requires global virtual pair registry (architectural change) |
 
 ### 5. VirtualSerialPair NamedPipe/Socat Backends Not Accessible via CLI
-**Status**: 🔴 Not Started
+**Status**: ✅ Fixed
 **Priority**: P1
-**Files**: `src/serial_core/virtual_port.rs`
+**Files**: `src/serial_core/virtual_port.rs`, `src/serial_core/backends/trait.rs`
 
-`VirtualSerialPair::create()` returns errors for NamedPipe and Socat: "not yet implemented via old API". The new `BackendFactory` + `VirtualBackend` trait supports these, but the CLI `virtual create` command uses the old API.
-
-- [ ] Refactor VirtualSerialPair::create to use BackendFactory for all backends
-- [ ] Or integrate new backend API into the virtual command handler
+`VirtualSerialPair::create()` now uses `BackendFactory` internally. All backends
+(PTY, NamedPipe, Socat) go through the same `VirtualBackend` trait path.
+- Extended `VirtualBackend::create_pair()` to return `(ports, error_rx, stats)`
+- `VirtualSerialPair` holds `Box<dyn VirtualBackend>` — delegates all operations
+- Removed ~500 lines of duplicate PTY bridge code from `virtual_port.rs`
+- PtyBackend/SocatBackend/NamedPipeBackend all implement the unified trait
 
 ### 6. Benchmark Virtual Port — Simulated Instead of Real
 **Status**: ✅ Fixed
@@ -175,11 +177,11 @@ Named pipe handles are "intentionally leaked" — not stored for cleanup. `clean
 | Category | Total | Completed | Partial | TODO |
 |----------|-------|-----------|---------|------|
 | P0 - Critical | 3 | 3 | 0 | 0 |
-| P1 - Important | 5 | 3 | 1 | 1 |
+| P1 - Important | 5 | 4 | 0 | 1 |
 | P2 - Future | 4 | 4 | 0 | 0 |
-| **Total** | **12** | **10** | **1** | **1** |
+| **Total** | **12** | **11** | **0** | **1** |
 
-**Overall Progress**: 🚧 ~92% complete, 1 remaining functional gap
+**Overall Progress**: 🚧 ~96% complete, 1 remaining functional gap
 
 ---
 
@@ -190,9 +192,9 @@ Named pipe handles are "intentionally leaked" — not stored for cleanup. `clean
 2. ✅ Fix ProtocolWatcher event channel (store tx/rx properly)
 3. ✅ Fix sniff daemon read loop (add async polling in daemon)
 
-### Phase 2 (P1 - Important Fixes) — Partial
+### Phase 2 (P1 - Important Fixes) — Complete
 1. ✅ Implement Lua binding stubs (protocol_unload, protocol_reload, protocol_load)
-2. ~~Wire NamedPipe/Socat backends into VirtualSerialPair::create~~ — deferred (requires architectural change for virtual pair registry)
+2. ✅ Wire NamedPipe/Socat backends into VirtualSerialPair (unified via BackendFactory + VirtualBackend trait)
 3. ✅ Fix benchmark virtual port (real PTY instead of sleep)
 4. ✅ Implement JSON serialization for benchmark save/load
 5. ~~Fix NamedPipe handle leak~~ — deferred (Windows-only, low impact)
