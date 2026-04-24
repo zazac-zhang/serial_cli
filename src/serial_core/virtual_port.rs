@@ -4,7 +4,7 @@
 //! and debugging serial communication without physical hardware.
 
 use crate::error::{Result, SerialError};
-use crate::serial_core::backends::{BackendType, BackendStats, VirtualBackend as VirtualBackendTrait};
+use crate::serial_core::backends::BackendType;
 use crate::serial_core::sniffer::{SerialSniffer, SnifferConfig};
 use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::atomic::{AtomicBool, Ordering};
