@@ -105,7 +105,7 @@ Named pipe handles are "intentionally leaked" — not stored for cleanup. `clean
 ## P2 - Future Enhancements
 
 ### 9. Performance Optimization (v0.5.0)
-**Status**: ✅ Complete
+**Status**: 🚧 Partial
 
 **Completed**:
 - [x] Add benchmark module structure
@@ -118,11 +118,21 @@ Named pipe handles are "intentionally leaked" — not stored for cleanup. `clean
 - [x] Implement benchmark result persistence (save/load)
 - [x] Implement benchmark comparison (regression detection)
 - [x] Add startup time benchmarks
+- [x] Add memory usage benchmarks
+- [x] Add concurrency benchmarks
 - [x] Fix benchmark runtime-in-runtime panic (`#[tokio::main]` conflict)
 - [x] Buffer allocation optimization (pre-allocate with `with_capacity`)
   - Modbus RTU encode: +179% (70 → 197 MB/s)
   - Modbus ASCII encode: +82% (97 → 176 MB/s)
   - Modbus ASCII parse: +17% (225 → 263 MB/s)
+
+**Pending**:
+- [ ] Zero-copy data transfer optimization (Cow/bytes for protocol payloads)
+- [ ] AsyncFd polling optimization
+- [ ] Buffer size tuning based on benchmark data
+- [ ] Batch read/write optimization
+- [ ] Lazy initialization for faster startup
+- [ ] Memory pool for buffer reuse
 
 ---
 
