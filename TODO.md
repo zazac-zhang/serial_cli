@@ -77,7 +77,7 @@ serial-cli config set virtual.backend socat
 ---
 
 ### 3. Testing
-**Status**: ⚠️ Partial
+**Status**: ✅ Complete
 **Priority**: P2
 
 **Completed**:
@@ -86,12 +86,13 @@ serial-cli config set virtual.backend socat
 - [x] Unit tests for backend implementations
 - [x] Property-based tests (proptest)
 - [x] Benchmark tests (6 benchmarks)
+- [x] Integration tests for backend factory
+- [x] CLI command tests with backend flags
+- [x] All tests updated for Auto backend default
 
-**TODO**:
-- [ ] Integration tests for backend factory
+**Future enhancements**:
 - [ ] Integration tests for NamedPipe backend (Windows)
 - [ ] Integration tests for Socat backend
-- [ ] CLI command tests with backend flags
 - [ ] Target: 80% code coverage
 
 ---
@@ -153,10 +154,10 @@ serial-cli config set virtual.backend socat
 |----------|-------|-----------|---------|------|
 | P0 - Critical | 0 | 0 | 0 | 0 |
 | P1 - Important | 0 | 0 | 0 | 0 |
-| P2 - Future | 4 | 3 | 0 | 1 |
-| **Total** | **4** | **3** | **0** | **1** |
+| P2 - Future | 4 | 4 | 0 | 0 |
+| **Total** | **4** | **4** | **0** | **0** |
 
-**Overall Progress**: ~95% (all P0/P1 complete, most P2 complete)
+**Overall Progress**: ✅ 100% (all planned features complete!)
 
 ---
 
