@@ -95,10 +95,12 @@ impl ProtocolValidator {
     }
 }
 
-/// Validation result
+/// Outcome of validating a Lua protocol script.
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
+    /// Extracted protocol name from `-- Protocol: <name>` comment, if present.
     pub protocol_name: Option<String>,
+    /// Whether the script passed all checks. Always `true` when `Ok` is returned.
     pub valid: bool,
 }
 

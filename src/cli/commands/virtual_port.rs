@@ -1,4 +1,7 @@
 //! Virtual serial port command handler
+//!
+//! Handles `serial-cli virtual create|list|stop|stats`.
+//! Manages a global registry of active virtual port pairs.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,10 +13,18 @@ use crate::cli::types::VirtualCommand;
 use crate::error::{Result, SerialError};
 use crate::serial_core::{BackendType, VirtualConfig, VirtualSerialPair};
 
-/// Global registry for active virtual port pairs
+/// In-memory registry of active virtual port pairs, keyed by pair ID.
 static VIRTUAL_REGISTRY: Lazy<Arc<RwLock<HashMap<String, VirtualSerialPair>>>> =
     Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
+/// Dispatch a [`VirtualCommand`] to create, list, stop, or show stats for
+/// virtual serial port pairs.
+///
+/// # Errors
+///
+/// Returns [`SerialError::VirtualPort`] if the requested pair is not found
+/// or if the backend is unavailable on the current platform.
+/// Returns [`SerialError::UnsupportedBackend`] for invalid backend type strings.
 pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
     match cmd {
         VirtualCommand::Create {

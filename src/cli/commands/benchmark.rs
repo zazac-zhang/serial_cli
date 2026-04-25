@@ -1,10 +1,17 @@
 //! Benchmark command handler
+//!
+//! Handles `serial-cli benchmark run`, `benchmark compare`, and `benchmark list`.
 
 use crate::benchmark::{BenchmarkCategory, BenchmarkReport, BenchmarkRunner};
 use crate::cli::types::BenchmarkCommand;
 use crate::error::{Result, SerialError};
 use std::path::PathBuf;
 
+/// Dispatch a [`BenchmarkCommand`] to the appropriate handler.
+///
+/// # Errors
+///
+/// Propagates errors from benchmark execution, file I/O, or JSON parsing.
 pub fn handle_benchmark_command(cmd: BenchmarkCommand) -> Result<()> {
     match cmd {
         BenchmarkCommand::Run {
@@ -17,6 +24,18 @@ pub fn handle_benchmark_command(cmd: BenchmarkCommand) -> Result<()> {
     }
 }
 
+/// Run benchmarks for the specified category and optionally save results.
+///
+/// # Arguments
+///
+/// * `category` - Benchmark category (`all`, `serial-io`, `virtual-port`,
+///   `protocol`, `startup`, `memory`, `concurrency`)
+/// * `iterations` - Number of iterations per benchmark
+/// * `output` - Optional path to save JSON results
+///
+/// # Errors
+///
+/// Returns [`SerialError::Config`] if JSON serialization or file write fails.
 fn run_benchmarks(category: &str, iterations: u64, output: Option<PathBuf>) -> Result<()> {
     let runner = BenchmarkRunner::new().with_iterations(iterations);
     let mut results = Vec::new();
@@ -62,6 +81,16 @@ fn run_benchmarks(category: &str, iterations: u64, output: Option<PathBuf>) -> R
     Ok(())
 }
 
+/// Compare two benchmark result files and print regression/improvement summary.
+///
+/// # Arguments
+///
+/// * `baseline` - Path to the baseline JSON results file
+/// * `current` - Path to the current JSON results file
+///
+/// # Errors
+///
+/// Returns [`SerialError::Config`] if either file cannot be read or parsed.
 fn compare_benchmarks(baseline: &PathBuf, current: &PathBuf) -> Result<()> {
     use crate::benchmark::reporter::compare_benchmarks;
 
@@ -109,6 +138,7 @@ fn compare_benchmarks(baseline: &PathBuf, current: &PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Print all available benchmark categories with usage examples.
 fn list_benchmarks() -> Result<()> {
     println!("Available benchmark categories:");
     println!();
@@ -126,6 +156,11 @@ fn list_benchmarks() -> Result<()> {
     Ok(())
 }
 
+/// Serialize a [`BenchmarkReport`] to JSON and write it to the given path.
+///
+/// # Errors
+///
+/// Returns [`SerialError::Config`] on serialization or I/O failure.
 fn save_benchmark_results(report: &BenchmarkReport, path: &PathBuf) -> Result<()> {
     let json = serde_json::to_string_pretty(report).map_err(|e| {
         SerialError::Config(format!("Failed to serialize benchmark results: {}", e))
@@ -137,6 +172,11 @@ fn save_benchmark_results(report: &BenchmarkReport, path: &PathBuf) -> Result<()
     Ok(())
 }
 
+/// Load a [`BenchmarkReport`] from a JSON file.
+///
+/// # Errors
+///
+/// Returns [`SerialError::Config`] if the file cannot be read or deserialized.
 fn load_benchmark_results(path: &PathBuf) -> Result<BenchmarkReport> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| SerialError::Config(format!("Failed to read benchmark results: {}", e)))?;

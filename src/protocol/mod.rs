@@ -22,38 +22,59 @@ pub use watcher::ProtocolWatcher;
 // Export Lua protocol for external use
 pub use lua_ext::{create_lua_protocol, LuaProtocol};
 
-/// Protocol trait for serial communication protocols
+/// Core trait for serial communication protocol implementations.
+///
+/// All protocols (Modbus RTU, Modbus ASCII, AT commands, line-based, custom Lua)
+/// implement this trait. The engine calls [`parse`](Self::parse) on incoming
+/// data and [`encode`](Self::encode) on outgoing data.
+///
+/// Implementations must be `Send + Sync` for use in async contexts.
 pub trait Protocol: Send + Sync {
-    /// Get protocol name
+    /// Get the protocol's unique name (e.g., `"modbus_rtu"`).
     fn name(&self) -> &str;
 
-    /// Parse incoming data
+    /// Parse incoming raw bytes into a protocol frame.
+    ///
+    /// Returns the parsed payload as a byte vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Protocol`] if the data is malformed,
+    /// a checksum fails, or the frame is incomplete.
     fn parse(&mut self, data: &[u8]) -> Result<Vec<u8>>;
 
-    /// Encode outgoing data
+    /// Encode outgoing data into a protocol frame (e.g., add headers, checksums).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Protocol`] if encoding fails (should not
+    /// normally occur for well-formed input).
     fn encode(&mut self, data: &[u8]) -> Result<Vec<u8>>;
 
-    /// Reset protocol state
+    /// Reset internal parser state. The default implementation is a no-op.
     fn reset(&mut self) -> Result<()> {
         Ok(())
     }
 
-    /// Check if protocol has data ready
+    /// Check whether the protocol has a complete frame ready for consumption.
     fn has_data(&self) -> bool {
         false
     }
 
-    /// Get protocol statistics
+    /// Return cumulative parsing/encoding statistics.
     fn stats(&self) -> ProtocolStats {
         ProtocolStats::default()
     }
 }
 
-/// Protocol statistics
+/// Counters tracking protocol parsing and encoding activity.
 #[derive(Debug, Clone, Default)]
 pub struct ProtocolStats {
+    /// Number of frames successfully parsed.
     pub frames_parsed: usize,
+    /// Number of frames successfully encoded.
     pub frames_encoded: usize,
+    /// Number of parse or encode errors encountered.
     pub errors: usize,
 }
 

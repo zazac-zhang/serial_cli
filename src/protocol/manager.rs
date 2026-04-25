@@ -12,16 +12,22 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-/// Custom protocol metadata
+/// Custom protocol metadata tracked by the [`ProtocolManager`].
 #[derive(Debug, Clone)]
 pub struct CustomProtocol {
+    /// Protocol name.
     pub name: String,
+    /// Filesystem path to the Lua script.
     pub script_path: PathBuf,
+    /// Time the protocol was loaded (or last reloaded).
     pub loaded_at: std::time::SystemTime,
+    /// Reload counter (incremented on each hot-reload).
     pub version: u64,
 }
 
-/// Protocol manager
+/// Manages the lifecycle of custom Lua protocols: loading from disk,
+/// registering into the [`ProtocolRegistry`], unloading, reloading, and
+/// optional hot-reload watching.
 pub struct ProtocolManager {
     registry: Arc<Mutex<ProtocolRegistry>>,
     custom_protocols: HashMap<String, CustomProtocol>,
@@ -32,7 +38,7 @@ pub struct ProtocolManager {
 }
 
 impl ProtocolManager {
-    /// Create a new protocol manager
+    /// Create a new manager with the given registry. Hot-reload is disabled by default.
     pub fn new(registry: Arc<Mutex<ProtocolRegistry>>) -> Self {
         Self {
             registry,
@@ -42,7 +48,13 @@ impl ProtocolManager {
         }
     }
 
-    /// Load a protocol from a file
+    /// Load a protocol from a Lua script file, register it in the registry,
+    /// and track it as a [`CustomProtocol`].
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from [`ProtocolLoader`] (validation, file I/O)
+    /// and factory creation.
     pub async fn load_protocol(&mut self, path: &Path) -> Result<ProtocolInfo> {
         // Load the protocol
         let loaded = ProtocolLoader::load_from_file(path)?;
@@ -77,7 +89,12 @@ impl ProtocolManager {
         })
     }
 
-    /// Unload a protocol
+    /// Unload a previously loaded custom protocol from both the registry and
+    /// the internal tracking map.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Protocol`] if the protocol is not found.
     pub async fn unload_protocol(&mut self, name: &str) -> Result<()> {
         // Check if protocol exists
         if !self.custom_protocols.contains_key(name) {
@@ -98,7 +115,13 @@ impl ProtocolManager {
         Ok(())
     }
 
-    /// Reload a protocol
+    /// Reload a custom protocol from its original file path. Unloads the
+    /// existing version first, then loads fresh from disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Protocol`] if the protocol is not found or
+    /// the reloaded script fails validation.
     pub async fn reload_protocol(&mut self, name: &str) -> Result<()> {
         // Get existing metadata
         let script_path = self
@@ -117,7 +140,7 @@ impl ProtocolManager {
         Ok(())
     }
 
-    /// List all protocols (built-in + custom)
+    /// List all registered protocols, marking custom ones with a `(custom)` suffix.
     pub async fn list_protocols(&self) -> Vec<ProtocolInfo> {
         let registry = self.registry.lock().await;
         let mut protocols = registry.list_protocols().await;
@@ -132,17 +155,17 @@ impl ProtocolManager {
         protocols
     }
 
-    /// Get custom protocol metadata
+    /// Look up custom protocol metadata by name.
     pub fn get_custom_protocol(&self, name: &str) -> Option<&CustomProtocol> {
         self.custom_protocols.get(name)
     }
 
-    /// Get number of custom protocols
+    /// Get the number of loaded custom protocols.
     pub fn custom_protocols_len(&self) -> usize {
         self.custom_protocols.len()
     }
 
-    /// Validate a protocol script without loading
+    /// Validate a protocol script without loading or registering it.
     pub fn validate_protocol(path: &Path) -> Result<()> {
         ProtocolValidator::validate_script(path)?;
         Ok(())

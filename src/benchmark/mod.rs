@@ -9,20 +9,20 @@ pub mod runner;
 pub use reporter::{BenchmarkReport, ComparisonResult};
 pub use runner::BenchmarkRunner;
 
-/// Benchmark categories
+/// Benchmark categories, each grouping related performance tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BenchmarkCategory {
-    /// Serial I/O throughput benchmarks
+    /// Serial I/O throughput — buffer copy, protocol encode/decode round-trips.
     SerialIo,
-    /// Virtual port performance benchmarks
+    /// Virtual port creation and bridging performance.
     VirtualPort,
-    /// Protocol parsing and processing benchmarks
+    /// Protocol parsing speed (Modbus RTU/ASCII, CRC, LRC).
     Protocol,
-    /// Startup time benchmarks
+    /// Application startup time (cold/warm start, Lua engine init).
     Startup,
-    /// Memory usage benchmarks
+    /// Memory allocation overhead and footprint measurements.
     Memory,
-    /// Concurrency benchmarks
+    /// Concurrent task execution overhead.
     Concurrency,
 }
 
@@ -50,17 +50,29 @@ impl BenchmarkCategory {
     }
 }
 
-/// Benchmark result
+/// Result of a single benchmark run, capturing timing and optional throughput data.
+///
+/// Can be serialized to JSON for persistence and later comparison via
+/// [`compare_benchmarks`](crate::benchmark::reporter::compare_benchmarks).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BenchmarkResult {
+    /// Human-readable benchmark name (e.g., `"modbus_rtu_parse"`).
     pub name: String,
+    /// The category this benchmark belongs to.
     pub category: BenchmarkCategory,
+    /// Number of iterations executed during measurement.
     pub iterations: u64,
+    /// Total elapsed time across all iterations, in nanoseconds.
     pub elapsed_ns: u64,
+    /// Total bytes processed across all iterations, if applicable.
+    /// When `Some`, [`throughput_bytes_per_sec`](Self::throughput_bytes_per_sec)
+    /// returns a meaningful value.
     pub bytes_processed: Option<u64>,
 }
 
 impl BenchmarkResult {
+    /// Calculate throughput in bytes per second. Returns `None` if this
+    /// benchmark did not track byte counts.
     pub fn throughput_bytes_per_sec(&self) -> Option<f64> {
         self.bytes_processed.map(|bytes| {
             let elapsed_sec = self.elapsed_ns as f64 / 1_000_000_000.0;
@@ -68,6 +80,7 @@ impl BenchmarkResult {
         })
     }
 
+    /// Calculate the average time per iteration in nanoseconds.
     pub fn avg_ns_per_iteration(&self) -> f64 {
         self.elapsed_ns as f64 / self.iterations as f64
     }

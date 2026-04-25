@@ -1,9 +1,17 @@
 //! Batch command handler
+//!
+//! Handles `serial-cli batch run` and `serial-cli batch list`.
+//! Supports both single Lua scripts and multi-line batch files.
 
 use crate::cli::batch::{BatchConfig, BatchLine, BatchRunner};
 use crate::cli::types::BatchCommand;
 use crate::error::{Result, SerialError};
 
+/// Dispatch a [`BatchCommand`] to the appropriate handler.
+///
+/// # Errors
+///
+/// Propagates errors from the underlying batch execution or listing logic.
 pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
     match cmd {
         BatchCommand::Run {
@@ -164,7 +172,10 @@ pub async fn handle_batch_command(cmd: BatchCommand) -> Result<()> {
     Ok(())
 }
 
-/// Get the user's home directory, falling back gracefully
+/// Resolve the user's home directory for batch script search paths.
+///
+/// Uses the `directories` crate with graceful fallback if the home
+/// directory cannot be determined.
 fn dirs_or_home() -> Option<std::path::PathBuf> {
     directories::BaseDirs::new().map(|d| d.home_dir().to_path_buf())
 }

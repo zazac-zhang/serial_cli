@@ -1,6 +1,14 @@
 //! Task scheduler module
 //!
 //! This module provides task scheduling and execution.
+//!
+//! # Key types
+//!
+//! - [`Task`] — a unit of work with a unique ID and creation timestamp
+//! - [`TaskType`] — the kind of work (script execution, serial operation, custom)
+//! - [`TaskStatus`] — lifecycle state of a task
+//! - [`TaskResult`] — outcome of task execution
+//! - [`TaskQueue`] — priority-based queue with concurrency limiting
 
 pub mod executor;
 pub mod monitor;
@@ -8,42 +16,50 @@ pub mod queue;
 
 use uuid::Uuid;
 
-/// Task ID
+/// Unique identifier for a task (UUID v4 string).
 pub type TaskId = String;
 
-/// Task type
+/// The kind of work a [`Task`] represents.
 #[derive(Debug, Clone)]
 pub enum TaskType {
-    /// Script execution task
+    /// Execute a Lua script by name with the given content.
     Script { name: String, content: String },
-    /// Serial port operation
+    /// Perform a serial port operation on the named port.
     SerialOp {
         port_name: String,
         operation: SerialOperation,
     },
-    /// Custom task
+    /// A custom task with an arbitrary name and data payload.
     Custom { name: String, data: String },
 }
 
-/// Serial operation type
+/// The specific serial port operation within a [`TaskType::SerialOp`].
 #[derive(Debug, Clone)]
 pub enum SerialOperation {
+    /// Send raw bytes to the port.
     Send { data: Vec<u8> },
+    /// Receive up to `bytes` from the port.
     Recv { bytes: usize },
+    /// Open the port with the given [`SerialConfig`].
     Open { config: SerialConfig },
+    /// Close the port.
     Close,
 }
 
-/// Serial configuration for tasks
+/// Serial configuration used within task definitions.
 #[derive(Debug, Clone)]
 pub struct SerialConfig {
+    /// Baud rate in bits per second.
     pub baudrate: u32,
+    /// Data bits per frame (5–8).
     pub databits: u8,
+    /// Stop bits (1 or 2).
     pub stopbits: u8,
+    /// Parity mode as a string (`"none"`, `"odd"`, `"even"`).
     pub parity: String,
 }
 
-/// Task
+/// A unit of scheduled work with a unique ID and creation timestamp.
 #[derive(Debug, Clone)]
 pub struct Task {
     id: TaskId,
@@ -52,7 +68,7 @@ pub struct Task {
 }
 
 impl Task {
-    /// Create a new task
+    /// Create a new task with a generated UUID and current timestamp.
     pub fn new(task_type: TaskType) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
@@ -61,37 +77,45 @@ impl Task {
         }
     }
 
-    /// Get task ID
+    /// Get the task's unique identifier.
     pub fn id(&self) -> TaskId {
         self.id.clone()
     }
 
-    /// Get task type
+    /// Get the kind of work this task represents.
     pub fn task_type(&self) -> &TaskType {
         &self.task_type
     }
 
-    /// Get elapsed time since creation
+    /// Get the time elapsed since the task was created.
     pub fn elapsed(&self) -> std::time::Duration {
         self.created_at.elapsed()
     }
 }
 
-/// Task status
+/// Lifecycle state of a task in the scheduler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskStatus {
+    /// Task is queued and waiting to run.
     Pending,
+    /// Task is currently executing.
     Running,
+    /// Task completed successfully.
     Completed,
+    /// Task failed with an error.
     Failed,
 }
 
-/// Task result
+/// Outcome of a completed task.
 #[derive(Debug, Clone)]
 pub enum TaskResult {
+    /// Task completed with no output data.
     Success,
+    /// Task completed with a binary payload.
     SuccessWithData(Vec<u8>),
+    /// Task completed with a text response.
     SuccessWithText(String),
+    /// Task failed with an error message.
     Error(String),
 }
 

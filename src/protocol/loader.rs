@@ -1,6 +1,7 @@
 //! Lua protocol script loader
 //!
-//! Loads and initializes Lua protocol scripts.
+//! Loads and initializes Lua protocol scripts from disk, extracting metadata
+//! and creating factories for on-demand instantiation.
 
 use crate::error::{ProtocolError, Result, SerialError};
 use crate::protocol::lua_ext::create_lua_protocol;
@@ -10,12 +11,16 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-/// Loaded protocol metadata
+/// Metadata extracted from a loaded Lua protocol script.
 #[derive(Debug, Clone)]
 pub struct LoadedProtocol {
+    /// Protocol name (from `-- Protocol: <name>` comment or filename).
     pub name: String,
+    /// Absolute or relative path to the script file.
     pub script_path: std::path::PathBuf,
+    /// Full script source code.
     pub script_content: String,
+    /// Timestamp when the protocol was loaded.
     pub loaded_at: std::time::SystemTime,
 }
 
@@ -23,7 +28,15 @@ pub struct LoadedProtocol {
 pub struct ProtocolLoader;
 
 impl ProtocolLoader {
-    /// Load a protocol from a Lua script file
+    /// Load and validate a protocol from a Lua script file.
+    ///
+    /// Validates syntax and required functions (`on_frame`, `on_encode`),
+    /// then extracts the protocol name from a `-- Protocol: <name>` comment
+    /// or falls back to the filename stem.
+    ///
+    /// # Errors
+    ///
+    /// Propagates validation errors from [`ProtocolValidator`] or file I/O errors.
     pub fn load_from_file(path: &Path) -> Result<LoadedProtocol> {
         // Validate the script first
         let validation = ProtocolValidator::validate_script(path)?;
@@ -55,7 +68,13 @@ impl ProtocolLoader {
         })
     }
 
-    /// Create a protocol factory from loaded protocol
+    /// Create a [`ProtocolFactory`] that produces [`LuaProtocol`] instances
+    /// from the loaded script content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Lua protocol cannot be constructed
+    /// (e.g., mlua context creation failure).
     pub fn create_factory(loaded: &LoadedProtocol) -> Result<Arc<dyn ProtocolFactory>> {
         struct LuaProtocolFactory {
             name: String,

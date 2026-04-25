@@ -7,40 +7,58 @@ use crate::protocol::Protocol;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Protocol factory trait for creating protocol instances
+/// Factory trait for creating protocol instances on demand.
+///
+/// Instead of storing single protocol instances, the registry stores factories
+/// so that each consumer gets its own fresh instance.
 pub trait ProtocolFactory: Send + Sync {
-    /// Create a new protocol instance
+    /// Create a new protocol instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the protocol cannot be instantiated
+    /// (e.g., Lua engine failure for custom protocols).
     fn create(&self) -> Result<Box<dyn Protocol>>;
 
-    /// Get the protocol name
+    /// Get the protocol name this factory produces.
     fn name(&self) -> &str;
 
-    /// Get the protocol description
+    /// Get a human-readable description. Defaults to empty string.
     fn description(&self) -> &str {
         ""
     }
 }
 
-/// Protocol registry for managing available protocols
+/// Central registry of protocol factories, providing registration, lookup, and
+/// lifecycle management.
+///
+/// Protocols are registered once but can be instantiated multiple times via
+/// [`get_protocol`](Self::get_protocol).
 pub struct ProtocolRegistry {
     factories: HashMap<String, Arc<dyn ProtocolFactory>>,
 }
 
 impl ProtocolRegistry {
-    /// Create a new protocol registry
+    /// Create an empty registry.
     pub fn new() -> Self {
         Self {
             factories: HashMap::new(),
         }
     }
 
-    /// Register a protocol factory
+    /// Register a protocol factory. If a protocol with the same name already
+    /// exists, it is silently replaced.
     pub async fn register(&mut self, factory: Arc<dyn ProtocolFactory>) {
         let name = factory.name().to_string();
         self.factories.insert(name, factory);
     }
 
-    /// Get or create a protocol instance
+    /// Create a fresh protocol instance from the registered factory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Protocol`] with [`ProtocolError::NotFound`]
+    /// if no protocol with the given name is registered.
     pub async fn get_protocol(&self, name: &str) -> Result<Box<dyn Protocol>> {
         // Create new instance from factory
         let factory = self
@@ -52,7 +70,7 @@ impl ProtocolRegistry {
         Ok(protocol)
     }
 
-    /// List all registered protocols
+    /// List all registered protocols with their names and descriptions.
     pub async fn list_protocols(&self) -> Vec<ProtocolInfo> {
         self.factories
             .iter()
@@ -63,12 +81,17 @@ impl ProtocolRegistry {
             .collect()
     }
 
-    /// Clear all protocol instances (no-op in new implementation)
+    /// Remove all protocol instances. Currently a no-op due to the factory pattern.
     pub async fn clear_instances(&self) {
         // No longer needed with factory pattern
     }
 
-    /// Unregister a protocol by name
+    /// Unregister a protocol factory by name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Protocol`] with [`ProtocolError::NotFound`]
+    /// if no protocol with the given name exists.
     pub async fn unregister(&mut self, name: &str) -> Result<()> {
         if self.factories.remove(name).is_none() {
             return Err(SerialError::Protocol(ProtocolError::NotFound(
@@ -79,7 +102,7 @@ impl ProtocolRegistry {
         Ok(())
     }
 
-    /// Check if a protocol is registered
+    /// Check whether a protocol with the given name is registered.
     pub async fn is_registered(&self, name: &str) -> bool {
         self.factories.contains_key(name)
     }
@@ -91,10 +114,12 @@ impl Default for ProtocolRegistry {
     }
 }
 
-/// Protocol information
+/// Minimal protocol metadata for listing and discovery.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ProtocolInfo {
+    /// Protocol name (e.g., `"modbus_rtu"`, `"my_custom"`).
     pub name: String,
+    /// Human-readable description.
     pub description: String,
 }
 

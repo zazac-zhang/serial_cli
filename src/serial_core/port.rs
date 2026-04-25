@@ -1,6 +1,13 @@
 //! Serial port management
 //!
 //! This module provides serial port discovery, configuration, and management.
+//!
+//! # Key types
+//!
+//! - [`PortManager`] — thread-safe manager that tracks open ports
+//! - [`SerialConfig`] — port settings (baud rate, data bits, parity, etc.)
+//! - [`SerialPortHandle`] — RAII handle for an open port with read/write access
+//! - [`SerialPortInfo`] — metadata about an enumerated port
 
 use crate::error::{Result, SerialError, SerialPortError};
 use crate::serial_core::signals::PlatformSignals;
@@ -9,7 +16,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-/// Serial port manager
+/// Thread-safe manager for discovering, opening, and tracking serial ports.
+///
+/// All operations are `async`-safe internally via `tokio::Mutex`.
+/// The manager maintains a registry of open ports keyed by a unique ID
+/// (port name + UUID). When IoLoop mode is enabled, a background task
+/// is spawned for each opened port to continuously read incoming data.
 #[derive(Clone)]
 pub struct PortManager {
     ports: Arc<Mutex<HashMap<String, Arc<Mutex<SerialPortHandle>>>>>,
@@ -23,7 +35,7 @@ impl Default for PortManager {
 }
 
 impl PortManager {
-    /// Create a new port manager
+    /// Create a new port manager with IoLoop disabled by default.
     pub fn new() -> Self {
         Self {
             ports: Arc::new(Mutex::new(HashMap::new())),
@@ -31,7 +43,10 @@ impl PortManager {
         }
     }
 
-    /// Create a new port manager with IoLoop enabled
+    /// Create a new port manager with IoLoop enabled.
+    ///
+    /// When IoLoop is active, every port opened via [`open_port`](Self::open_port)
+    /// will have a background task that continuously reads incoming data.
     pub fn with_ioloop() -> Self {
         Self {
             ports: Arc::new(Mutex::new(HashMap::new())),
@@ -39,19 +54,32 @@ impl PortManager {
         }
     }
 
-    /// Enable or disable IoLoop mode
+    /// Enable or disable IoLoop mode.
+    ///
+    /// Changes affect only ports opened after this call. Already-open
+    /// ports retain their original IoLoop state.
     pub async fn set_ioloop_enabled(&self, enabled: bool) {
         let mut ioloop = self.io_loop_enabled.lock().await;
         *ioloop = enabled;
     }
 
-    /// Check if IoLoop is enabled
+    /// Check if IoLoop mode is currently enabled.
     pub async fn is_ioloop_enabled(&self) -> bool {
         *self.io_loop_enabled.lock().await
     }
 }
 
-/// Serial port handle
+/// RAII handle for an open serial port.
+///
+/// Provides read/write access, signal control (DTR/RTS), and optional
+/// protocol association. The underlying OS file descriptor is held by
+/// the boxed [`serialport::SerialPort`] trait object.
+///
+/// # Platform notes
+///
+/// On Unix, DTR/RTS signals are controlled via `ioctl` on the raw file
+/// descriptor. On Windows, signal control is not available and methods
+/// return [`SignalState::NotSupported`](crate::serial_core::signals::SignalState::NotSupported).
 pub struct SerialPortHandle {
     name: String,
     port: Box<dyn serialport::SerialPort>,
@@ -63,32 +91,51 @@ pub struct SerialPortHandle {
     signal_controller: crate::serial_core::signals::UnixSignalController,
 }
 
-/// Serial port configuration
+/// Serial port configuration parameters.
+///
+/// All fields map directly to standard RS-232 settings.
+/// Defaults to 115200 baud, 8 data bits, 1 stop bit, no parity, no flow control.
 #[derive(Debug, Clone)]
 pub struct SerialConfig {
+    /// Baud rate (bits per second). Common values: 9600, 19200, 38400, 57600, 115200.
     pub baudrate: u32,
+    /// Number of data bits per frame. Valid range: 5–8.
     pub databits: u8,
+    /// Number of stop bits. Valid values: 1 or 2.
     pub stopbits: u8,
+    /// Parity checking mode. See [`Parity`] for options.
     pub parity: Parity,
+    /// Read timeout in milliseconds. `0` means non-blocking.
     pub timeout_ms: u64,
+    /// Hardware/software flow control mode. See [`FlowControl`].
     pub flow_control: FlowControl,
+    /// Assert DTR (Data Terminal Ready) signal on port open.
     pub dtr_enable: bool,
+    /// Assert RTS (Request To Send) signal on port open.
     pub rts_enable: bool,
 }
 
-/// Flow control setting
+/// Flow control mechanism for serial communication.
+///
+/// Flow control prevents buffer overflow when the receiver cannot keep up.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FlowControl {
+    /// No flow control. Data is sent continuously regardless of receiver state.
     None,
+    /// Software flow control using XON/XOFF characters (Ctrl-Q / Ctrl-S).
     Software,
+    /// Hardware flow control using RTS/CTS signal lines.
     Hardware,
 }
 
-/// Parity setting
+/// Parity checking mode for error detection.
 #[derive(Debug, Clone, Copy)]
 pub enum Parity {
+    /// No parity bit. No single-bit error detection.
     None,
+    /// Odd parity — the parity bit ensures an odd number of 1-bits in the frame.
     Odd,
+    /// Even parity — the parity bit ensures an even number of 1-bits in the frame.
     Even,
 }
 
@@ -108,7 +155,14 @@ impl Default for SerialConfig {
 }
 
 impl PortManager {
-    /// List available serial ports
+    /// Enumerate all serial ports available on the system.
+    ///
+    /// Returns a list of [`SerialPortInfo`] with port name, type, and
+    /// platform-specific metadata (friendly name on Windows).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the platform's enumeration API fails.
     pub fn list_ports(&self) -> Result<Vec<SerialPortInfo>> {
         tokio_serial::available_ports()
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
@@ -144,7 +198,23 @@ impl PortManager {
             })
     }
 
-    /// Open a serial port
+    /// Open a serial port with the given configuration.
+    ///
+    /// On Unix, opens the TTY device and sets DTR/RTS via `ioctl`.
+    /// If IoLoop is enabled, spawns a background read task.
+    /// Returns a unique port ID (`<name>-<uuid>`) for later reference.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Port device path (e.g., `/dev/ttyUSB0`, `COM1`)
+    /// * `config` - Serial port settings
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] with [`PortNotFound`](SerialPortError::PortNotFound),
+    /// [`PermissionDenied`](SerialPortError::PermissionDeniedWithHelp),
+    /// [`PortBusy`](SerialPortError::PortBusyWithHelp), or
+    /// [`IoError`](SerialPortError::IoError) depending on the underlying OS error.
     pub async fn open_port(&self, name: &str, config: SerialConfig) -> Result<String> {
         let ports_guard = self.ports.lock().await;
         if ports_guard.contains_key(name) {
@@ -288,7 +358,12 @@ impl PortManager {
         Ok(port_id)
     }
 
-    /// Close a serial port
+    /// Close a serial port by its unique ID and remove it from the registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] with [`PortNotFound`](SerialPortError::PortNotFound)
+    /// if the port ID does not exist in the registry.
     pub async fn close_port(&self, port_id: &str) -> Result<()> {
         let mut ports_guard = self.ports.lock().await;
         ports_guard.remove(port_id).ok_or_else(|| {
@@ -297,7 +372,12 @@ impl PortManager {
         Ok(())
     }
 
-    /// Get a port handle by ID
+    /// Retrieve the [`SerialPortHandle`] for a given port ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] with [`PortNotFound`](SerialPortError::PortNotFound)
+    /// if the port ID is not registered.
     pub async fn get_port(&self, port_id: &str) -> Result<Arc<Mutex<SerialPortHandle>>> {
         let ports_guard = self.ports.lock().await;
         ports_guard
@@ -306,7 +386,11 @@ impl PortManager {
             .ok_or_else(|| SerialError::Serial(SerialPortError::PortNotFound(port_id.to_string())))
     }
 
-    /// Set protocol for a port
+    /// Associate a protocol name with an open port.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
     pub async fn set_port_protocol(
         &self,
         port_id: &str,
@@ -318,14 +402,23 @@ impl PortManager {
         Ok(())
     }
 
-    /// Get protocol for a port
+    /// Get the protocol name associated with a port.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
     pub async fn get_port_protocol(&self, port_id: &str) -> Result<Option<String>> {
         let port_handle = self.get_port(port_id).await?;
         let handle = port_handle.lock().await;
         Ok(handle.protocol().map(|s| s.to_string()))
     }
 
-    /// Set DTR signal for a port
+    /// Set the DTR (Data Terminal Ready) signal for a port.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port is not found or the
+    /// platform does not support DTR control.
     pub async fn set_dtr(&self, port_id: &str, enable: bool) -> Result<()> {
         let port_handle = self.get_port(port_id).await?;
         let mut handle = port_handle.lock().await;
@@ -333,7 +426,12 @@ impl PortManager {
         Ok(())
     }
 
-    /// Set RTS signal for a port
+    /// Set the RTS (Request To Send) signal for a port.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port is not found or the
+    /// platform does not support RTS control.
     pub async fn set_rts(&self, port_id: &str, enable: bool) -> Result<()> {
         let port_handle = self.get_port(port_id).await?;
         let mut handle = port_handle.lock().await;
@@ -341,14 +439,22 @@ impl PortManager {
         Ok(())
     }
 
-    /// Get DTR state for a port
+    /// Get the current DTR signal state for a port.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
     pub async fn get_dtr(&self, port_id: &str) -> Result<bool> {
         let port_handle = self.get_port(port_id).await?;
         let handle = port_handle.lock().await;
         Ok(handle.dtr_enabled())
     }
 
-    /// Get RTS state for a port
+    /// Get the current RTS signal state for a port.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
     pub async fn get_rts(&self, port_id: &str) -> Result<bool> {
         let port_handle = self.get_port(port_id).await?;
         let handle = port_handle.lock().await;
@@ -413,27 +519,32 @@ fn map_serial_error(e: serialport::Error, name: &str) -> SerialError {
 }
 
 impl SerialPortHandle {
-    /// Get port name
+    /// Get the port device name (e.g., `/dev/ttyUSB0`).
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Get port configuration
+    /// Get the port's active [`SerialConfig`].
     pub fn config(&self) -> &SerialConfig {
         &self.config
     }
 
-    /// Get the protocol attached to this port
+    /// Get the protocol name associated with this port, if one has been set.
     pub fn protocol(&self) -> Option<&str> {
         self.protocol.as_deref()
     }
 
-    /// Set the protocol for this port
+    /// Set or clear the protocol association for this port.
     pub fn set_protocol(&mut self, protocol_name: Option<String>) {
         self.protocol = protocol_name;
     }
 
-    /// Set DTR signal state
+    /// Set the DTR signal state. Reverts on platform control failure to keep
+    /// in-memory state consistent with the actual hardware state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the platform signal control fails.
     pub fn set_dtr(&mut self, enable: bool) -> Result<()> {
         if enable != self.dtr_state {
             let old_state = self.dtr_state;
@@ -471,7 +582,11 @@ impl SerialPortHandle {
         Ok(())
     }
 
-    /// Set RTS signal state
+    /// Set the RTS signal state. Reverts on platform control failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the platform signal control fails.
     pub fn set_rts(&mut self, enable: bool) -> Result<()> {
         if enable != self.rts_state {
             let old_state = self.rts_state;
@@ -509,47 +624,68 @@ impl SerialPortHandle {
         Ok(())
     }
 
-    /// Get current DTR state
+    /// Check whether DTR is currently asserted.
     pub fn dtr_enabled(&self) -> bool {
         self.dtr_state
     }
 
-    /// Get current RTS state
+    /// Check whether RTS is currently asserted.
     pub fn rts_enabled(&self) -> bool {
         self.rts_state
     }
 
-    /// Write data to the port
+    /// Write raw bytes to the serial port. Returns the number of bytes written.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] with [`IoError`](SerialPortError::IoError)
+    /// if the underlying write fails.
     pub fn write(&mut self, data: &[u8]) -> Result<usize> {
         self.port
             .write(data)
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
     }
 
-    /// Read data from the port
+    /// Read bytes from the serial port into the provided buffer.
+    /// Returns the number of bytes actually read. Respects the configured timeout.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] with [`IoError`](SerialPortError::IoError)
+    /// if the read fails (e.g., timeout, disconnected).
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.port
             .read(buf)
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
     }
 
-    /// Close the port
+    /// Close the port, consuming `self`. This is a no-op since the port
+    /// is dropped when the handle goes out of scope.
     pub fn close(self) -> Result<()> {
         Ok(())
     }
 }
 
-/// Serial port information
+/// Metadata about an enumerated serial port.
+///
+/// Fields are platform-dependent — on Windows, `com_number` and `friendly_name`
+/// are populated automatically from the device manager.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SerialPortInfo {
+    /// Device path (e.g., `/dev/ttyUSB0`, `COM1`).
     pub port_name: String,
+    /// Port type as reported by the OS (`Usb`, `Pci`, `Bluetooth`, etc.).
     pub port_type: String,
+    /// Human-readable device name from the OS device manager (Windows only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub friendly_name: Option<String>,
+    /// Hardware identifier string (not yet populated).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hardware_id: Option<String>,
+    /// Device manufacturer string (not yet populated).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manufacturer: Option<String>,
+    /// COM port number extracted from the name (e.g., `COM3` → `3`). Windows only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub com_number: Option<u32>,
 }

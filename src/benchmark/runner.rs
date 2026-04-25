@@ -35,14 +35,23 @@ where
     })?
 }
 
-/// Benchmark runner
+/// Configurable benchmark runner that executes benchmark functions with
+/// warmup and measurement phases.
+///
+/// # Default configuration
+///
+/// - Warmup iterations: 10
+/// - Measurement iterations: 100 (override with [`with_iterations`](Self::with_iterations))
 pub struct BenchmarkRunner {
+    /// Number of warmup iterations before measurement (not timed).
     warmup_iterations: u64,
+    /// Number of iterations to measure for timing.
     measurement_iterations: u64,
 }
 
 impl BenchmarkRunner {
     /// Create a new benchmark runner with default settings
+    /// (10 warmup, 100 measurement iterations).
     pub fn new() -> Self {
         Self {
             warmup_iterations: 10,
@@ -50,19 +59,29 @@ impl BenchmarkRunner {
         }
     }
 
-    /// Set warmup iterations
+    /// Set the number of warmup iterations (discarded, not measured).
     pub fn with_warmup(mut self, iterations: u64) -> Self {
         self.warmup_iterations = iterations;
         self
     }
 
-    /// Set measurement iterations
+    /// Set the number of measured iterations.
     pub fn with_iterations(mut self, iterations: u64) -> Self {
         self.measurement_iterations = iterations;
         self
     }
 
-    /// Run a benchmark function
+    /// Run a benchmark function and collect timing results.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` — human-readable name for the result
+    /// * `category` — the benchmark category
+    /// * `bench_fn` — closure executed `measurement_iterations` times
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error returned by `bench_fn`.
     pub fn run<F>(
         &self,
         name: String,
@@ -100,7 +119,10 @@ impl BenchmarkRunner {
         Ok(result)
     }
 
-    /// Run a throughput benchmark (bytes processed)
+    /// Run a throughput benchmark that tracks bytes processed.
+    ///
+    /// The `bytes_per_iteration` parameter is used to compute throughput
+    /// in bytes per second via [`BenchmarkResult::throughput_bytes_per_sec`].
     pub fn run_throughput<F>(
         &self,
         name: String,

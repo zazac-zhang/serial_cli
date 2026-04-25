@@ -1,4 +1,7 @@
 //! Sniff command handler
+//!
+//! Handles `serial-cli sniff start|stop|stats|save`.
+//! Spawns a background daemon process for continuous port monitoring.
 
 use std::time::Duration;
 
@@ -8,6 +11,18 @@ use crate::cli::sniff_session::{
 use crate::cli::types::SniffCommand;
 use crate::error::{Result, SerialError};
 
+/// Dispatch a [`SniffCommand`] to start, stop, show stats, or save captures.
+///
+/// The `Start` variant spawns a background daemon process that monitors the
+/// serial port. A session metadata file tracks the daemon PID for later
+/// `stop` and `stats` commands.
+///
+/// # Errors
+///
+/// Returns [`SerialError::Io`] if:
+/// - An active session is already running
+/// - Session metadata cannot be read or written
+/// - Captured data files cannot be accessed
 pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
     match cmd {
         SniffCommand::Start {
@@ -135,6 +150,7 @@ pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
     Ok(())
 }
 
+/// Format a [`Duration`] into a human-readable string (e.g., `30s`, `5m 12s`, `1h 30m`).
 fn format_duration(d: Duration) -> String {
     let secs = d.as_secs();
     if secs < 60 {

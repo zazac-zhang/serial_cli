@@ -1,9 +1,17 @@
 //! Config command handler
+//!
+//! Handles `serial-cli config show|set|save|reset`.
 
 use crate::cli::types::ConfigCommand;
 use crate::config::ConfigManager;
 use crate::error::Result;
 
+/// Dispatch a [`ConfigCommand`] to show, set, save, or reset configuration.
+///
+/// # Errors
+///
+/// Propagates errors from [`ConfigManager`] operations (validation failures,
+/// I/O errors, invalid key/value pairs).
 pub fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
     let config_manager = ConfigManager::load_with_fallback();
 

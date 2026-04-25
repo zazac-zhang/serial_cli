@@ -1,10 +1,14 @@
 //! Protocol command handler
+//!
+//! Handles listing, loading, unloading, validating, and hot-reloading
+//! custom protocol scripts.
 
 use crate::cli::types::ProtocolCommand;
 use crate::config::ConfigManager;
 use crate::error::{Result, SerialError};
 use std::path::Path;
 
+/// Built-in protocol name → description pairs.
 const BUILT_IN_PROTOCOLS: &[(&str, &str)] = &[
     (
         "modbus_rtu",
@@ -18,6 +22,12 @@ const BUILT_IN_PROTOCOLS: &[(&str, &str)] = &[
     ("line", "Line-based protocol (Text-based communication)"),
 ];
 
+/// Dispatch a [`ProtocolCommand`] to the appropriate handler.
+///
+/// # Errors
+///
+/// Propagates validation errors, config errors, and I/O errors from
+/// the underlying protocol operations.
 pub fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
     match cmd {
         ProtocolCommand::List { detailed } => list_protocols(detailed),

@@ -1,6 +1,7 @@
 //! Task queue
 //!
 //! This module provides a priority-based task queue for scheduling operations.
+//! Uses a `BinaryHeap` for O(log n) insertion and a `Semaphore` for concurrency limiting.
 
 use crate::error::{Result, SerialError};
 use crate::task::Task;
@@ -8,16 +9,27 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 
-/// Task priority
+/// Priority level for queued tasks.
+///
+/// Higher priority tasks are dequeued before lower priority ones.
+/// Within the same priority level, tasks are served in FIFO order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TaskPriority {
+    /// Lowest priority — background or non-urgent work.
     Low = 0,
+    /// Default priority for most tasks.
     Normal = 1,
+    /// Elevated priority — time-sensitive work.
     High = 2,
+    /// Highest priority — critical or blocking operations.
     Critical = 3,
 }
 
-/// Task queue
+/// A priority-based task queue with concurrency limiting.
+///
+/// Tasks are ordered by [`TaskPriority`] (highest first), with FIFO ordering
+/// within the same priority level. A semaphore limits the number of tasks
+/// that can execute concurrently.
 pub struct TaskQueue {
     /// Priority queue of pending tasks
     queue: Arc<Mutex<BinaryHeap<TaskEntry>>>,
@@ -63,7 +75,7 @@ impl Ord for TaskEntry {
 }
 
 impl TaskQueue {
-    /// Create a new task queue
+    /// Create a new task queue with the given maximum concurrency limit.
     pub fn new(max_concurrent: usize) -> Self {
         Self {
             queue: Arc::new(Mutex::new(BinaryHeap::new())),
@@ -72,7 +84,10 @@ impl TaskQueue {
         }
     }
 
-    /// Add a task to the queue
+    /// Push a task onto the queue with the given priority.
+    ///
+    /// Tasks with higher priority are dequeued first. Within the same
+    /// priority, insertion order is preserved (FIFO).
     pub async fn push(&self, task: Task, priority: TaskPriority) -> Result<()> {
         let counter = self.order_counter();
 
@@ -89,25 +104,28 @@ impl TaskQueue {
         Ok(())
     }
 
-    /// Pop the next task from the queue
+    /// Remove and return the highest-priority task from the queue.
+    ///
+    /// Returns `None` if the queue is empty.
     pub async fn pop(&self) -> Option<Task> {
         let mut queue = self.queue.lock().await;
         queue.pop().map(|entry| entry.task)
     }
 
-    /// Get the number of pending tasks
+    /// Get the number of pending tasks in the queue.
     pub async fn len(&self) -> usize {
         let queue = self.queue.lock().await;
         queue.len()
     }
 
-    /// Check if the queue is empty
+    /// Returns `true` if the queue has no pending tasks.
     pub async fn is_empty(&self) -> bool {
         let queue = self.queue.lock().await;
         queue.is_empty()
     }
 
-    /// Acquire a permit for concurrent execution
+    /// Wait for and acquire a concurrency permit. The permit is released
+    /// when the returned `SemaphorePermit` is dropped.
     pub async fn acquire_permit(&self) -> Result<tokio::sync::SemaphorePermit<'_>> {
         self.semaphore
             .acquire()
@@ -115,7 +133,7 @@ impl TaskQueue {
             .map_err(|e| SerialError::Io(std::io::Error::other(e)))
     }
 
-    /// Get the maximum concurrent tasks
+    /// Get the configured maximum number of concurrent tasks.
     pub fn max_concurrent(&self) -> usize {
         self.max_concurrent
     }

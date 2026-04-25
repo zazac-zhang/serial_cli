@@ -1,6 +1,7 @@
 //! CLI argument definitions
 //!
-//! Top-level CLI parser and command routing.
+//! Top-level CLI parser ([`Cli`]) and command routing ([`Commands`]).
+//! All subcommand-specific types live in [`super::types`].
 
 use clap::{Parser, Subcommand};
 
@@ -8,87 +9,99 @@ use super::types::{
     BatchCommand, BenchmarkCommand, ConfigCommand, ProtocolCommand, SniffCommand, VirtualCommand,
 };
 
+/// Top-level CLI arguments for the serial-cli application.
+///
+/// Provides global flags (`--json`, `--verbose`) and a required subcommand.
+/// When no subcommand is specified, the application defaults to interactive shell mode.
 #[derive(Parser)]
 #[command(name = "serial-cli")]
 #[command(about = "A universal serial port CLI tool optimized for AI interaction", long_about = None)]
 pub struct Cli {
-    /// Enable JSON output
+    /// Enable JSON output for all commands.
+    ///
+    /// When set, command results are printed as formatted JSON
+    /// instead of human-readable text.
     #[arg(long, global = true)]
     pub json: bool,
 
-    /// Verbose mode
+    /// Enable verbose logging output (maps to `DEBUG` level).
     #[arg(short, long, global = true)]
     pub verbose: bool,
 
+    /// The subcommand to execute. Defaults to [`Commands::Interactive`] if `None`.
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
 
+/// All available subcommands for the serial-cli application.
+///
+/// Each variant maps to a distinct CLI action. Most subcommands delegate to
+/// a handler function in `src/cli/commands/`.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// List available serial ports
+    /// List available serial ports on the system.
     ListPorts,
 
-    /// Send data to a serial port
+    /// Send raw data to a serial port and optionally read the response.
     Send {
-        /// Port name (e.g., COM1, /dev/ttyUSB0)
+        /// Port name (e.g., `COM1`, `/dev/ttyUSB0`).
         #[arg(short, long)]
         port: String,
 
-        /// Data to send
+        /// Data to send (plain text).
         data: String,
     },
 
-    /// Interactive shell mode
+    /// Start an interactive REPL shell for serial communication.
     Interactive,
 
-    /// Run a Lua script
+    /// Execute a Lua script with optional arguments.
     Run {
-        /// Script file to run
+        /// Path to the `.lua` script file.
         script: String,
 
-        /// Arguments to pass to the script
+        /// Arguments passed to the Lua script.
         #[arg(value_name = "ARGS", trailing_var_arg = true)]
         args: Vec<String>,
     },
 
-    /// Protocol management commands
+    /// Protocol management (list, load, unload, validate protocols).
     Protocol {
         #[command(subcommand)]
         protocol_command: ProtocolCommand,
     },
 
-    /// Sniff/monitor serial port traffic
+    /// Sniff and monitor serial port traffic.
     Sniff {
         #[command(subcommand)]
         sniff_command: SniffCommand,
     },
 
-    /// Batch execution commands
+    /// Batch execution of scripts or batch files.
     Batch {
         #[command(subcommand)]
         batch_command: BatchCommand,
     },
 
-    /// Configuration management
+    /// Configuration management (show, set, save, reset).
     Config {
         #[command(subcommand)]
         config_command: ConfigCommand,
     },
 
-    /// Virtual serial port commands
+    /// Virtual serial port management (create, list, stop pairs).
     Virtual {
         #[command(subcommand)]
         virtual_command: VirtualCommand,
     },
 
-    /// Performance benchmarking
+    /// Performance benchmarking and comparison.
     Benchmark {
         #[command(subcommand)]
         benchmark_command: BenchmarkCommand,
     },
 
-    /// (Internal) Background sniff daemon — not for direct user invocation
+    /// (Internal) Background sniff daemon — not for direct user invocation.
     #[command(hide = true, name = "__sniff_daemon__")]
     SniffDaemon {
         #[arg(long)]

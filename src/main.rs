@@ -1,4 +1,21 @@
-//! Serial CLI - Main entry point
+//! Serial CLI — entry point
+//!
+//! This binary provides the `serial-cli` command-line interface for serial port
+//! communication. It parses CLI arguments, initializes logging and configuration,
+//! then dispatches to the appropriate command handler. When no subcommand is
+//! provided, it falls back to interactive shell mode.
+//!
+//! # Startup sequence
+//!
+//! 1. Parse CLI arguments via [`clap`]
+//! 2. Initialize logging (JSON or human-readable based on `--json` flag)
+//! 3. Load and validate TOML configuration (falls back to defaults on failure)
+//! 4. Dispatch to the matching command handler
+//!
+//! # Default behavior
+//!
+//! If no subcommand is given, the application enters interactive shell mode
+//! (equivalent to `serial-cli interactive`).
 
 use std::path::PathBuf;
 
@@ -13,6 +30,13 @@ use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::cli::sniff_session;
 use serial_cli::error::Result;
 
+/// Application entry point. Parses arguments, initializes subsystems, and
+/// dispatches to the requested command handler.
+///
+/// # Exit codes
+///
+/// Returns `Ok(())` on success. Any error is propagated through [`Result`]
+/// and printed by the runtime.
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();

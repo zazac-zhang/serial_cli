@@ -1,8 +1,19 @@
 //! Port listing and data sending commands
+//!
+//! Handlers for `serial-cli list-ports` and `serial-cli send`.
 
 use crate::error::Result;
 use crate::serial_core::{PortManager, SerialConfig};
 
+/// List all available serial ports and print them as JSON.
+///
+/// Uses the system's serial port enumeration to discover ports like
+/// `/dev/ttyUSB0` (Linux/macOS) or `COM1` (Windows).
+///
+/// # Errors
+///
+/// Returns an error if port enumeration fails (e.g., permission issues
+/// on the platform).
 pub fn list_ports() -> Result<()> {
     use serde_json::json;
 
@@ -24,6 +35,24 @@ pub fn list_ports() -> Result<()> {
     Ok(())
 }
 
+/// Open a serial port, send the provided data, and attempt to read a response.
+///
+/// Uses [`SerialConfig::default()`] for port settings (115200 baud, 8N1).
+/// After writing, waits 100ms then reads up to 1024 bytes of response data.
+/// The port is closed after the operation regardless of success or failure.
+///
+/// # Arguments
+///
+/// * `port` - Port name (e.g., `/dev/ttyUSB0`, `COM1`)
+/// * `data` - Plain text data to send
+///
+/// # Errors
+///
+/// Returns an error when:
+/// - The port does not exist or cannot be opened
+/// - Permission is denied
+/// - The port is busy
+/// - Write or read fails at the OS level
 pub async fn send_data(port: &str, data: &str) -> Result<()> {
     use std::thread;
     use std::time::Duration;
