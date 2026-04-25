@@ -31,6 +31,8 @@ pub struct BackendStats {
     pub bytes_read: u64,
     /// Total bytes written
     pub bytes_written: u64,
+    /// Bridge errors encountered
+    pub bridge_errors: u64,
     /// Uptime in seconds
     pub uptime_seconds: u64,
 }

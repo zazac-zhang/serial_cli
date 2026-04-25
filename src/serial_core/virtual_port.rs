@@ -125,9 +125,11 @@ impl VirtualSerialPair {
         // Create the pair and start the bridge
         let (port_a, port_b, error_rx, stats) = backend.create_pair().await?;
 
+        // Resolve the actual backend type from the instantiated backend
+        let backend_type = backend.backend_type().parse().unwrap_or(config.backend);
+
         let id = uuid::Uuid::new_v4().to_string();
         let created_at = SystemTime::now();
-        let backend_type = config.backend;
 
         tracing::info!(
             "Created virtual pair: A={}, B={}, ID={}, backend={}",
@@ -144,7 +146,7 @@ impl VirtualSerialPair {
             while let Some(error) = error_rx.recv().await {
                 tracing::error!("Bridge error: {}", error);
                 let mut s = stats_clone.lock().await;
-                s.uptime_seconds += 0; // placeholder — errors tracked in stats if needed
+                s.bridge_errors += 1;
             }
         });
 
@@ -194,8 +196,8 @@ impl VirtualSerialPair {
             running: self.is_running(),
             uptime_secs: uptime,
             bytes_bridged: bridge_stats.bytes_read,
-            packets_bridged: bridge_stats.bytes_read, // one packet = one read in current impl
-            bridge_errors: 0,                         // tracked separately if needed
+            packets_bridged: 0, // not tracked per-backend; requires packet-level instrumentation
+            bridge_errors: bridge_stats.bridge_errors,
             last_error: None,
             capture_packets: 0,
             capture_bytes: 0,

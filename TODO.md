@@ -91,16 +91,16 @@ Port type changed from `Box<dyn tokio_serial::SerialPort>` to `Box<dyn serialpor
 - Replaced text-format save with `serde_json::to_string_pretty`
 - Replaced custom parser with `serde_json::from_str`
 
-### 8. NamedPipe Backend — Handle Leak
-**Status**: 🔴 Not Started
+### 8. NamedPipe Backend — Handle Leak + Missing Bridge
+**Status**: ✅ Fixed
 **Priority**: P1
 **Files**: `src/serial_core/backends/named_pipe.rs`
 
-Named pipe handles are "intentionally leaked" — not stored for cleanup. `cleanup()` does nothing. `is_healthy()` only checks a bool flag.
-
-- [ ] Store handles properly for cleanup
-- [ ] Implement real health check
-- [ ] Implement proper resource cleanup on drop
+- [x] Store all pipe handles (server_a, server_b, client_a, client_b) in struct fields
+- [x] Implement bidirectional relay via blocking ReadFile/WriteFile in spawn_blocking threads
+- [x] Real health check: `is_healthy()` checks if relay task is still running
+- [x] Proper cleanup: `CloseHandle()` on all handles + shutdown event signal + relay wait
+- [x] Byte tracking: relay updates `bytes_read`/`bytes_written` in `BackendStats`
 
 ---
 
@@ -177,11 +177,11 @@ Named pipe handles are "intentionally leaked" — not stored for cleanup. `clean
 | Category | Total | Completed | Partial | TODO |
 |----------|-------|-----------|---------|------|
 | P0 - Critical | 3 | 3 | 0 | 0 |
-| P1 - Important | 5 | 4 | 0 | 1 |
+| P1 - Important | 5 | 5 | 0 | 0 |
 | P2 - Future | 4 | 4 | 0 | 0 |
-| **Total** | **12** | **11** | **0** | **1** |
+| **Total** | **12** | **12** | **0** | **0** |
 
-**Overall Progress**: 🚧 ~96% complete, 1 remaining functional gap
+**Overall Progress**: 🎉 100% complete, all functional gaps closed
 
 ---
 
@@ -197,7 +197,7 @@ Named pipe handles are "intentionally leaked" — not stored for cleanup. `clean
 2. ✅ Wire NamedPipe/Socat backends into VirtualSerialPair (unified via BackendFactory + VirtualBackend trait)
 3. ✅ Fix benchmark virtual port (real PTY instead of sleep)
 4. ✅ Implement JSON serialization for benchmark save/load
-5. ~~Fix NamedPipe handle leak~~ — deferred (Windows-only, low impact)
+5. ✅ Fix NamedPipe handle leak, bridge, health check, cleanup
 
 ### Phase 3 (P2 - Optimization)
 1. Memory usage benchmarks

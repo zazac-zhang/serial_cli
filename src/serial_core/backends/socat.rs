@@ -11,7 +11,10 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::{mpsc, Mutex};
 
-/// Socat backend implementation
+/// Socat backend implementation.
+///
+/// Note: Socat handles bridging internally — `bytes_read`/`bytes_written`
+/// in `get_stats()` are always 0. Only `uptime_seconds` is meaningful.
 pub struct SocatBackend {
     /// Socat child process
     process: Option<tokio::process::Child>,
